@@ -25,11 +25,24 @@ async function main() {
   console.log("  User:", user1.address);
   console.log("  Rewards Admin:", rewardsAdmin.address);
 
-  // NOTE: Replace these with your actual deployed addresses
-  // You can get them from the deployment script output
-  const USDC_ADDRESS = process.env.USDC_ADDRESS || "0x...";
-  const YIELD_VAULT_ADDRESS = process.env.YIELD_VAULT_ADDRESS || "0x...";
-  const STAKING_VAULT_ADDRESS = process.env.STAKING_VAULT_ADDRESS || "0x...";
+  // NOTE: You must set these environment variables or deploy contracts first
+  // Run: npx hardhat run scripts/deploy.ts --network localhost
+  // Then set the addresses in your .env file
+  const USDC_ADDRESS = process.env.USDC_ADDRESS;
+  const YIELD_VAULT_ADDRESS = process.env.YIELD_VAULT_ADDRESS;
+  const STAKING_VAULT_ADDRESS = process.env.STAKING_VAULT_ADDRESS;
+
+  if (!USDC_ADDRESS || !YIELD_VAULT_ADDRESS || !STAKING_VAULT_ADDRESS) {
+    console.error("\n❌ ERROR: Contract addresses not set!");
+    console.error("\nPlease either:");
+    console.error("1. Run the deployment script first:");
+    console.error("   npx hardhat run scripts/deploy.ts --network localhost");
+    console.error("\n2. Set these environment variables in your .env file:");
+    console.error("   USDC_ADDRESS=0x...");
+    console.error("   YIELD_VAULT_ADDRESS=0x...");
+    console.error("   STAKING_VAULT_ADDRESS=0x...\n");
+    process.exit(1);
+  }
 
   // Get contract instances
   const usdc = await ethers.getContractAt("MockUSDC", USDC_ADDRESS);
@@ -86,25 +99,10 @@ async function main() {
 
   console.log("\n--- Step 4: Distribute Rewards to Stakers ---");
 
-  // Mint wYLDS to rewards admin
-  await usdc.mint(rewardsAdmin.address, ethers.parseUnits("1000", 6));
-  await usdc.connect(rewardsAdmin).approve(
-    await yieldVault.getAddress(),
-    ethers.parseUnits("1000", 6)
-  );
-  await yieldVault.connect(rewardsAdmin).deposit(
-    ethers.parseUnits("1000", 6),
-    rewardsAdmin.address
-  );
-
-  // Distribute rewards
+  // Distribute rewards (mints wYLDS to StakingVault)
   const rewardAmount = ethers.parseUnits("300", 6); // 300 wYLDS rewards
-  await yieldVault.connect(rewardsAdmin).approve(
-    await stakingVault.getAddress(),
-    rewardAmount
-  );
   await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
-  console.log("Distributed", ethers.formatUnits(rewardAmount, 6), "wYLDS as rewards");
+  console.log("Distributed", ethers.formatUnits(rewardAmount, 6), "wYLDS as rewards (minted)");
 
   // Check new value
   primeValue = await stakingVault.convertToAssets(primeBalance);
