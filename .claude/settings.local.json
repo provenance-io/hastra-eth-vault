@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(yarn compile:*)",
+      "Bash(npx hardhat:*)",
+      "Bash(yarn add:*)",
+      "Bash(npm test:*)",
+      "Bash(yarn test:*)",
+      "Bash(./node_modules/.bin/hardhat compile:*)"
+    ]
+  }
+}

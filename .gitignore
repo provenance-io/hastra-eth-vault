@@ -1,0 +1,62 @@
+# Hardhat
+node_modules
+artifacts
+cache
+coverage
+coverage.json
+typechain-types
+dist
+
+# Hardhat ignores
+.openzeppelin
+
+# Environment
+.env
+.env.local
+.env.production
+.env.test
+
+# Deployment info
+deployment.json
+deployments/
+
+# Distribution files (contain proofs for specific addresses)
+distributions/
+
+# Logs
+*.log
+yarn-debug.log*
+yarn-error.log*
+
+# Dependency lock files (keep yarn.lock, ignore others)
+package-lock.json
+npm-shrinkwrap.json
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.nyc_output
+
+# Gas reports
+gas-report.txt
+
+# Build
+build/
+dist/
+
+# Misc
+*.tsbuildinfo
