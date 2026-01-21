@@ -10,10 +10,20 @@ import {ethers} from "hardhat";
  * 4. Setup roles and permissions
  */
 async function main() {
-  const [deployer, redeemVault, freezeAdmin, rewardsAdmin] = await ethers.getSigners();
+  const [deployer, ...otherSigners] = await ethers.getSigners();
+  
+  // Use env vars if specified, then dedicated signers if available, otherwise fallback to deployer
+  const redeemVaultAddress = process.env.REDEEM_VAULT_ADDRESS ?? otherSigners[0]?.address ?? deployer.address;
+  const freezeAdminAddress = process.env.FREEZE_ADMIN_ADDRESS ?? otherSigners[1]?.address ?? deployer.address;
+  const rewardsAdminAddress = process.env.REWARDS_ADMIN_ADDRESS ?? otherSigners[2]?.address ?? deployer.address;
 
   console.log("Deploying contracts with account:", deployer.address);
   console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
+  
+  console.log("\nRole Addresses:");
+  console.log("  Redeem Vault:", redeemVaultAddress);
+  console.log("  Freeze Admin:", freezeAdminAddress);
+  console.log("  Rewards Admin:", rewardsAdminAddress);
 
   // ============ Deploy USDC (or use existing) ============
   
@@ -33,7 +43,8 @@ async function main() {
     console.log("MockUSDC deployed to:", usdcAddress);
     
     // Mint some USDC for testing
-    await usdc.mint(deployer.address, ethers.parseUnits("1000000", 6)); // 1M USDC
+    const mintTx = await usdc.mint(deployer.address, ethers.parseUnits("1000000", 6)); // 1M USDC
+    await mintTx.wait();
     console.log("Minted 1,000,000 USDC to deployer");
   }
 
@@ -46,7 +57,7 @@ async function main() {
     "Wrapped YLDS",
     "wYLDS",
     deployer.address, // admin
-    redeemVault.address // redeem vault address
+    redeemVaultAddress // redeem vault address
   );
   await yieldVault.waitForDeployment();
   const yieldVaultAddress = await yieldVault.getAddress();
@@ -76,16 +87,19 @@ async function main() {
 
   // Grant freeze admin role
   const FREEZE_ADMIN_ROLE = await yieldVault.FREEZE_ADMIN_ROLE();
-  await yieldVault.grantRole(FREEZE_ADMIN_ROLE, freezeAdmin.address);
-  console.log("Granted FREEZE_ADMIN_ROLE to:", freezeAdmin.address);
+  const tx1 = await yieldVault.grantRole(FREEZE_ADMIN_ROLE, freezeAdminAddress);
+  await tx1.wait();
+  console.log("Granted FREEZE_ADMIN_ROLE to:", freezeAdminAddress);
 
   // Grant rewards admin role to rewardsAdmin
   const REWARDS_ADMIN_ROLE = await yieldVault.REWARDS_ADMIN_ROLE();
-  await yieldVault.grantRole(REWARDS_ADMIN_ROLE, rewardsAdmin.address);
-  console.log("Granted REWARDS_ADMIN_ROLE to:", rewardsAdmin.address);
+  const tx2 = await yieldVault.grantRole(REWARDS_ADMIN_ROLE, rewardsAdminAddress);
+  await tx2.wait();
+  console.log("Granted REWARDS_ADMIN_ROLE to:", rewardsAdminAddress);
 
   // Grant rewards admin role to StakingVault so it can mint wYLDS
-  await yieldVault.grantRole(REWARDS_ADMIN_ROLE, stakingVaultAddress);
+  const tx3 = await yieldVault.grantRole(REWARDS_ADMIN_ROLE, stakingVaultAddress);
+  await tx3.wait();
   console.log("Granted REWARDS_ADMIN_ROLE to StakingVault:", stakingVaultAddress);
 
   // ============ Setup Roles for StakingVault ============
@@ -94,29 +108,60 @@ async function main() {
   
   // Grant freeze admin role
   const STAKING_FREEZE_ADMIN_ROLE = await stakingVault.FREEZE_ADMIN_ROLE();
-  await stakingVault.grantRole(STAKING_FREEZE_ADMIN_ROLE, freezeAdmin.address);
-  console.log("Granted FREEZE_ADMIN_ROLE to:", freezeAdmin.address);
+  const tx4 = await stakingVault.grantRole(STAKING_FREEZE_ADMIN_ROLE, freezeAdminAddress);
+  await tx4.wait();
+  console.log("Granted FREEZE_ADMIN_ROLE to:", freezeAdminAddress);
   
   // Grant rewards admin role
   const STAKING_REWARDS_ADMIN_ROLE = await stakingVault.REWARDS_ADMIN_ROLE();
-  await stakingVault.grantRole(STAKING_REWARDS_ADMIN_ROLE, rewardsAdmin.address);
-  console.log("Granted REWARDS_ADMIN_ROLE to:", rewardsAdmin.address);
+  const tx5 = await stakingVault.grantRole(STAKING_REWARDS_ADMIN_ROLE, rewardsAdminAddress);
+  await tx5.wait();
+  console.log("Granted REWARDS_ADMIN_ROLE to:", rewardsAdminAddress);
 
   // ============ Setup Approvals ============
   
   console.log("\nSetting up approvals...");
   
-  // Redeem vault needs to approve YieldVault to pull USDC for redemptions
-  const usdc = await ethers.getContractAt("MockUSDC", usdcAddress);
-  const maxApproval = ethers.MaxUint256;
+  const network = await ethers.provider.getNetwork();
+  const isMainnet = network.chainId === 1n;
   
-  // Transfer some USDC to redeem vault for testing
-  await usdc.transfer(redeemVault.address, ethers.parseUnits("100000", 6));
-  console.log("Transferred 100,000 USDC to redeem vault");
-  
-  // Redeem vault approves YieldVault
-  await usdc.connect(redeemVault).approve(yieldVaultAddress, maxApproval);
-  console.log("Redeem vault approved YieldVault for USDC");
+  if (!process.env.USDC_ADDRESS) {
+    // Using MockUSDC - can mint and transfer freely
+    const usdc = await ethers.getContractAt("MockUSDC", usdcAddress);
+    const maxApproval = ethers.MaxUint256;
+    
+    // Transfer some USDC to redeem vault for testing (skip if deployer is redeemVault)
+    if (redeemVaultAddress !== deployer.address) {
+      const tx6 = await usdc.transfer(redeemVaultAddress, ethers.parseUnits("100000", 6));
+      await tx6.wait();
+      console.log("Transferred 100,000 USDC to redeem vault");
+    }
+    
+    // Deployer approves YieldVault for USDC
+    const tx7 = await usdc.approve(yieldVaultAddress, maxApproval);
+    await tx7.wait();
+    console.log("Deployer approved YieldVault for USDC");
+  } else if (isMainnet) {
+    // Mainnet with existing USDC - do approvals
+    console.log("Using existing USDC at:", usdcAddress);
+    const usdc = await ethers.getContractAt("IERC20", usdcAddress);
+    const maxApproval = ethers.MaxUint256;
+    
+    const balance = await usdc.balanceOf(deployer.address);
+    console.log("Deployer USDC balance:", ethers.formatUnits(balance, 6));
+    
+    if (balance > 0n) {
+      const tx7 = await usdc.approve(yieldVaultAddress, maxApproval);
+      await tx7.wait();
+      console.log("Deployer approved YieldVault for USDC");
+    } else {
+      console.log("No USDC balance - skipping approval");
+    }
+  } else {
+    // Testnet with existing USDC - skip approvals
+    console.log("Using existing USDC at:", usdcAddress);
+    console.log("Testnet detected - skipping automatic approvals");
+  }
 
   // ============ Deployment Summary ============
   
@@ -128,9 +173,9 @@ async function main() {
   console.log("StakingVault (PRIME):", stakingVaultAddress);
   console.log("\nRole Addresses:");
   console.log("  Admin:", deployer.address);
-  console.log("  Redeem Vault:", redeemVault.address);
-  console.log("  Freeze Admin:", freezeAdmin.address);
-  console.log("  Rewards Admin:", rewardsAdmin.address);
+  console.log("  Redeem Vault:", redeemVaultAddress);
+  console.log("  Freeze Admin:", freezeAdminAddress);
+  console.log("  Rewards Admin:", rewardsAdminAddress);
   console.log("\nConfiguration:");
   console.log("  Unbonding Period:", unbondingPeriod, "seconds");
   console.log("========================================");
@@ -148,9 +193,9 @@ async function main() {
     },
     roles: {
       admin: deployer.address,
-      redeemVault: redeemVault.address,
-      freezeAdmin: freezeAdmin.address,
-      rewardsAdmin: rewardsAdmin.address,
+      redeemVault: redeemVaultAddress,
+      freezeAdmin: freezeAdminAddress,
+      rewardsAdmin: rewardsAdminAddress,
     },
     config: {
       unbondingPeriod,

@@ -30,7 +30,7 @@ const config: HardhatUserConfig = {
     hoodi: {
       url: process.env.HOODI_RPC_URL || "https://rpc.hoodi.tech",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 20240801,
+      chainId: 560048,
     },
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL || "",

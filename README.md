@@ -97,6 +97,11 @@ ETHERSCAN_API_KEY=your_etherscan_api_key
 # Optional: Use existing USDC (mainnet only)
 USDC_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 
+# Optional: Custom admin role addresses (defaults to deployer if not set)
+REDEEM_VAULT_ADDRESS=0x...
+FREEZE_ADMIN_ADDRESS=0x...
+REWARDS_ADMIN_ADDRESS=0x...
+
 # Gas reporting
 REPORT_GAS=true
 COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
@@ -138,6 +143,13 @@ yarn node
 yarn deploy:local
 ```
 
+### Testnet (Hoodi)
+
+```bash
+# Deploy to Hoodi testnet
+yarn deploy:hoodi
+```
+
 ### Testnet (Sepolia)
 
 ```bash
@@ -146,6 +158,27 @@ yarn deploy:sepolia
 
 # Verify contracts on Etherscan
 npx hardhat verify --network sepolia <CONTRACT_ADDRESS> <CONSTRUCTOR_ARGS>
+```
+
+### Admin Role Configuration
+
+By default, the deployer address is used for all admin roles. To use different addresses, set these environment variables before deployment:
+
+| Environment Variable | Role | Description |
+|---------------------|------|-------------|
+| `REDEEM_VAULT_ADDRESS` | Redeem Vault | Address that holds USDC for redemptions |
+| `FREEZE_ADMIN_ADDRESS` | Freeze Admin | Can freeze/thaw user accounts |
+| `REWARDS_ADMIN_ADDRESS` | Rewards Admin | Can distribute rewards and update merkle roots |
+
+Example:
+```bash
+# Set custom admin addresses (optional)
+export REDEEM_VAULT_ADDRESS=0x1234...
+export FREEZE_ADMIN_ADDRESS=0x5678...
+export REWARDS_ADMIN_ADDRESS=0x9abc...
+
+# Then deploy
+yarn deploy:hoodi
 ```
 
 ### Mainnet
@@ -380,3 +413,21 @@ For questions and support:
 - OpenZeppelin for battle-tested contract libraries
 - Solana Hastra Vault for the original implementation
 - ERC-4626 standard authors
+
+## Post-Deployment Scripts
+
+### Approve USDC for YieldVault
+
+After deploying with an existing USDC contract (testnet), you need to approve the YieldVault to spend your USDC before depositing.
+
+1. Add the YieldVault address to your `.env`:
+   ```bash
+   YIELD_VAULT_ADDRESS=0x...  # From deployment output
+   ```
+
+2. Run the approval script:
+   ```bash
+   npx hardhat run scripts/approve-usdc.ts --network hoodi
+   ```
+
+This grants the YieldVault unlimited approval to spend your USDC for deposits.
