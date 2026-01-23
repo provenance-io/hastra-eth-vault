@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -165,6 +166,32 @@ contract StakingVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentran
         nonReentrant
         returns (uint256 shares)
     {
+        return super.deposit(assets, receiver);
+    }
+    
+    /**
+     * @notice Deposit with permit - one transaction approval + deposit
+     * @dev Uses EIP-2612 permit to approve and deposit in a single transaction
+     * @param assets Amount of wYLDS to deposit
+     * @param receiver Address to receive PRIME shares
+     * @param deadline Permit signature deadline
+     * @param v Signature v component
+     * @param r Signature r component
+     * @param s Signature s component
+     * @return shares Amount of PRIME shares minted
+     */
+    function depositWithPermit(
+        uint256 assets,
+        address receiver,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external whenNotPaused nonReentrant returns (uint256 shares) {
+        // Call permit on the underlying asset (wYLDS supports EIP-2612)
+        IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s);
+        
+        // Perform the deposit
         return super.deposit(assets, receiver);
     }
     

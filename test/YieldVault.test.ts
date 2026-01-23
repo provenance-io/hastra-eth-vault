@@ -8,7 +8,7 @@ describe("YieldVault", function () {
   // ============ Fixtures ============
   
   async function deployYieldVaultFixture() {
-    const [owner, redeemVault, freezeAdmin, rewardsAdmin, user1, user2, user3] = 
+    const [owner, redeemVault, freezeAdmin, rewardsAdmin, whitelistAdmin, withdrawalAdmin, user1, user2, user3] = 
       await ethers.getSigners();
 
     // Deploy MockUSDC
@@ -30,9 +30,13 @@ describe("YieldVault", function () {
     // Setup roles
     const FREEZE_ADMIN_ROLE = await vault.FREEZE_ADMIN_ROLE();
     const REWARDS_ADMIN_ROLE = await vault.REWARDS_ADMIN_ROLE();
+    const WHITELIST_ADMIN_ROLE = await vault.WHITELIST_ADMIN_ROLE();
+    const WITHDRAWAL_ADMIN_ROLE = await vault.WITHDRAWAL_ADMIN_ROLE();
     
     await vault.grantRole(FREEZE_ADMIN_ROLE, freezeAdmin.address);
     await vault.grantRole(REWARDS_ADMIN_ROLE, rewardsAdmin.address);
+    await vault.grantRole(WHITELIST_ADMIN_ROLE, whitelistAdmin.address);
+    await vault.grantRole(WITHDRAWAL_ADMIN_ROLE, withdrawalAdmin.address);
 
     // Mint USDC to users
     const mintAmount = ethers.parseUnits("100000", 6); // 100k USDC
@@ -47,7 +51,7 @@ describe("YieldVault", function () {
     await usdc.connect(user3).approve(await vault.getAddress(), ethers.MaxUint256);
     await usdc.connect(redeemVault).approve(await vault.getAddress(), ethers.MaxUint256);
 
-    return { vault, usdc, owner, redeemVault, freezeAdmin, rewardsAdmin, user1, user2, user3 };
+    return { vault, usdc, owner, redeemVault, freezeAdmin, rewardsAdmin, whitelistAdmin, withdrawalAdmin, user1, user2, user3 };
   }
 
   // ============ Deployment Tests ============
@@ -508,6 +512,134 @@ describe("YieldVault", function () {
       
       const shares = await vault.balanceOf(user1.address);
       expect(shares).to.be.greaterThan(0);
+    });
+  });
+
+  // ============ Whitelist Functionality Tests ============
+
+  describe("Whitelist Functionality", function () {
+    it("Should add address to whitelist", async function () {
+      const { vault, whitelistAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      await expect(vault.connect(whitelistAdmin).addToWhitelist(user1.address))
+        .to.emit(vault, "AddressWhitelisted")
+        .withArgs(user1.address);
+        
+      expect(await vault.isWhitelisted(user1.address)).to.be.true;
+    });
+
+    it("Should remove address from whitelist", async function () {
+      const { vault, whitelistAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      await vault.connect(whitelistAdmin).addToWhitelist(user1.address);
+      
+      await expect(vault.connect(whitelistAdmin).removeFromWhitelist(user1.address))
+        .to.emit(vault, "AddressRemovedFromWhitelist")
+        .withArgs(user1.address);
+        
+      expect(await vault.isWhitelisted(user1.address)).to.be.false;
+    });
+
+    it("Should prevent non-admin from modifying whitelist", async function () {
+      const { vault, user1, user2 } = await loadFixture(deployYieldVaultFixture);
+      
+      await expect(
+        vault.connect(user1).addToWhitelist(user2.address)
+      ).to.be.reverted;
+      
+      await expect(
+        vault.connect(user1).removeFromWhitelist(user2.address)
+      ).to.be.reverted;
+    });
+
+    it("Should not allow duplicate whitelist entries", async function () {
+      const { vault, whitelistAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      await vault.connect(whitelistAdmin).addToWhitelist(user1.address);
+      
+      await expect(
+        vault.connect(whitelistAdmin).addToWhitelist(user1.address)
+      ).to.be.revertedWithCustomError(vault, "AddressAlreadyWhitelisted");
+    });
+    
+    it("Should correctly list whitelisted addresses", async function () {
+      const { vault, whitelistAdmin, user1, user2 } = await loadFixture(deployYieldVaultFixture);
+      
+      await vault.connect(whitelistAdmin).addToWhitelist(user1.address);
+      await vault.connect(whitelistAdmin).addToWhitelist(user2.address);
+      
+      const list = await vault.getWhitelistedAddresses();
+      expect(list.length).to.equal(2);
+      expect(list).to.include(user1.address);
+      expect(list).to.include(user2.address);
+    });
+  });
+
+  // ============ USDC Withdrawal Tests ============
+
+  describe("USDC Withdrawal", function () {
+    it("Should allow withdrawal to whitelisted address", async function () {
+      const { vault, usdc, withdrawalAdmin, whitelistAdmin, user1, user2 } = await loadFixture(deployYieldVaultFixture);
+      
+      // Deposit funds first
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await vault.connect(user1).deposit(depositAmount, user1.address);
+      
+      // Whitelist user2
+      await vault.connect(whitelistAdmin).addToWhitelist(user2.address);
+      
+      const withdrawAmount = ethers.parseUnits("500", 6);
+      const balanceBefore = await usdc.balanceOf(user2.address);
+      
+      await expect(vault.connect(withdrawalAdmin).withdrawUSDC(user2.address, withdrawAmount))
+        .to.emit(vault, "USDCWithdrawn")
+        .withArgs(user2.address, withdrawAmount, withdrawalAdmin.address);
+        
+      const balanceAfter = await usdc.balanceOf(user2.address);
+      expect(balanceAfter - balanceBefore).to.equal(withdrawAmount);
+    });
+
+    it("Should prevent withdrawal to non-whitelisted address", async function () {
+      const { vault, withdrawalAdmin, user1, user2 } = await loadFixture(deployYieldVaultFixture);
+      
+      // Deposit funds
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await vault.connect(user1).deposit(depositAmount, user1.address);
+      
+      const withdrawAmount = ethers.parseUnits("500", 6);
+      
+      await expect(
+        vault.connect(withdrawalAdmin).withdrawUSDC(user2.address, withdrawAmount)
+      ).to.be.revertedWithCustomError(vault, "AddressNotWhitelisted");
+    });
+
+    it("Should prevent non-admin from withdrawing", async function () {
+      const { vault, whitelistAdmin, user1, user2 } = await loadFixture(deployYieldVaultFixture);
+      
+      // Deposit funds
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await vault.connect(user1).deposit(depositAmount, user1.address);
+      
+      // Whitelist user2
+      await vault.connect(whitelistAdmin).addToWhitelist(user2.address);
+      
+      const withdrawAmount = ethers.parseUnits("500", 6);
+      
+      await expect(
+        vault.connect(user1).withdrawUSDC(user2.address, withdrawAmount)
+      ).to.be.reverted;
+    });
+
+    it("Should fail if vault has insufficient balance", async function () {
+      const { vault, withdrawalAdmin, whitelistAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      await vault.connect(whitelistAdmin).addToWhitelist(user1.address);
+      
+      const withdrawAmount = ethers.parseUnits("1000", 6);
+      
+      await expect(
+        vault.connect(withdrawalAdmin).withdrawUSDC(user1.address, withdrawAmount)
+      ).to.be.revertedWithCustomError(vault, "InsufficientVaultBalance");
     });
   });
 });

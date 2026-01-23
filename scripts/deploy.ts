@@ -16,6 +16,8 @@ async function main() {
   const redeemVaultAddress = process.env.REDEEM_VAULT_ADDRESS ?? otherSigners[0]?.address ?? deployer.address;
   const freezeAdminAddress = process.env.FREEZE_ADMIN_ADDRESS ?? otherSigners[1]?.address ?? deployer.address;
   const rewardsAdminAddress = process.env.REWARDS_ADMIN_ADDRESS ?? otherSigners[2]?.address ?? deployer.address;
+  const whitelistAdminAddress = process.env.WHITELIST_ADMIN_ADDRESS ?? otherSigners[3]?.address ?? deployer.address;
+  const withdrawalAdminAddress = process.env.WITHDRAWAL_ADMIN_ADDRESS ?? otherSigners[4]?.address ?? deployer.address;
 
   console.log("Deploying contracts with account:", deployer.address);
   console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
@@ -24,6 +26,8 @@ async function main() {
   console.log("  Redeem Vault:", redeemVaultAddress);
   console.log("  Freeze Admin:", freezeAdminAddress);
   console.log("  Rewards Admin:", rewardsAdminAddress);
+  console.log("  Whitelist Admin:", whitelistAdminAddress);
+  console.log("  Withdrawal Admin:", withdrawalAdminAddress);
 
   // ============ Deploy USDC (or use existing) ============
   
@@ -102,6 +106,18 @@ async function main() {
   await tx3.wait();
   console.log("Granted REWARDS_ADMIN_ROLE to StakingVault:", stakingVaultAddress);
 
+  // Grant whitelist admin role
+  const WHITELIST_ADMIN_ROLE = await yieldVault.WHITELIST_ADMIN_ROLE();
+  const txWh = await yieldVault.grantRole(WHITELIST_ADMIN_ROLE, whitelistAdminAddress);
+  await txWh.wait();
+  console.log("Granted WHITELIST_ADMIN_ROLE to:", whitelistAdminAddress);
+
+  // Grant withdrawal admin role
+  const WITHDRAWAL_ADMIN_ROLE = await yieldVault.WITHDRAWAL_ADMIN_ROLE();
+  const txWd = await yieldVault.grantRole(WITHDRAWAL_ADMIN_ROLE, withdrawalAdminAddress);
+  await txWd.wait();
+  console.log("Granted WITHDRAWAL_ADMIN_ROLE to:", withdrawalAdminAddress);
+
   // ============ Setup Roles for StakingVault ============
   
   console.log("\nSetting up StakingVault roles...");
@@ -176,6 +192,8 @@ async function main() {
   console.log("  Redeem Vault:", redeemVaultAddress);
   console.log("  Freeze Admin:", freezeAdminAddress);
   console.log("  Rewards Admin:", rewardsAdminAddress);
+  console.log("  Whitelist Admin:", whitelistAdminAddress);
+  console.log("  Withdrawal Admin:", withdrawalAdminAddress);
   console.log("\nConfiguration:");
   console.log("  Unbonding Period:", unbondingPeriod, "seconds");
   console.log("========================================");
@@ -196,6 +214,8 @@ async function main() {
       redeemVault: redeemVaultAddress,
       freezeAdmin: freezeAdminAddress,
       rewardsAdmin: rewardsAdminAddress,
+      whitelistAdmin: whitelistAdminAddress,
+      withdrawalAdmin: withdrawalAdminAddress,
     },
     config: {
       unbondingPeriod,
