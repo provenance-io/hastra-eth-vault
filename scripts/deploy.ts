@@ -1,4 +1,5 @@
 import {ethers} from "hardhat";
+import * as fs from "fs";
 
 /**
  * Deploy script for Hastra Vault Protocol
@@ -202,7 +203,7 @@ async function main() {
   
   const deploymentInfo = {
     network: (await ethers.provider.getNetwork()).name,
-    chainId: (await ethers.provider.getNetwork()).chainId,
+    chainId: (await ethers.provider.getNetwork()).chainId.toString(),
     timestamp: new Date().toISOString(),
     contracts: {
       usdc: usdcAddress,
@@ -224,8 +225,8 @@ async function main() {
 
   console.log("\nDeployment info saved to deployment.json");
   
-  // In a real deployment, you'd save this to a file
-  // await fs.writeFile("deployment.json", JSON.stringify(deploymentInfo, null, 2));
+  // Save deployment info to file
+  fs.writeFileSync("deployment.json", JSON.stringify(deploymentInfo, null, 2));
 
   return deploymentInfo;
 }
