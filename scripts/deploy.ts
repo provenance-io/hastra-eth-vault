@@ -93,7 +93,7 @@ async function main() {
   await stakingVault.waitForDeployment();
   const stakingVaultAddress = await stakingVault.getAddress();
   console.log("StakingVault deployed to:", stakingVaultAddress);
-  console.log("Unbonding period:", unbondingPeriod, "seconds (21 days)");
+  console.log("Unbonding period:", unbondingPeriod, "seconds");
 
   // ============ Setup Roles for YieldVault ============
 

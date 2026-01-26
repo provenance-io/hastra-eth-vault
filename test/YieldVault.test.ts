@@ -151,6 +151,175 @@ describe("YieldVault", function () {
     });
   });
 
+  // ============ Deposit With Permit Tests ============
+
+  describe("Deposit With Permit", function () {
+    async function signPermit(
+      token: any,
+      owner: any,
+      spender: string,
+      value: bigint,
+      deadline: number
+    ) {
+      const nonce = await token.nonces(owner.address);
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+      const name = await token.name();
+      
+      const domain = {
+        name: name,
+        version: "1",
+        chainId: chainId,
+        verifyingContract: await token.getAddress()
+      };
+      
+      const types = {
+        Permit: [
+          { name: "owner", type: "address" },
+          { name: "spender", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" }
+        ]
+      };
+      
+      const message = {
+        owner: owner.address,
+        spender: spender,
+        value: value,
+        nonce: nonce,
+        deadline: deadline
+      };
+      
+      const signature = await owner.signTypedData(domain, types, message);
+      const { v, r, s } = ethers.Signature.from(signature);
+      return { v, r, s };
+    }
+
+    it("Should allow deposit with valid permit", async function () {
+      const { vault, usdc, user1 } = await loadFixture(deployYieldVaultFixture);
+      const amount = ethers.parseUnits("1000", 6);
+      const deadline = (await time.latest()) + 3600;
+      
+      // Ensure user has tokens but NO allowance
+      await usdc.connect(user1).approve(await vault.getAddress(), 0);
+      
+      const { v, r, s } = await signPermit(
+        usdc,
+        user1,
+        await vault.getAddress(),
+        amount,
+        deadline
+      );
+      
+      await vault.connect(user1).depositWithPermit(
+        amount,
+        user1.address,
+        deadline,
+        v,
+        r,
+        s
+      );
+      
+      expect(await vault.balanceOf(user1.address)).to.equal(amount);
+    });
+
+    it("Should revert when paused", async function () {
+      const { vault, usdc, owner, user1 } = await loadFixture(deployYieldVaultFixture);
+      const amount = ethers.parseUnits("1000", 6);
+      const deadline = (await time.latest()) + 3600;
+      
+      const PAUSER_ROLE = await vault.PAUSER_ROLE();
+      await vault.grantRole(PAUSER_ROLE, owner.address);
+      await vault.pause();
+      
+      const { v, r, s } = await signPermit(
+        usdc,
+        user1,
+        await vault.getAddress(),
+        amount,
+        deadline
+      );
+      
+      await expect(
+        vault.connect(user1).depositWithPermit(amount, user1.address, deadline, v, r, s)
+      ).to.be.revertedWithCustomError(vault, "EnforcedPause");
+    });
+
+    it("Should revert when sender is frozen", async function () {
+      const { vault, usdc, freezeAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      const amount = ethers.parseUnits("1000", 6);
+      const deadline = (await time.latest()) + 3600;
+      
+      await vault.connect(freezeAdmin).freezeAccount(user1.address);
+      
+      const { v, r, s } = await signPermit(
+        usdc,
+        user1,
+        await vault.getAddress(),
+        amount,
+        deadline
+      );
+      
+      // ERC20Permit throws "ERC20InsufficientAllowance" if permit fails? No, permit itself reverts.
+      // But freeze check happens in _update, which is called during transferFrom (inside deposit).
+      // Wait, freeze logic is in YieldVault._update. Does deposit call that?
+      // Yes, minting shares calls _update(0, user1, shares).
+      // So if user1 is frozen, minting shares to them should fail.
+      
+      // However, permit might succeed (on USDC), but deposit (transferFrom USDC) might succeed,
+      // but _mint shares (YieldVault) will fail.
+      
+      await expect(
+        vault.connect(user1).depositWithPermit(amount, user1.address, deadline, v, r, s)
+      ).to.be.revertedWithCustomError(vault, "AccountIsFrozen");
+    });
+
+    it("Should revert with invalid signature", async function () {
+      const { vault, usdc, user1, user2 } = await loadFixture(deployYieldVaultFixture);
+      const amount = ethers.parseUnits("1000", 6);
+      const deadline = (await time.latest()) + 3600;
+      
+      // User1 signs, but User2 tries to use it? No, signature includes owner.
+      // If we pass wrong signer to permit?
+      // ERC20Permit.permit(owner, spender, value, deadline, v, r, s)
+      // The contract calls: IERC20Permit(asset()).permit(msg.sender, address(this), ...)
+      // So it enforces owner = msg.sender.
+      
+      // So if I sign with user2, but call with user1, the recovered address will be user2, 
+      // but permit expects msg.sender (user1).
+      
+      const { v, r, s } = await signPermit(
+        usdc,
+        user2, // Signed by user2
+        await vault.getAddress(),
+        amount,
+        deadline
+      );
+      
+      await expect(
+        vault.connect(user1).depositWithPermit(amount, user1.address, deadline, v, r, s)
+      ).to.be.revertedWithCustomError(usdc, "ERC2612InvalidSigner");
+    });
+
+    it("Should revert with expired deadline", async function () {
+      const { vault, usdc, user1 } = await loadFixture(deployYieldVaultFixture);
+      const amount = ethers.parseUnits("1000", 6);
+      const deadline = (await time.latest()) - 3600; // Expired
+      
+      const { v, r, s } = await signPermit(
+        usdc,
+        user1,
+        await vault.getAddress(),
+        amount,
+        deadline
+      );
+      
+      await expect(
+        vault.connect(user1).depositWithPermit(amount, user1.address, deadline, v, r, s)
+      ).to.be.revertedWithCustomError(usdc, "ERC2612ExpiredSignature");
+    });
+  });
+
   // ============ Two-Step Redemption Tests ============
 
   describe("Two-Step Redemption", function () {
