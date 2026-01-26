@@ -23,7 +23,8 @@ describe("YieldVault", function () {
       "Wrapped YLDS",
       "wYLDS",
       owner.address,
-      redeemVault.address
+      redeemVault.address,
+      ethers.ZeroAddress // No initial whitelist for default fixture
     );
     await vault.waitForDeployment();
 
@@ -71,6 +72,25 @@ describe("YieldVault", function () {
     it("Should set the correct redeem vault", async function () {
       const { vault, redeemVault } = await loadFixture(deployYieldVaultFixture);
       expect(await vault.redeemVault()).to.equal(redeemVault.address);
+    });
+
+    it("Should support setting initial whitelist in constructor", async function () {
+      const [owner, redeemVault, user1] = await ethers.getSigners();
+      const MockUSDC = await ethers.getContractFactory("MockUSDC");
+      const usdc = await MockUSDC.deploy();
+      
+      const YieldVault = await ethers.getContractFactory("YieldVault");
+      const vault = await YieldVault.deploy(
+        await usdc.getAddress(),
+        "Wrapped YLDS",
+        "wYLDS",
+        owner.address,
+        redeemVault.address,
+        user1.address // Pass user1 as initial whitelist
+      );
+      
+      expect(await vault.isWhitelisted(user1.address)).to.be.true;
+      expect(await vault.getWhitelistCount()).to.equal(1);
     });
 
     it("Should grant admin role", async function () {
@@ -529,15 +549,18 @@ describe("YieldVault", function () {
     });
 
     it("Should remove address from whitelist", async function () {
-      const { vault, whitelistAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      const { vault, whitelistAdmin, user1, user2 } = await loadFixture(deployYieldVaultFixture);
       
+      // Add two addresses so we can remove one without violating the "at least one" rule
       await vault.connect(whitelistAdmin).addToWhitelist(user1.address);
+      await vault.connect(whitelistAdmin).addToWhitelist(user2.address);
       
       await expect(vault.connect(whitelistAdmin).removeFromWhitelist(user1.address))
         .to.emit(vault, "AddressRemovedFromWhitelist")
         .withArgs(user1.address);
         
       expect(await vault.isWhitelisted(user1.address)).to.be.false;
+      expect(await vault.isWhitelisted(user2.address)).to.be.true;
     });
 
     it("Should prevent non-admin from modifying whitelist", async function () {
@@ -572,6 +595,27 @@ describe("YieldVault", function () {
       expect(list.length).to.equal(2);
       expect(list).to.include(user1.address);
       expect(list).to.include(user2.address);
+    });
+
+    it("Should prevent removing the last whitelisted address", async function () {
+      const { vault, whitelistAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      // Add one address
+      await vault.connect(whitelistAdmin).addToWhitelist(user1.address);
+      
+      // Try to remove it - should fail because it's the only one
+      await expect(
+        vault.connect(whitelistAdmin).removeFromWhitelist(user1.address)
+      ).to.be.revertedWithCustomError(vault, "CannotRemoveLastWhitelistedAddress");
+      
+      // Add another address
+      const [,,, ,, , , user2] = await ethers.getSigners();
+      await vault.connect(whitelistAdmin).addToWhitelist(user2.address);
+      
+      // Now removing user1 should succeed
+      await expect(vault.connect(whitelistAdmin).removeFromWhitelist(user1.address))
+        .to.emit(vault, "AddressRemovedFromWhitelist")
+        .withArgs(user1.address);
     });
   });
 

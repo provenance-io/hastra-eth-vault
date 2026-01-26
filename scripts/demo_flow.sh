@@ -3,6 +3,18 @@
 # Exit on error
 set -e
 
+# Default values
+UNBONDING_OVERRIDE=""
+
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --unbonding) UNBONDING_OVERRIDE="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
 echo "Starting Hastra Vault Protocol Demo Flow..."
 
 # 1. Deploy Contracts
@@ -10,6 +22,14 @@ echo ""
 echo "--------------------------------------------------"
 echo "STEP 1: Deploying Contracts"
 echo "--------------------------------------------------"
+# Set an initial whitelist address for demonstration
+export INITIAL_WHITELIST_ADDRESS="0x803AdF8d4F036134070Bde997f458502Ade2f834"
+
+if [ -n "$UNBONDING_OVERRIDE" ]; then
+    echo "Overriding unbonding period to $UNBONDING_OVERRIDE seconds"
+    export UNBONDING_PERIOD_SECONDS=$UNBONDING_OVERRIDE
+fi
+
 npx hardhat run scripts/deploy.ts --network hoodi
 
 # Check if deployment.json was created
@@ -19,9 +39,6 @@ if [ ! -f "deployment.json" ]; then
 fi
 
 # Read addresses from deployment.json
-# Using grep/sed/awk to avoid jq dependency if not present, though jq is better.
-# Assuming standard JSON formatting from JSON.stringify(..., null, 2)
-
 USDC_ADDRESS=$(grep -A 5 '"contracts":' deployment.json | grep '"usdc":' | cut -d '"' -f 4)
 YIELD_VAULT_ADDRESS=$(grep -A 5 '"contracts":' deployment.json | grep '"yieldVault":' | cut -d '"' -f 4)
 STAKING_VAULT_ADDRESS=$(grep -A 5 '"contracts":' deployment.json | grep '"stakingVault":' | cut -d '"' -f 4)
@@ -58,6 +75,13 @@ echo "--------------------------------------------------"
 export STAKING_VAULT_ADDRESS=$STAKING_VAULT_ADDRESS
 export STAKE_AMOUNT="2000"
 npx hardhat run scripts/stake-wylds.ts --network hoodi
+
+# 5. Unstake and Redeem (Verify Unbonding)
+echo ""
+echo "--------------------------------------------------"
+echo "STEP 5: Unstaking and Redeeming (Verification)"
+echo "--------------------------------------------------"
+npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"

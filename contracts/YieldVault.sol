@@ -163,6 +163,7 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     error AddressNotWhitelisted();
     error AddressAlreadyWhitelisted();
     error AddressNotInWhitelist();
+    error CannotRemoveLastWhitelistedAddress();
     
     // ============ Constructor ============
     
@@ -173,13 +174,15 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
      * @param symbol_ Symbol of the share token (e.g., "wYLDS")
      * @param admin_ Address of the default admin
      * @param redeemVault_ Address where redemptions are funded from
+     * @param initialWhitelist_ Optional address to whitelist immediately on deployment (can be address(0))
      */
     constructor(
         IERC20 asset_,
         string memory name_,
         string memory symbol_,
         address admin_,
-        address redeemVault_
+        address redeemVault_,
+        address initialWhitelist_
     ) 
         ERC4626(asset_)
         ERC20(name_, symbol_)
@@ -192,6 +195,12 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(PAUSER_ROLE, admin_);
         redeemVault = redeemVault_;
+
+        if (initialWhitelist_ != address(0)) {
+            whitelistedAddresses[initialWhitelist_] = true;
+            _whitelistArray.push(initialWhitelist_);
+            emit AddressWhitelisted(initialWhitelist_);
+        }
     }
     
     // ============ Deposit & Withdraw Overrides ============
@@ -535,6 +544,7 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
      */
     function removeFromWhitelist(address account) external onlyRole(WHITELIST_ADMIN_ROLE) {
         if (!whitelistedAddresses[account]) revert AddressNotInWhitelist();
+        if (_whitelistArray.length <= 1) revert CannotRemoveLastWhitelistedAddress();
         
         whitelistedAddresses[account] = false;
         

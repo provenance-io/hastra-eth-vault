@@ -7,126 +7,97 @@ import { ethers } from "hardhat";
  *   npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
  * 
  * Required env vars:
- *   USDC_ADDRESS - The USDC contract address
- *   YIELD_VAULT_ADDRESS - The YieldVault contract address
- *   STAKING_VAULT_ADDRESS - The StakingVault contract address
+ *   YIELD_VAULT_ADDRESS - The YieldVault contract address (wYLDS)
+ *   STAKING_VAULT_ADDRESS - The StakingVault contract address (PRIME)
  */
 async function main() {
-  const [user] = await ethers.getSigners();
+  const [staker] = await ethers.getSigners();
   
-  const usdcAddress = process.env.MOCK_USDC_ADDRESS;
   const yieldVaultAddress = process.env.YIELD_VAULT_ADDRESS;
   const stakingVaultAddress = process.env.STAKING_VAULT_ADDRESS;
   
-  if (!usdcAddress || !yieldVaultAddress || !stakingVaultAddress) {
-    throw new Error("Missing contract addresses in env");
+  if (!yieldVaultAddress || !stakingVaultAddress) {
+    throw new Error("Env vars YIELD_VAULT_ADDRESS and STAKING_VAULT_ADDRESS must be set");
   }
+
+  console.log("\nStarting Unstake & Redeem Flow...");
+  console.log("Staker:", staker.address);
   
-  const usdc = await ethers.getContractAt("MockUSDC", usdcAddress);
   const yieldVault = await ethers.getContractAt("YieldVault", yieldVaultAddress);
   const stakingVault = await ethers.getContractAt("StakingVault", stakingVaultAddress);
   
-  console.log("\n===========================================");
-  console.log("Unstake & Redeem Demo");
-  console.log("User:", user.address);
-  console.log("===========================================\n");
+  // 1. Check PRIME Balance
+  const primeBalance = await stakingVault.balanceOf(staker.address);
+  console.log("Current PRIME Balance:", ethers.formatUnits(primeBalance, 6));
+  
+  let positionIndex;
+  let unlockTime;
 
-  // ============ Part 1: Unbond PRIME ============ 
-  
-  const primeBalance = await stakingVault.balanceOf(user.address);
-  console.log("Current PRIME balance:", ethers.formatUnits(primeBalance, 6));
-  
   if (primeBalance > 0n) {
-    console.log(`\n--- Unbonding ${ethers.formatUnits(primeBalance, 6)} PRIME ---`);
+    // 2. Unbond
+    console.log("\nInitiating Unbonding...");
     const unbondTx = await stakingVault.unbond(primeBalance);
-    console.log("Unbond Transaction:", unbondTx.hash);
-    await unbondTx.wait();
+    console.log("Unbond Tx:", unbondTx.hash);
+    const receipt = await unbondTx.wait();
     
-    console.log("✅ Unbond initiated! (Assets locked for 21 days)");
-    
-    const positions = await stakingVault.getUnbondingPositions(user.address);
-    const lastPos = positions[positions.length - 1];
-    const unlockDate = new Date(Number(lastPos.unlockTime) * 1000);
-    console.log(`Unlock Time: ${unlockDate.toLocaleString()}`);
+    // Find event
+    const log = receipt?.logs.find(x => {
+      try { return stakingVault.interface.parseLog(x)?.name === "Unbonded" } catch(e) { return false }
+    });
+    const parsedLog = log ? stakingVault.interface.parseLog(log) : null;
+    positionIndex = parsedLog?.args[1];
+    unlockTime = parsedLog?.args[4];
   } else {
-    console.log("\nNo PRIME to unbond.");
-  }
-
-  // ============ Part 2: Redeem wYLDS ============ 
-  
-  const wyldsBalance = await yieldVault.balanceOf(user.address);
-  console.log(`\nCurrent wYLDS balance: ${ethers.formatUnits(wyldsBalance, 6)}`);
-  
-  if (wyldsBalance > 0n) {
-    console.log(`\n--- Requesting Redemption for ${ethers.formatUnits(wyldsBalance, 6)} wYLDS ---`);
-    
-    // Step A: Request Redeem
-    const requestTx = await yieldVault.requestRedeem(wyldsBalance);
-    console.log("Request Transaction:", requestTx.hash);
-    await requestTx.wait();
-    console.log("✅ Redemption Requested");
-    
-    // Check pending
-    const pending = await yieldVault.pendingRedemptions(user.address);
-    console.log(`Pending Assets: ${ethers.formatUnits(pending.assets, 6)} USDC`);
-    
-    // Step B: Complete Redeem (Admin Action)
-    // NOTE: In this script, 'user' is also the 'admin/redeemVault', so we can self-fulfill
-    
-    console.log("\n--- Completing Redemption (Admin Action) ---");
-    
-    // Ensure RedeemVault (user) has approved YieldVault to pull USDC
-    const allowance = await usdc.allowance(user.address, yieldVaultAddress);
-    if (allowance < pending.assets) {
-      console.log("Approving YieldVault to spend USDC from RedeemVault...");
-      const appTx = await usdc.approve(yieldVaultAddress, ethers.MaxUint256);
-      await appTx.wait();
+    console.log("No PRIME balance to unbond. Checking for existing positions...");
+    const positions = await stakingVault.getUnbondingPositions(staker.address);
+    if (positions.length === 0) {
+        throw new Error("No PRIME tokens and no unbonding positions found.");
     }
-    
-    const usdcBefore = await usdc.balanceOf(user.address);
-    
-    const completeTx = await yieldVault.completeRedeem(user.address);
-    console.log("Complete Transaction:", completeTx.hash);
-    await completeTx.wait();
-    
-    const usdcAfter = await usdc.balanceOf(user.address);
-    console.log("✅ Redemption Completed");
-    console.log(`Received: ${ethers.formatUnits(usdcAfter - usdcBefore, 6)} USDC`);
-  } else {
-    console.log("\nNo wYLDS to redeem.");
+    // Use the last position for demo purposes
+    positionIndex = positions.length - 1;
+    const position = positions[positionIndex];
+    unlockTime = position.unlockTime;
+    console.log(`Found existing position at index ${positionIndex}`);
   }
   
-  // ============ Part 3: Withdraw via Admin Whitelist (Optional Demo) ============ 
-  
-  // If the user meant "Withdraw from Treasury", we can demo that too if we have balance
-  // But the vault balance comes from deposits.
-  // 1. User deposited 1000 USDC. Vault has 1000 USDC.
-  // 2. User redeemed 500 wYLDS.
-  //    Wait, redemption pulls from RedeemVault (off-chain liquidity), NOT from the YieldVault contract itself.
-  //    The YieldVault contract keeps the user's original deposit (backing the shares).
-  //    So YieldVault should still have 1000 USDC.
-  
-  const vaultBalance = await usdc.balanceOf(yieldVaultAddress);
-  console.log(`\nYieldVault Contract Balance: ${ethers.formatUnits(vaultBalance, 6)} USDC`);
-  
-  // We can withdraw this to a whitelisted address
-  const WHITELISTED_ADDRESS = "0x803AdF8d4F036134070Bde997f458502Ade2f834";
-  const withdrawAmount = ethers.parseUnits("100", 6);
-  
-  if (vaultBalance >= withdrawAmount) {
-     console.log(`\n--- Admin Withdrawal to Whitelisted Address ---`);
-     console.log(`Target: ${WHITELISTED_ADDRESS}`);
-     console.log(`Amount: 100 USDC`);
-     
-     const withdrawTx = await yieldVault.withdrawUSDC(WHITELISTED_ADDRESS, withdrawAmount);
-     console.log("Withdraw Transaction:", withdrawTx.hash);
-     await withdrawTx.wait();
-     console.log("✅ Admin Withdrawal Successful");
+  console.log(`Unbonded! Position Index: ${positionIndex}`);
+  console.log(`Unlock Time: ${new Date(Number(unlockTime) * 1000).toISOString()}`);
+
+  // 3. Wait if reasonable
+  const unbondingPeriod = await stakingVault.UNBONDING_PERIOD();
+  console.log(`\nContract Unbonding Period: ${unbondingPeriod} seconds`);
+
+  if (unbondingPeriod > 60n) {
+    console.log("Unbonding period is > 60s. Skipping the automated wait and completion step.");
+    console.log("You will need to run completeUnbonding manually after the period expires.");
+    return;
   }
 
-  console.log("\n===========================================");
-  console.log("Demo Complete");
-  console.log("===========================================\n");
+  const waitTime = Number(unbondingPeriod) + 60; // wait unbonding + 60s to account for slow block cut times.
+  console.log(`Waiting for ${waitTime} seconds...`);
+  await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+  
+  // 4. Complete Unbonding
+  console.log("\nCompleting Unbonding...");
+  const wYLDSBalanceBefore = await yieldVault.balanceOf(staker.address);
+  
+  // Check if unlocked
+  const isUnlocked = await stakingVault.isUnbondingUnlocked(staker.address, positionIndex);
+  if (!isUnlocked) {
+    throw new Error("Position is still locked! Wait time might have been insufficient.");
+  }
+  
+  const completeTx = await stakingVault.completeUnbonding(positionIndex);
+  console.log("Complete Unbonding Tx:", completeTx.hash);
+  await completeTx.wait();
+  
+  // 5. Verify
+  const wYLDSBalanceAfter = await yieldVault.balanceOf(staker.address);
+  const received = wYLDSBalanceAfter - wYLDSBalanceBefore;
+  
+  console.log("\n✅ Unstake Successful!");
+  console.log("wYLDS Received:", ethers.formatUnits(received, 6));
+  console.log("Final wYLDS Balance:", ethers.formatUnits(wYLDSBalanceAfter, 6));
 }
 
 main()

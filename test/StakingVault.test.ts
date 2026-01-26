@@ -22,7 +22,8 @@ describe("StakingVault", function () {
       "Wrapped YLDS",
       "wYLDS",
       owner.address,
-      redeemVault.address
+      redeemVault.address,
+      ethers.ZeroAddress // No initial whitelist
     );
     await yieldVault.waitForDeployment();
 

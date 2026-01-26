@@ -56,13 +56,19 @@ async function main() {
   // ============ Deploy YieldVault (wYLDS) ============
   
   console.log("\nDeploying YieldVault...");
+  const initialWhitelistAddress = process.env.INITIAL_WHITELIST_ADDRESS || ethers.ZeroAddress;
+  if (initialWhitelistAddress !== ethers.ZeroAddress) {
+    console.log("Setting initial whitelist address:", initialWhitelistAddress);
+  }
+
   const YieldVault = await ethers.getContractFactory("YieldVault");
   const yieldVault = await YieldVault.deploy(
     usdcAddress,
     "Wrapped YLDS",
     "wYLDS",
     deployer.address, // admin
-    redeemVaultAddress // redeem vault address
+    redeemVaultAddress, // redeem vault address
+    initialWhitelistAddress // initial whitelist address
   );
   await yieldVault.waitForDeployment();
   const yieldVaultAddress = await yieldVault.getAddress();
@@ -71,7 +77,10 @@ async function main() {
   // ============ Deploy StakingVault (PRIME) ============
   
   console.log("\nDeploying StakingVault...");
-  const unbondingPeriod = 21 * 24 * 60 * 60; // 21 days in seconds
+  const unbondingPeriod = process.env.UNBONDING_PERIOD_SECONDS 
+    ? parseInt(process.env.UNBONDING_PERIOD_SECONDS) 
+    : 21 * 24 * 60 * 60; // Default 21 days
+    
   const StakingVault = await ethers.getContractFactory("StakingVault");
   const stakingVault = await StakingVault.deploy(
     yieldVaultAddress, // wYLDS as the staking asset
