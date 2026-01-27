@@ -778,8 +778,8 @@ describe("YieldVault", function () {
       ).to.be.revertedWithCustomError(vault, "CannotRemoveLastWhitelistedAddress");
       
       // Add another address
-      const [,,, ,, , , user2] = await ethers.getSigners();
-      await vault.connect(whitelistAdmin).addToWhitelist(user2.address);
+      const [,,, ,, , , additionalUser] = await ethers.getSigners();
+      await vault.connect(whitelistAdmin).addToWhitelist(additionalUser.address);
       
       // Now removing user1 should succeed
       await expect(vault.connect(whitelistAdmin).removeFromWhitelist(user1.address))
