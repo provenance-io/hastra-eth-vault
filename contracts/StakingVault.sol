@@ -190,10 +190,10 @@ contract StakingVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentran
         bytes32 r,
         bytes32 s
     ) external whenNotPaused nonReentrant returns (uint256 shares) {
-        // Call permit on the underlying asset (wYLDS supports EIP-2612)
+        // Use EIP-2612 permit to set allowance via signature, enabling a single-transaction deposit
         IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s);
         
-        // Perform the deposit
+        // Perform the deposit using the newly set allowance
         return super.deposit(assets, receiver);
     }
     

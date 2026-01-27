@@ -164,6 +164,7 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     error AddressAlreadyWhitelisted();
     error AddressNotInWhitelist();
     error CannotRemoveLastWhitelistedAddress();
+    error AddressNotFoundInWhitelistArray();
     
     // ============ Constructor ============
     
@@ -240,10 +241,10 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         bytes32 r,
         bytes32 s
     ) external whenNotPaused nonReentrant returns (uint256 shares) {
-        // Call permit on the underlying asset (USDC must support EIP-2612)
+        // Use EIP-2612 permit to set allowance via signature, enabling a single-transaction deposit
         IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s);
         
-        // Perform the deposit
+        // Perform the deposit using the newly set allowance
         return super.deposit(assets, receiver);
     }
     
@@ -548,14 +549,18 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         
         whitelistedAddresses[account] = false;
         
+        bool found = false;
         // Remove from array by finding and swapping with last element
         for (uint256 i = 0; i < _whitelistArray.length; i++) {
             if (_whitelistArray[i] == account) {
                 _whitelistArray[i] = _whitelistArray[_whitelistArray.length - 1];
                 _whitelistArray.pop();
+                found = true;
                 break;
             }
         }
+        
+        if (!found) revert AddressNotFoundInWhitelistArray();
         
         emit AddressRemovedFromWhitelist(account);
     }
