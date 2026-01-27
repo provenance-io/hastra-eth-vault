@@ -91,19 +91,20 @@ Both **YieldVault** and **StakingVault** use OpenZeppelin's `AccessControl` for 
 **Recommended Assignment:** Treasury operations (separate from whitelist management)
 
 **Granted at deployment:** ❌ No (must be granted separately)
-```
-  1. WHITELIST_ADMIN_ROLE (The "Gatekeeper")
-   * Responsibility: Manages the list of valid destination addresses.
-   * Capabilities: Can call addToWhitelist and removeFromWhitelist.
-   * Restriction: Cannot move funds. They can add an address to the list, but they cannot trigger the transfer itself.
-   * Analogy: Like a Compliance Officer who approves a list of verified vendors but has no access to the company bank account.
 
-  2. WITHDRAWAL_ADMIN_ROLE (The "Operator")
-   * Responsibility: Executes the actual transfer of USDC.
-   * Capabilities: Can call withdrawUSDC.
-   * Restriction: Can ONLY send to addresses on the whitelist. They cannot send funds to an arbitrary address (like their own personal wallet) unless that address was pre-approved by the Whitelist Admin.
-   * Analogy: Like a Treasurer who cuts the checks but is only allowed to pay vendors that Compliance has approved.
-```
+**Role Separation:**
+
+1. **WHITELIST_ADMIN_ROLE** (The "Gatekeeper")
+   * **Responsibility:** Manages the list of valid destination addresses.
+   * **Capabilities:** Can call `addToWhitelist()` and `removeFromWhitelist()`.
+   * **Restriction:** Cannot move funds. They can add an address to the list, but they cannot trigger the transfer itself.
+   * **Analogy:** Like a Compliance Officer who approves a list of verified vendors but has no access to the company bank account.
+
+2. **WITHDRAWAL_ADMIN_ROLE** (The "Operator")
+   * **Responsibility:** Executes the actual transfer of USDC.
+   * **Capabilities:** Can call `withdrawUSDC()`.
+   * **Restriction:** Can ONLY send to addresses on the whitelist. They cannot send funds to an arbitrary address (like their own personal wallet) unless that address was pre-approved by the Whitelist Admin.
+   * **Analogy:** Like a Treasurer who cuts the checks but is only allowed to pay vendors that Compliance has approved.
 
 ---
 
