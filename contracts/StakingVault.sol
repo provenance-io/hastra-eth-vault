@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @notice Interface for YieldVault to mint reward tokens
@@ -30,6 +31,7 @@ interface IYieldVault {
  *      - As rewards are added to the vault, share value increases
  */
 contract StakingVault is ERC4626, ERC20Permit, AccessControl, Pausable, ReentrancyGuard {
+    using Math for uint256;
     
     // ============ Roles ============
     
@@ -421,7 +423,29 @@ contract StakingVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentran
     function totalAssets() public view override returns (uint256) {
         return IERC20(asset()).balanceOf(address(this)) - totalUnbonding;
     }
-    
+
+    /**
+     * @notice Get total supply excluding locked unbonding shares
+     * @dev Used for pricing calculations to prevent dilution when unbonding
+     */
+    function _activeSupply() internal view returns (uint256) {
+        return totalSupply() - balanceOf(address(this));
+    }
+
+    /**
+     * @dev Internal conversion function using _activeSupply
+     */
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
+        return assets.mulDiv(_activeSupply() + 10**_decimalsOffset(), totalAssets() + 1, rounding);
+    }
+
+    /**
+     * @dev Internal conversion function using _activeSupply
+     */
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
+        return shares.mulDiv(totalAssets() + 1, _activeSupply() + 10**_decimalsOffset(), rounding);
+    }
+
     /**
      * @notice Get all unbonding positions for a user
      * @param user Address to query
