@@ -4,10 +4,12 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @notice Interface for YieldVault to mint reward tokens
@@ -29,6 +31,7 @@ interface IYieldVault {
  *      - As rewards are added to the vault, share value increases
  */
 contract StakingVault is ERC4626, ERC20Permit, AccessControl, Pausable, ReentrancyGuard {
+    using Math for uint256;
     
     // ============ Roles ============
     
@@ -165,6 +168,32 @@ contract StakingVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentran
         nonReentrant
         returns (uint256 shares)
     {
+        return super.deposit(assets, receiver);
+    }
+    
+    /**
+     * @notice Deposit with permit - one transaction approval + deposit
+     * @dev Uses EIP-2612 permit to approve and deposit in a single transaction
+     * @param assets Amount of wYLDS to deposit
+     * @param receiver Address to receive PRIME shares
+     * @param deadline Permit signature deadline
+     * @param v Signature v component
+     * @param r Signature r component
+     * @param s Signature s component
+     * @return shares Amount of PRIME shares minted
+     */
+    function depositWithPermit(
+        uint256 assets,
+        address receiver,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external whenNotPaused nonReentrant returns (uint256 shares) {
+        // Use EIP-2612 permit to set allowance via signature, enabling a single-transaction deposit
+        IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s);
+        
+        // Perform the deposit using the newly set allowance
         return super.deposit(assets, receiver);
     }
     
@@ -394,7 +423,29 @@ contract StakingVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentran
     function totalAssets() public view override returns (uint256) {
         return IERC20(asset()).balanceOf(address(this)) - totalUnbonding;
     }
-    
+
+    /**
+     * @notice Get total supply excluding locked unbonding shares
+     * @dev Used for pricing calculations to prevent dilution when unbonding
+     */
+    function _activeSupply() internal view returns (uint256) {
+        return totalSupply() - balanceOf(address(this));
+    }
+
+    /**
+     * @dev Internal conversion function using _activeSupply
+     */
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
+        return assets.mulDiv(_activeSupply() + 10**_decimalsOffset(), totalAssets() + 1, rounding);
+    }
+
+    /**
+     * @dev Internal conversion function using _activeSupply
+     */
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
+        return shares.mulDiv(totalAssets() + 1, _activeSupply() + 10**_decimalsOffset(), rounding);
+    }
+
     /**
      * @notice Get all unbonding positions for a user
      * @param user Address to query

@@ -22,7 +22,8 @@ describe("StakingVault", function () {
       "Wrapped YLDS",
       "wYLDS",
       owner.address,
-      redeemVault.address
+      redeemVault.address,
+      ethers.ZeroAddress // No initial whitelist
     );
     await yieldVault.waitForDeployment();
 
@@ -290,15 +291,15 @@ describe("StakingVault", function () {
 
       await stakingVault.connect(user1).unbond(unbond1Shares);
 
-      // After first unbond, totalAssets decreases, affecting conversion rate
-      // Second unbond will have different asset value due to changed ratio
+      // After first unbond, totalAssets decreases, but activeSupply also decreases
+      // Conversion rate should remain 1:1 (no dilution)
       await stakingVault.connect(user1).unbond(unbond2Shares);
 
       // Total unbonding should be the sum of assets locked from both unbonds
-      // First unbond: 500 shares = 500 assets (at 1:1 ratio)
-      // Second unbond: 300 shares = 225 assets (at 1500 totalAssets / 2000 totalSupply)
-      // Total = 500 + 225 = 725
-      const expectedTotal = ethers.parseUnits("725", 6);
+      // First unbond: 500 shares = 500 assets
+      // Second unbond: 300 shares = 300 assets (conversion rate maintained)
+      // Total = 500 + 300 = 800
+      const expectedTotal = ethers.parseUnits("800", 6);
       expect(await stakingVault.totalUnbonding()).to.be.closeTo(expectedTotal, 1);
     });
   });

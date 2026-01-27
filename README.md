@@ -10,7 +10,9 @@ The Hastra Ethereum Vault Protocol consists of two main contracts:
    - Two-step redemption process for off-chain liquidity management
    - Merkle tree-based epoch rewards distribution
    - Account freeze/thaw functionality for compliance
+   - Access control for admin operations
    - ERC-4626 compliant
+   - Whitelist for USDC withdrawals
 
 2. **StakingVault** - Stake wYLDS → Receive PRIME
    - Unbonding period mechanism (21 days default)

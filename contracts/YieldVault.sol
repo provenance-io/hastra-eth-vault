@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -34,6 +35,12 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     /// @notice Role for pausing the contract
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     
+    /// @notice Role for managing the withdrawal whitelist
+    bytes32 public constant WHITELIST_ADMIN_ROLE = keccak256("WHITELIST_ADMIN");
+    
+    /// @notice Role for withdrawing USDC to whitelisted addresses
+    bytes32 public constant WITHDRAWAL_ADMIN_ROLE = keccak256("WITHDRAWAL_ADMIN");
+    
     // ============ State Variables ============
     
     /// @notice Address where off-chain entity funds redemptions
@@ -54,6 +61,12 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     
     /// @notice Latest epoch index
     uint256 public currentEpochIndex;
+    
+    /// @notice Mapping of whitelisted addresses for USDC withdrawal
+    mapping(address => bool) public whitelistedAddresses;
+    
+    /// @notice Array to enumerate whitelisted addresses
+    address[] private _whitelistArray;
     
     // ============ Structs ============
     
@@ -126,6 +139,15 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     /// @notice Emitted when redeem vault address is updated
     event RedeemVaultUpdated(address indexed oldVault, address indexed newVault);
     
+    /// @notice Emitted when an address is added to the whitelist
+    event AddressWhitelisted(address indexed account);
+    
+    /// @notice Emitted when an address is removed from the whitelist
+    event AddressRemovedFromWhitelist(address indexed account);
+    
+    /// @notice Emitted when USDC is withdrawn to a whitelisted address
+    event USDCWithdrawn(address indexed to, uint256 amount, address indexed by);
+    
     // ============ Errors ============
 
     error AccountIsFrozen();
@@ -138,6 +160,11 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     error InvalidAmount();
     error InvalidAddress();
     error InsufficientVaultBalance();
+    error AddressNotWhitelisted();
+    error AddressAlreadyWhitelisted();
+    error AddressNotInWhitelist();
+    error CannotRemoveLastWhitelistedAddress();
+    error AddressNotFoundInWhitelistArray();
     
     // ============ Constructor ============
     
@@ -148,13 +175,15 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
      * @param symbol_ Symbol of the share token (e.g., "wYLDS")
      * @param admin_ Address of the default admin
      * @param redeemVault_ Address where redemptions are funded from
+     * @param initialWhitelist_ Optional address to whitelist immediately on deployment (can be address(0))
      */
     constructor(
         IERC20 asset_,
         string memory name_,
         string memory symbol_,
         address admin_,
-        address redeemVault_
+        address redeemVault_,
+        address initialWhitelist_
     ) 
         ERC4626(asset_)
         ERC20(name_, symbol_)
@@ -167,6 +196,12 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(PAUSER_ROLE, admin_);
         redeemVault = redeemVault_;
+
+        if (initialWhitelist_ != address(0)) {
+            whitelistedAddresses[initialWhitelist_] = true;
+            _whitelistArray.push(initialWhitelist_);
+            emit AddressWhitelisted(initialWhitelist_);
+        }
     }
     
     // ============ Deposit & Withdraw Overrides ============
@@ -184,6 +219,32 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         nonReentrant
         returns (uint256 shares)
     {
+        return super.deposit(assets, receiver);
+    }
+    
+    /**
+     * @notice Deposit with permit - one transaction approval + deposit
+     * @dev Uses EIP-2612 permit to approve and deposit in a single transaction
+     * @param assets Amount of assets to deposit
+     * @param receiver Address to receive shares
+     * @param deadline Permit signature deadline
+     * @param v Signature v component
+     * @param r Signature r component
+     * @param s Signature s component
+     * @return shares Amount of shares minted
+     */
+    function depositWithPermit(
+        uint256 assets,
+        address receiver,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external whenNotPaused nonReentrant returns (uint256 shares) {
+        // Use EIP-2612 permit to set allowance via signature, enabling a single-transaction deposit
+        IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s);
+        
+        // Perform the deposit using the newly set allowance
         return super.deposit(assets, receiver);
     }
     
@@ -460,6 +521,96 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
      */
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
+    }
+    
+    // ============ Whitelist Functions ============
+    
+    /**
+     * @notice Add an address to the USDC withdrawal whitelist
+     * @param account Address to whitelist
+     */
+    function addToWhitelist(address account) external onlyRole(WHITELIST_ADMIN_ROLE) {
+        if (account == address(0)) revert InvalidAddress();
+        if (whitelistedAddresses[account]) revert AddressAlreadyWhitelisted();
+        
+        whitelistedAddresses[account] = true;
+        _whitelistArray.push(account);
+        
+        emit AddressWhitelisted(account);
+    }
+    
+    /**
+     * @notice Remove an address from the USDC withdrawal whitelist
+     * @param account Address to remove from whitelist
+     */
+    function removeFromWhitelist(address account) external onlyRole(WHITELIST_ADMIN_ROLE) {
+        if (!whitelistedAddresses[account]) revert AddressNotInWhitelist();
+        if (_whitelistArray.length <= 1) revert CannotRemoveLastWhitelistedAddress();
+        
+        whitelistedAddresses[account] = false;
+        
+        bool found = false;
+        // Remove from array by finding and swapping with last element
+        for (uint256 i = 0; i < _whitelistArray.length; i++) {
+            if (_whitelistArray[i] == account) {
+                _whitelistArray[i] = _whitelistArray[_whitelistArray.length - 1];
+                _whitelistArray.pop();
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) revert AddressNotFoundInWhitelistArray();
+        
+        emit AddressRemovedFromWhitelist(account);
+    }
+    
+    /**
+     * @notice Withdraw USDC to a whitelisted address
+     * @dev Only WITHDRAWAL_ADMIN_ROLE can call this, and only to whitelisted addresses
+     * @param to Destination address (must be whitelisted)
+     * @param amount Amount of USDC to withdraw
+     */
+    function withdrawUSDC(address to, uint256 amount)
+        external
+        onlyRole(WITHDRAWAL_ADMIN_ROLE)
+        nonReentrant
+    {
+        if (to == address(0)) revert InvalidAddress();
+        if (amount == 0) revert InvalidAmount();
+        if (!whitelistedAddresses[to]) revert AddressNotWhitelisted();
+        
+        uint256 balance = IERC20(asset()).balanceOf(address(this));
+        if (balance < amount) revert InsufficientVaultBalance();
+        
+        SafeERC20.safeTransfer(IERC20(asset()), to, amount);
+        
+        emit USDCWithdrawn(to, amount, msg.sender);
+    }
+    
+    /**
+     * @notice Check if an address is whitelisted
+     * @param account Address to check
+     * @return True if address is whitelisted
+     */
+    function isWhitelisted(address account) external view returns (bool) {
+        return whitelistedAddresses[account];
+    }
+    
+    /**
+     * @notice Get all whitelisted addresses
+     * @return Array of whitelisted addresses
+     */
+    function getWhitelistedAddresses() external view returns (address[] memory) {
+        return _whitelistArray;
+    }
+    
+    /**
+     * @notice Get the number of whitelisted addresses
+     * @return Count of whitelisted addresses
+     */
+    function getWhitelistCount() external view returns (uint256) {
+        return _whitelistArray.length;
     }
     
     // ============ View Functions ============
