@@ -786,6 +786,14 @@ describe("YieldVault", function () {
         .to.emit(vault, "AddressRemovedFromWhitelist")
         .withArgs(user1.address);
     });
+
+    it("Should prevent adding address(0) to whitelist", async function () {
+      const { vault, whitelistAdmin } = await loadFixture(deployYieldVaultFixture);
+      
+      await expect(
+        vault.connect(whitelistAdmin).addToWhitelist(ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(vault, "InvalidAddress");
+    });
   });
 
   // ============ USDC Withdrawal Tests ============
@@ -853,6 +861,24 @@ describe("YieldVault", function () {
       await expect(
         vault.connect(withdrawalAdmin).withdrawUSDC(user1.address, withdrawAmount)
       ).to.be.revertedWithCustomError(vault, "InsufficientVaultBalance");
+    });
+
+    it("Should prevent withdrawal of 0 amount", async function () {
+      const { vault, withdrawalAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      await expect(
+        vault.connect(withdrawalAdmin).withdrawUSDC(user1.address, 0)
+      ).to.be.revertedWithCustomError(vault, "InvalidAmount");
+    });
+
+    it("Should prevent withdrawal to address(0)", async function () {
+      const { vault, withdrawalAdmin } = await loadFixture(deployYieldVaultFixture);
+      
+      const withdrawAmount = ethers.parseUnits("100", 6);
+      
+      await expect(
+        vault.connect(withdrawalAdmin).withdrawUSDC(ethers.ZeroAddress, withdrawAmount)
+      ).to.be.revertedWithCustomError(vault, "InvalidAddress");
     });
   });
 });
