@@ -113,6 +113,62 @@ async function main() {
   console.log("\n✅ Unstake Successful!");
   console.log("wYLDS Received:", ethers.formatUnits(received, 6));
   console.log("Final wYLDS Balance:", ethers.formatUnits(wYLDSBalanceAfter, 6));
+
+  // 6. Request Redeem (wYLDS -> USDC)
+  if (received > 0n) {
+    console.log("\n--- Starting Redemption Flow (wYLDS -> USDC) ---");
+    console.log("Requesting redemption for", ethers.formatUnits(received, 6), "wYLDS...");
+    
+    const requestTx = await yieldVault.requestRedeem(received);
+    console.log("Request Tx:", requestTx.hash);
+    await requestTx.wait();
+    console.log("Redemption requested.");
+  } else {
+    console.log("No wYLDS received, skipping redemption.");
+    return;
+  }
+
+  // 7. Complete Redeem (Admin Step)
+  // Check if we have the role
+  const REWARDS_ADMIN_ROLE = await yieldVault.REWARDS_ADMIN_ROLE();
+  const hasRole = await yieldVault.hasRole(REWARDS_ADMIN_ROLE, staker.address);
+  
+  if (hasRole) {
+    console.log("\nUser has REWARDS_ADMIN_ROLE. Attempting to complete redemption...");
+    
+    const redeemVaultAddr = await yieldVault.redeemVault();
+    console.log("Redeem Vault Address:", redeemVaultAddr);
+    
+    // Check if we are the redeem vault (or control it)
+    if (redeemVaultAddr.toLowerCase() === staker.address.toLowerCase()) {
+        const assetAddress = await yieldVault.asset();
+        const usdc = await ethers.getContractAt("IERC20", assetAddress); // Use generic IERC20
+        
+        // Check allowance
+        const allowance = await usdc.allowance(staker.address, yieldVaultAddress);
+        if (allowance < received) {
+            console.log("Approving YieldVault to spend USDC from RedeemVault...");
+            const approveTx = await usdc.approve(yieldVaultAddress, ethers.MaxUint256);
+            await approveTx.wait();
+            console.log("Approved.");
+        }
+        
+        // Complete
+        const completeRedeemTx = await yieldVault.completeRedeem(staker.address);
+        console.log("Complete Redeem Tx:", completeRedeemTx.hash);
+        await completeRedeemTx.wait();
+        
+        console.log("✅ Redemption Completed! USDC received.");
+    } else {
+        console.log("⚠️  Current user is Admin but NOT the RedeemVault address.");
+        console.log(`Please ensure ${redeemVaultAddr} has approved YieldVault and has sufficient USDC.`);
+        console.log("Then run completeRedeem manually.");
+    }
+  } else {
+    console.log("\n⚠️  User does NOT have REWARDS_ADMIN_ROLE.");
+    console.log("Cannot complete redemption automatically.");
+    console.log("An admin must call yieldVault.completeRedeem(userAddress).");
+  }
 }
 
 main()
