@@ -63,19 +63,34 @@ async function main() {
   console.log(`Unbonded! Position Index: ${positionIndex}`);
   console.log(`Unlock Time: ${new Date(Number(unlockTime) * 1000).toISOString()}`);
 
-  // 3. Wait if reasonable
+  // 3. Wait until unlocked
   const unbondingPeriod = await stakingVault.UNBONDING_PERIOD();
   console.log(`\nContract Unbonding Period: ${unbondingPeriod} seconds`);
 
-  if (unbondingPeriod > 60n) {
-    console.log("Unbonding period is > 60s. Skipping the automated wait and completion step.");
-    console.log("You will need to run completeUnbonding manually after the period expires.");
-    return;
+  console.log("\nWaiting for unbonding period to elapse...");
+  
+  while (true) {
+    const isUnlocked = await stakingVault.isUnbondingUnlocked(staker.address, positionIndex);
+    if (isUnlocked) {
+        console.log("Position is now UNLOCKED!");
+        break;
+    }
+    
+    // Calculate remaining time
+    const currentBlock = await ethers.provider.getBlock("latest");
+    const currentTime = currentBlock?.timestamp || Math.floor(Date.now() / 1000);
+    const remaining = Number(unlockTime) - currentTime;
+    
+    if (remaining > 0) {
+        console.log(`Still locked. Approximately ${remaining} seconds remaining...`);
+        // Wait 10s or the remaining time if it's shorter
+        const sleepTime = Math.min(remaining + 2, 10); 
+        await new Promise(resolve => setTimeout(resolve, sleepTime * 1000));
+    } else {
+        console.log("Time has passed, waiting for next block confirmation...");
+        await new Promise(resolve => setTimeout(resolve, 5000));
+    }
   }
-
-  const waitTime = Number(unbondingPeriod) + 60; // wait unbonding + 60s to account for slow block cut times.
-  console.log(`Waiting for ${waitTime} seconds...`);
-  await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
   
   // 4. Complete Unbonding
   console.log("\nCompleting Unbonding...");
