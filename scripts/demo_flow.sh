@@ -32,16 +32,21 @@ fi
 
 npx hardhat run scripts/deploy.ts --network hoodi
 
-# Check if deployment.json was created
-if [ ! -f "deployment.json" ]; then
-    echo "Error: deployment.json not found! Deployment failed?"
+# Check if deployment info file exists
+DEPLOYMENT_FILE=${DEPLOYMENT_FILE:-"deployment.json"}
+if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment_testnet.json" ]; then
+    DEPLOYMENT_FILE="deployment_testnet.json"
+fi
+
+if [ ! -f "$DEPLOYMENT_FILE" ]; then
+    echo "Error: Deployment file $DEPLOYMENT_FILE not found! Deployment failed?"
     exit 1
 fi
 
-# Read addresses from deployment.json
-USDC_ADDRESS=$(grep -A 5 '"contracts":' deployment.json | grep '"usdc":' | cut -d '"' -f 4)
-YIELD_VAULT_ADDRESS=$(grep -A 5 '"contracts":' deployment.json | grep '"yieldVault":' | cut -d '"' -f 4)
-STAKING_VAULT_ADDRESS=$(grep -A 5 '"contracts":' deployment.json | grep '"stakingVault":' | cut -d '"' -f 4)
+# Read addresses from deployment file
+USDC_ADDRESS=$(grep -A 5 '"contracts":' "$DEPLOYMENT_FILE" | grep '"usdc":' | cut -d '"' -f 4)
+YIELD_VAULT_ADDRESS=$(grep -A 5 '"contracts":' "$DEPLOYMENT_FILE" | grep '"yieldVault":' | cut -d '"' -f 4)
+STAKING_VAULT_ADDRESS=$(grep -A 5 '"contracts":' "$DEPLOYMENT_FILE" | grep '"stakingVault":' | cut -d '"' -f 4)
 
 echo ""
 echo "Captured Addresses:"

@@ -7,8 +7,21 @@ cd "$(dirname "$0")/.."
 TARGET="0xF4B35857A657eaFE095D1FCeB2bcAf09921E24DB"
 AMOUNT=${1:-1000000} # Default to 1M if no argument provided
 
+# Determine deployment file
+DEPLOYMENT_FILE=${DEPLOYMENT_FILE:-"deployment.json"}
+if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment_testnet.json" ]; then
+    DEPLOYMENT_FILE="deployment_testnet.json"
+fi
+
+if [ ! -f "$DEPLOYMENT_FILE" ]; then
+    echo "Error: Deployment file $DEPLOYMENT_FILE not found."
+    exit 1
+fi
+
+echo "Using deployment file: $DEPLOYMENT_FILE"
+
 # Get USDC address from deployment info
-USDC_ADDRESS=$(grep -A 5 '"contracts":' deployment.json | grep '"usdc":' | cut -d '"' -f 4)
+USDC_ADDRESS=$(grep -A 5 '"contracts":' "$DEPLOYMENT_FILE" | grep '"usdc":' | cut -d '"' -f 4)
 
 echo "Funding $TARGET with $AMOUNT USDC..."
 echo "Using USDC Contract: $USDC_ADDRESS"

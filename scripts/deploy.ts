@@ -210,8 +210,17 @@ async function main() {
 
   // ============ Save Deployment Info ============
   
+  const networkName = (await ethers.provider.getNetwork()).name;
+  // Default to deployment.json for local/mainnet (gitignored)
+  let filename = "deployment.json";
+  
+  // Check if network is a testnet
+  if (["sepolia", "hoodi", "goerli", "testnet"].includes(networkName)) {
+    filename = "deployment_testnet.json";
+  }
+
   const deploymentInfo = {
-    network: (await ethers.provider.getNetwork()).name,
+    network: networkName,
     chainId: (await ethers.provider.getNetwork()).chainId.toString(),
     timestamp: new Date().toISOString(),
     contracts: {
@@ -232,10 +241,10 @@ async function main() {
     },
   };
 
-  console.log("\nDeployment info saved to deployment.json");
+  console.log(`\nDeployment info saved to ${filename}`);
   
   // Save deployment info to file
-  fs.writeFileSync("deployment.json", JSON.stringify(deploymentInfo, null, 2));
+  fs.writeFileSync(filename, JSON.stringify(deploymentInfo, null, 2));
 
   return deploymentInfo;
 }
