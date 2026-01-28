@@ -630,6 +630,20 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     }
 
     /**
+     * @dev Internal conversion function override to ensure 1:1 ratio
+     */
+    function _convertToShares(uint256 assets, Math.Rounding /*rounding*/) internal view override returns (uint256) {
+        return assets;
+    }
+
+    /**
+     * @dev Internal conversion function override to ensure 1:1 ratio
+     */
+    function _convertToAssets(uint256 shares, Math.Rounding /*rounding*/) internal view override returns (uint256) {
+        return shares;
+    }
+
+    /**
      * @notice Override decimals to resolve ERC20/ERC4626 conflict
      */
     function decimals() public view override(ERC4626, ERC20) returns (uint8) {

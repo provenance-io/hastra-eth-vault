@@ -145,8 +145,90 @@ describe("YieldVault Ratio Checks", function () {
     const sharesMinted = balanceAfterSecondMint - balanceBeforeSecondMint;
     expect(sharesMinted).to.equal(secondMint, "Second mint should still be 1:1");
     
-    // Verify total state
     const expectedTotal = initialMint - redeemAmount + secondMint;
     expect(await yieldVault.balanceOf(userA.address)).to.equal(expectedTotal);
+  });
+
+  it("Should maintain 1:1 ratio even if extra assets are sent to vault", async function () {
+    const { yieldVault, usdc, userA, owner } = await loadFixture(deployFixture);
+    const amount = ethers.parseUnits("1000", 6);
+    const extraAmount = ethers.parseUnits("500", 6);
+
+    // 1. Initial Deposit
+    await usdc.mint(userA.address, amount);
+    await usdc.connect(userA).approve(await yieldVault.getAddress(), amount);
+    await yieldVault.connect(userA).deposit(amount, userA.address);
+    
+    // 2. Simulate "Yield" or accidental transfer by sending USDC directly to vault
+    await usdc.mint(owner.address, extraAmount);
+    await usdc.connect(owner).transfer(await yieldVault.getAddress(), extraAmount);
+    
+    // Verify totalAssets > totalSupply
+    expect(await yieldVault.totalAssets()).to.be.greaterThan(await yieldVault.totalSupply());
+
+    // 3. New deposit should still be 1:1
+    const depositAmount = ethers.parseUnits("100", 6);
+    await usdc.mint(userA.address, depositAmount);
+    await usdc.connect(userA).approve(await yieldVault.getAddress(), depositAmount);
+    
+    const balanceBefore = await yieldVault.balanceOf(userA.address);
+    await yieldVault.connect(userA).deposit(depositAmount, userA.address);
+    const balanceAfter = await yieldVault.balanceOf(userA.address);
+
+    expect(balanceAfter - balanceBefore).to.equal(depositAmount, "Ratio must remain 1:1 despite extra assets");
+  });
+
+  it("Should maintain 1:1 ratio with multiple users and interleaved actions", async function () {
+    const [owner, user1, user2, user3] = await ethers.getSigners();
+    // Setup fresh fixture manualy since we need more users
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const usdc = await MockUSDC.deploy();
+    const YieldVault = await ethers.getContractFactory("YieldVault");
+    const yieldVault = await YieldVault.deploy(await usdc.getAddress(), "wYLDS", "wYLDS", owner.address, owner.address, ethers.ZeroAddress);
+
+    const amount = ethers.parseUnits("1000", 6);
+    
+    // Fund users
+    for (const user of [user1, user2, user3]) {
+        await usdc.mint(user.address, amount * 10n);
+        await usdc.connect(user).approve(await yieldVault.getAddress(), ethers.MaxUint256);
+    }
+
+    // 1. User 1 deposits 1000
+    await yieldVault.connect(user1).deposit(amount, user1.address);
+    expect(await yieldVault.balanceOf(user1.address)).to.equal(amount);
+
+    // 2. User 2 deposits 500
+    await yieldVault.connect(user2).deposit(amount / 2n, user2.address);
+    expect(await yieldVault.balanceOf(user2.address)).to.equal(amount / 2n);
+
+    // 3. User 1 requests redeem 200
+    await yieldVault.connect(user1).requestRedeem(ethers.parseUnits("200", 6));
+    
+    // 4. User 3 deposits 2000
+    await yieldVault.connect(user3).deposit(amount * 2n, user3.address);
+    expect(await yieldVault.balanceOf(user3.address)).to.equal(amount * 2n);
+
+    // 5. Complete User 1 redeem (admin step)
+    const REWARDS_ADMIN_ROLE = await yieldVault.REWARDS_ADMIN_ROLE();
+    await yieldVault.grantRole(REWARDS_ADMIN_ROLE, owner.address);
+    await usdc.mint(owner.address, ethers.parseUnits("10000", 6));
+    await usdc.connect(owner).approve(await yieldVault.getAddress(), ethers.MaxUint256);
+    await yieldVault.completeRedeem(user1.address);
+
+    // 6. User 2 deposits another 500
+    const balanceBefore = await yieldVault.balanceOf(user2.address);
+    await yieldVault.connect(user2).deposit(amount / 2n, user2.address);
+    const balanceAfter = await yieldVault.balanceOf(user2.address);
+    
+    // Critical check
+    expect(balanceAfter - balanceBefore).to.equal(amount / 2n);
+    
+    // 7. Check total invariant
+    // User 1: 1000 - 200 redeemed = 800
+    // User 2: 500 + 500 = 1000
+    // User 3: 2000
+    // Total Supply should be 3800
+    expect(await yieldVault.totalSupply()).to.equal(ethers.parseUnits("3800", 6));
   });
 });
