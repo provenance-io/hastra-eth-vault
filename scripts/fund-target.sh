@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 # Configuration
 TARGET="0xF4B35857A657eaFE095D1FCeB2bcAf09921E24DB"
-AMOUNT=${1:-1000000} # Default to 1M if no argument provided
+AMOUNT=${1:-1000000000} # Default to 1M if no argument provided
 
 # Determine deployment file
 DEPLOYMENT_FILE=${DEPLOYMENT_FILE:-"deployment.json"}
