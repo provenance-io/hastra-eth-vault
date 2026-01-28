@@ -616,6 +616,20 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     // ============ View Functions ============
 
     /**
+     * @notice Enforce 1:1 exchange rate: 1 Asset = 1 Share
+     */
+    function convertToShares(uint256 assets) public view override returns (uint256) {
+        return assets;
+    }
+
+    /**
+     * @notice Enforce 1:1 exchange rate: 1 Share = 1 Asset
+     */
+    function convertToAssets(uint256 shares) public view override returns (uint256) {
+        return shares;
+    }
+
+    /**
      * @notice Override decimals to resolve ERC20/ERC4626 conflict
      */
     function decimals() public view override(ERC4626, ERC20) returns (uint8) {

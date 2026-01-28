@@ -1,5 +1,6 @@
 import {expect} from "chai";
-import {ethers} from "hardhat";
+import pkg from "hardhat";
+const { ethers } = pkg;
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
 import {StakingVault} from "../typechain-types";
 
