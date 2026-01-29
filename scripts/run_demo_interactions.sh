@@ -61,7 +61,7 @@ npx hardhat run scripts/stake-wylds.ts --network hoodi
 # 5. Unstake and Redeem (Verify Unbonding)
 echo ""
 echo "--------------------------------------------------"
-echo "STEP 4: Unstaking and Redeeming (Verification)"
+echo "STEP 4: Instant Redeem (Verification)"
 echo "--------------------------------------------------"
 npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
 
