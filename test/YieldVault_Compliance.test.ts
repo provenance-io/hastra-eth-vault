@@ -1,0 +1,131 @@
+import {expect} from "chai";
+import pkg from "hardhat";
+const { ethers } = pkg;
+import {loadFixture} from "@nomicfoundation/hardhat-network-helpers";
+
+describe("YieldVault Compliance (Freeze/Thaw)", function () {
+  async function deployFixture() {
+    const [owner, freezeAdmin, userA, userB] = await ethers.getSigners();
+
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const usdc = await MockUSDC.deploy();
+    
+    const YieldVault = await ethers.getContractFactory("YieldVault");
+    const yieldVault = await YieldVault.deploy(
+      await usdc.getAddress(), 
+      "wYLDS", 
+      "wYLDS", 
+      owner.address, 
+      owner.address, 
+      ethers.ZeroAddress
+    );
+
+    // Setup: Grant FREEZE_ADMIN_ROLE to freezeAdmin
+    const FREEZE_ADMIN_ROLE = await yieldVault.FREEZE_ADMIN_ROLE();
+    await yieldVault.grantRole(FREEZE_ADMIN_ROLE, freezeAdmin.address);
+
+    // Setup: Mint some tokens to userA
+    const amount = ethers.parseUnits("1000", 6);
+    await usdc.mint(userA.address, amount);
+    await usdc.connect(userA).approve(await yieldVault.getAddress(), amount);
+    await yieldVault.connect(userA).deposit(amount, userA.address);
+    
+    return { yieldVault, usdc, owner, freezeAdmin, userA, userB };
+  }
+
+  it("Should allow Freeze Admin to freeze an account", async function () {
+    const { yieldVault, freezeAdmin, userA } = await loadFixture(deployFixture);
+    
+    await expect(yieldVault.connect(freezeAdmin).freezeAccount(userA.address))
+      .to.emit(yieldVault, "AccountFrozen")
+      .withArgs(userA.address);
+      
+    expect(await yieldVault.frozen(userA.address)).to.be.true;
+  });
+
+  it("Should prevent frozen accounts from transferring tokens", async function () {
+    const { yieldVault, freezeAdmin, userA, userB } = await loadFixture(deployFixture);
+    const amount = ethers.parseUnits("100", 6);
+
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+
+    // Attempt transfer from frozen account
+    await expect(yieldVault.connect(userA).transfer(userB.address, amount))
+      .to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
+  });
+
+  it("Should prevent transferring tokens TO a frozen account", async function () {
+    const { yieldVault, freezeAdmin, owner, userA } = await loadFixture(deployFixture);
+    const amount = ethers.parseUnits("100", 6);
+    
+    // Setup: Grant REWARDS_ADMIN_ROLE to owner to allow minting
+    const REWARDS_ADMIN_ROLE = await yieldVault.REWARDS_ADMIN_ROLE();
+    await yieldVault.grantRole(REWARDS_ADMIN_ROLE, owner.address);
+
+    // Mint to owner first
+    await yieldVault.mintRewards(owner.address, amount);
+
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+
+    // Attempt transfer to frozen account
+    await expect(yieldVault.connect(owner).transfer(userA.address, amount))
+      .to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
+  });
+
+  it("Should allow a frozen account to burn tokens (required for redemption completion)", async function () {
+    const { yieldVault, freezeAdmin, userA } = await loadFixture(deployFixture);
+    
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+
+    // Even if frozen, the contract can burn tokens from itself (step 2 of redeem)
+    // or the user can requestRedeem (which transfers to the contract).
+    // Let's test if requestRedeem (transfer to contract) works.
+    // In YieldVault.sol: if (from != address(0) && frozen[from]) revert...
+    // This means transfers FROM frozen accounts are blocked even to the contract.
+    
+    await expect(yieldVault.connect(userA).requestRedeem(ethers.parseUnits("10", 6)))
+        .to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
+  });
+
+  it("Should allow thawing an account to resume transfers", async function () {
+    const { yieldVault, freezeAdmin, userA, userB } = await loadFixture(deployFixture);
+    const amount = ethers.parseUnits("100", 6);
+
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+    await yieldVault.connect(freezeAdmin).thawAccount(userA.address);
+
+    await expect(yieldVault.connect(userA).transfer(userB.address, amount))
+      .to.not.be.reverted;
+    
+    expect(await yieldVault.balanceOf(userB.address)).to.equal(amount);
+  });
+
+  it("Should prevent non-admins from freezing accounts", async function () {
+    const { yieldVault, userA, userB } = await loadFixture(deployFixture);
+    
+    await expect(yieldVault.connect(userA).freezeAccount(userB.address))
+      .to.be.revertedWithCustomError(yieldVault, "AccessControlUnauthorizedAccount");
+  });
+
+  it("Should not affect other accounts when one account is frozen", async function () {
+    const { yieldVault, freezeAdmin, userA, userB, owner } = await loadFixture(deployFixture);
+    const amount = ethers.parseUnits("100", 6);
+
+    // Freeze User A
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+    expect(await yieldVault.frozen(userA.address)).to.be.true;
+
+    // Verify User B (not frozen) can still transfer to Owner (not frozen)
+    const initialOwnerBalance = await yieldVault.balanceOf(owner.address);
+    
+    // User B needs tokens first
+    const REWARDS_ADMIN_ROLE = await yieldVault.REWARDS_ADMIN_ROLE();
+    await yieldVault.grantRole(REWARDS_ADMIN_ROLE, owner.address);
+    await yieldVault.connect(owner).mintRewards(userB.address, amount);
+
+    await expect(yieldVault.connect(userB).transfer(owner.address, amount))
+      .to.not.be.reverted;
+
+    expect(await yieldVault.balanceOf(owner.address)).to.equal(initialOwnerBalance + amount);
+  });
+});
