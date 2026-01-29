@@ -221,6 +221,11 @@ async function main() {
       yieldVault: yieldVaultAddress,
       stakingVault: stakingVaultAddress,
     },
+    transactions: {
+      usdc: !process.env.USDC_ADDRESS ? (await (await ethers.getContractAt("MockUSDC", usdcAddress)).deploymentTransaction())?.hash : "existing",
+      yieldVault: (await yieldVault.deploymentTransaction())?.hash,
+      stakingVault: (await stakingVault.deploymentTransaction())?.hash,
+    },
     roles: {
       admin: deployer.address,
       redeemVault: redeemVaultAddress,
