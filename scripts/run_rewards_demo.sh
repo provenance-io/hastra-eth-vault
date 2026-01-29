@@ -29,6 +29,21 @@ export STAKING_VAULT_ADDRESS=$STAKING_VAULT_ADDRESS
 
 echo ""
 echo "--------------------------------------------------"
+echo "PRE-STEP: Ensuring wYLDS Balance"
+echo "--------------------------------------------------"
+# We need wYLDS to stake. If we have none (because we redeemed all in previous demo),
+# we need to get some. We'll run deposit-usdc.ts.
+# But deposit-usdc.ts needs USDC. So we might need to mint USDC first.
+# Let's just run both to be safe. It's cheap on testnet.
+
+export MINT_AMOUNT="1000"
+npx hardhat run scripts/mint-usdc.ts --network hoodi
+
+export DEPOSIT_AMOUNT="1000"
+npx hardhat run scripts/deposit-usdc.ts --network hoodi
+
+echo ""
+echo "--------------------------------------------------"
 echo "STEP 1: Staking 100 wYLDS (to capture future rewards)"
 echo "--------------------------------------------------"
 export STAKE_AMOUNT="100"
@@ -43,7 +58,7 @@ npx hardhat run scripts/distribute-rewards.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"
-echo "STEP 3: Unstaking to capture increased value"
+echo "STEP 3: Redeeming to capture increased value"
 echo "--------------------------------------------------"
 npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
 

@@ -1,11 +1,11 @@
 {
   "network": "hoodi",
   "chainId": "560048",
-  "timestamp": "2026-01-28T20:29:17.037Z",
+  "timestamp": "2026-01-29T18:28:49.506Z",
   "contracts": {
-    "usdc": "0x545D57d2302b246E7D0010AB9BF15a189dC894f2",
-    "yieldVault": "0x3eE02a369703C250684d4dB8B1F95211a29d8993",
-    "stakingVault": "0x8354e16B7bc24A5Df4ACC8CFf3E36907D3561e93"
+    "usdc": "0xBa16F5b2fDF7D5686D55c2917F323feCbFef76e6",
+    "yieldVault": "0xCd9DC3EFaE333Be42d9CbAc0B4F8A4af8f3C8f3D",
+    "stakingVault": "0xC6c5fac567dA41F7DB64013E8363728e0E51549D"
   },
   "roles": {
     "admin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
@@ -15,7 +15,5 @@
     "whitelistAdmin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
     "withdrawalAdmin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6"
   },
-  "config": {
-    "unbondingPeriod": 120
-  }
+  "config": {}
 }

@@ -77,9 +77,6 @@ async function main() {
   // ============ Deploy StakingVault (PRIME) ============
   
   console.log("\nDeploying StakingVault...");
-  const unbondingPeriod = process.env.UNBONDING_PERIOD_SECONDS 
-    ? parseInt(process.env.UNBONDING_PERIOD_SECONDS) 
-    : 21 * 24 * 60 * 60; // Default 21 days
     
   const StakingVault = await ethers.getContractFactory("StakingVault");
   const stakingVault = await StakingVault.deploy(
@@ -87,13 +84,11 @@ async function main() {
     "Prime Staked YLDS",
     "PRIME",
     deployer.address, // admin
-    unbondingPeriod,
     yieldVaultAddress // YieldVault address for minting rewards
   );
   await stakingVault.waitForDeployment();
   const stakingVaultAddress = await stakingVault.getAddress();
   console.log("StakingVault deployed to:", stakingVaultAddress);
-  console.log("Unbonding period:", unbondingPeriod, "seconds");
 
   // ============ Setup Roles for YieldVault ============
 
@@ -204,8 +199,6 @@ async function main() {
   console.log("  Rewards Admin:", rewardsAdminAddress);
   console.log("  Whitelist Admin:", whitelistAdminAddress);
   console.log("  Withdrawal Admin:", withdrawalAdminAddress);
-  console.log("\nConfiguration:");
-  console.log("  Unbonding Period:", unbondingPeriod, "seconds");
   console.log("========================================");
 
   // ============ Save Deployment Info ============
@@ -237,7 +230,7 @@ async function main() {
       withdrawalAdmin: withdrawalAdminAddress,
     },
     config: {
-      unbondingPeriod,
+      // unbondingPeriod removed
     },
   };
 

@@ -3,18 +3,6 @@
 # Exit on error
 set -e
 
-# Default values
-UNBONDING_OVERRIDE=""
-
-# Parse arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --unbonding) UNBONDING_OVERRIDE="$2"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-    shift
-done
-
 echo "Starting Hastra Vault Protocol Demo Flow..."
 
 # 1. Deploy Contracts
@@ -24,11 +12,6 @@ echo "STEP 1: Deploying Contracts"
 echo "--------------------------------------------------"
 # Set an initial whitelist address for demonstration
 export INITIAL_WHITELIST_ADDRESS="0x803AdF8d4F036134070Bde997f458502Ade2f834"
-
-if [ -n "$UNBONDING_OVERRIDE" ]; then
-    echo "Overriding unbonding period to $UNBONDING_OVERRIDE seconds"
-    export UNBONDING_PERIOD_SECONDS=$UNBONDING_OVERRIDE
-fi
 
 npx hardhat run scripts/deploy.ts --network hoodi
 
@@ -84,7 +67,7 @@ npx hardhat run scripts/stake-wylds.ts --network hoodi
 # 5. Unstake and Redeem (Verify Unbonding)
 echo ""
 echo "--------------------------------------------------"
-echo "STEP 5: Unstaking and Redeeming (Verification)"
+echo "STEP 5: Instant Redeem (Verification)"
 echo "--------------------------------------------------"
 npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
 
