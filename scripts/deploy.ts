@@ -116,16 +116,16 @@ async function main() {
       stakingVaultAddress = "0x0000000000000000000000000000000000000003"; // Dummy
   } else {
       const StakingVault = await ethers.getContractFactory("StakingVault");
-      stakingVault = await StakingVault.deploy(
-        yieldVaultAddress, // wYLDS as the staking asset
-        "Prime Staked YLDS",
-        "PRIME",
+      stakingVault = await upgrades.deployProxy(StakingVault, [
+        yieldVaultAddress, // asset
+        "Prime Staked YLDS", // name
+        "PRIME", // symbol
         deployer.address, // admin
-        yieldVaultAddress // YieldVault address for minting rewards
-      );
+        yieldVaultAddress // yieldVault address
+      ], { kind: 'uups' });
       await stakingVault.waitForDeployment();
       stakingVaultAddress = await stakingVault.getAddress();
-      console.log("StakingVault deployed to:", stakingVaultAddress);
+      console.log("StakingVault (Proxy) deployed to:", stakingVaultAddress);
   }
 
   // ============ Setup Roles for YieldVault ============
