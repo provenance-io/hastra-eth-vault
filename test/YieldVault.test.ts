@@ -1,14 +1,14 @@
 import {expect} from "chai";
-import {ethers} from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
-import {YieldVault} from "../typechain-types";
-import {MerkleTree} from "merkletreejs";
+import { MerkleTree } from "merkletreejs";
+import keccak256 from "keccak256";
 
 describe("YieldVault", function () {
   // ============ Fixtures ============
   
   async function deployYieldVaultFixture() {
-    const [owner, redeemVault, freezeAdmin, rewardsAdmin, whitelistAdmin, withdrawalAdmin, user1, user2, user3] = 
+    const [owner, redeemVault, freezeAdmin, rewardsAdmin, whitelistAdmin, withdrawalAdmin, user1, user2] = 
       await ethers.getSigners();
 
     // Deploy MockUSDC
@@ -16,43 +16,57 @@ describe("YieldVault", function () {
     const usdc = await MockUSDC.deploy();
     await usdc.waitForDeployment();
 
-    // Deploy YieldVault
+    // Deploy YieldVault (Upgradeable)
     const YieldVault = await ethers.getContractFactory("YieldVault");
-    const vault = await YieldVault.deploy(
+    const yieldVault = await upgrades.deployProxy(YieldVault, [
       await usdc.getAddress(),
       "Wrapped YLDS",
       "wYLDS",
       owner.address,
       redeemVault.address,
-      ethers.ZeroAddress // No initial whitelist for default fixture
-    );
-    await vault.waitForDeployment();
+      ethers.ZeroAddress
+    ], { kind: 'uups' });
+    await yieldVault.waitForDeployment();
 
     // Setup roles
-    const FREEZE_ADMIN_ROLE = await vault.FREEZE_ADMIN_ROLE();
-    const REWARDS_ADMIN_ROLE = await vault.REWARDS_ADMIN_ROLE();
-    const WHITELIST_ADMIN_ROLE = await vault.WHITELIST_ADMIN_ROLE();
-    const WITHDRAWAL_ADMIN_ROLE = await vault.WITHDRAWAL_ADMIN_ROLE();
-    
-    await vault.grantRole(FREEZE_ADMIN_ROLE, freezeAdmin.address);
-    await vault.grantRole(REWARDS_ADMIN_ROLE, rewardsAdmin.address);
-    await vault.grantRole(WHITELIST_ADMIN_ROLE, whitelistAdmin.address);
-    await vault.grantRole(WITHDRAWAL_ADMIN_ROLE, withdrawalAdmin.address);
+    const FREEZE_ADMIN_ROLE = await yieldVault.FREEZE_ADMIN_ROLE();
+    const REWARDS_ADMIN_ROLE = await yieldVault.REWARDS_ADMIN_ROLE();
+    const WHITELIST_ADMIN_ROLE = await yieldVault.WHITELIST_ADMIN_ROLE();
+    const WITHDRAWAL_ADMIN_ROLE = await yieldVault.WITHDRAWAL_ADMIN_ROLE();
+    const PAUSER_ROLE = await yieldVault.PAUSER_ROLE();
+
+    await yieldVault.grantRole(FREEZE_ADMIN_ROLE, freezeAdmin.address);
+    await yieldVault.grantRole(REWARDS_ADMIN_ROLE, rewardsAdmin.address);
+    await yieldVault.grantRole(WHITELIST_ADMIN_ROLE, whitelistAdmin.address);
+    await yieldVault.grantRole(WITHDRAWAL_ADMIN_ROLE, withdrawalAdmin.address);
+    await yieldVault.grantRole(PAUSER_ROLE, owner.address);
 
     // Mint USDC to users
-    const mintAmount = ethers.parseUnits("100000", 6); // 100k USDC
-    await usdc.mint(user1.address, mintAmount);
-    await usdc.mint(user2.address, mintAmount);
-    await usdc.mint(user3.address, mintAmount);
-    await usdc.mint(redeemVault.address, mintAmount);
+    const startAmount = ethers.parseUnits("10000", 6);
+    await usdc.mint(user1.address, startAmount);
+    await usdc.mint(user2.address, startAmount);
+    await usdc.mint(rewardsAdmin.address, startAmount); // For redemption
+    await usdc.mint(redeemVault.address, startAmount); // For redeemVault funding
 
-    // Approve vault
-    await usdc.connect(user1).approve(await vault.getAddress(), ethers.MaxUint256);
-    await usdc.connect(user2).approve(await vault.getAddress(), ethers.MaxUint256);
-    await usdc.connect(user3).approve(await vault.getAddress(), ethers.MaxUint256);
-    await usdc.connect(redeemVault).approve(await vault.getAddress(), ethers.MaxUint256);
+    // Approve YieldVault
+    await usdc.connect(user1).approve(await yieldVault.getAddress(), ethers.MaxUint256);
+    await usdc.connect(user2).approve(await yieldVault.getAddress(), ethers.MaxUint256);
+    await usdc.connect(rewardsAdmin).approve(await yieldVault.getAddress(), ethers.MaxUint256);
+    await usdc.connect(redeemVault).approve(await yieldVault.getAddress(), ethers.MaxUint256);
 
-    return { vault, usdc, owner, redeemVault, freezeAdmin, rewardsAdmin, whitelistAdmin, withdrawalAdmin, user1, user2, user3 };
+    return { 
+      yieldVault, 
+      vault: yieldVault, // Alias for tests using 'vault'
+      usdc, 
+      owner, 
+      redeemVault, 
+      freezeAdmin, 
+      rewardsAdmin, 
+      whitelistAdmin,
+      withdrawalAdmin,
+      user1, 
+      user2 
+    };
   }
 
   // ============ Deployment Tests ============
@@ -80,14 +94,14 @@ describe("YieldVault", function () {
       const usdc = await MockUSDC.deploy();
       
       const YieldVault = await ethers.getContractFactory("YieldVault");
-      const vault = await YieldVault.deploy(
+      const vault = await upgrades.deployProxy(YieldVault, [
         await usdc.getAddress(),
         "Wrapped YLDS",
         "wYLDS",
         owner.address,
         redeemVault.address,
         user1.address // Pass user1 as initial whitelist
-      );
+      ], { kind: 'uups' });
       
       expect(await vault.isWhitelisted(user1.address)).to.be.true;
       expect(await vault.getWhitelistCount()).to.equal(1);

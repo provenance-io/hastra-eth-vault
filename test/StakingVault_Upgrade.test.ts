@@ -10,9 +10,9 @@ describe("StakingVault Upgradeability", function () {
     const usdc = await MockUSDC.deploy();
     
     const YieldVault = await ethers.getContractFactory("YieldVault");
-    const yieldVault = await YieldVault.deploy(
+    const yieldVault = await upgrades.deployProxy(YieldVault, [
       await usdc.getAddress(), "wYLDS", "wYLDS", owner.address, owner.address, ethers.ZeroAddress
-    );
+    ], { kind: 'uups' });
 
     // Deploy StakingVault as UUPS Proxy
     const StakingVault = await ethers.getContractFactory("StakingVault");
