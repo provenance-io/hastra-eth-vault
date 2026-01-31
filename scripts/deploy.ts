@@ -1,4 +1,4 @@
-import {ethers} from "hardhat";
+import {ethers, upgrades} from "hardhat";
 import * as fs from "fs";
 
 /**
@@ -76,7 +76,7 @@ async function main() {
   let yieldVault: any;
 
   if (isDryRun) {
-      console.log("[Dry Run] Would deploy YieldVault with args:");
+      console.log("[Dry Run] Would deploy YieldVault (UUPS Proxy) with args:");
       console.log(`  - Asset: ${usdcAddress}`);
       console.log(`  - Name: "Wrapped YLDS"`);
       console.log(`  - Symbol: "wYLDS"`);
@@ -86,17 +86,17 @@ async function main() {
       yieldVaultAddress = "0x0000000000000000000000000000000000000002"; // Dummy
   } else {
       const YieldVault = await ethers.getContractFactory("YieldVault");
-      yieldVault = await YieldVault.deploy(
+      yieldVault = await upgrades.deployProxy(YieldVault, [
         usdcAddress,
         "Wrapped YLDS",
         "wYLDS",
         deployer.address, // admin
         redeemVaultAddress, // redeem vault address
         initialWhitelistAddress // initial whitelist address
-      );
+      ], { kind: 'uups' });
       await yieldVault.waitForDeployment();
       yieldVaultAddress = await yieldVault.getAddress();
-      console.log("YieldVault deployed to:", yieldVaultAddress);
+      console.log("YieldVault (Proxy) deployed to:", yieldVaultAddress);
   }
 
   // ============ Deploy StakingVault (PRIME) ============
@@ -116,16 +116,16 @@ async function main() {
       stakingVaultAddress = "0x0000000000000000000000000000000000000003"; // Dummy
   } else {
       const StakingVault = await ethers.getContractFactory("StakingVault");
-      stakingVault = await StakingVault.deploy(
-        yieldVaultAddress, // wYLDS as the staking asset
-        "Prime Staked YLDS",
-        "PRIME",
+      stakingVault = await upgrades.deployProxy(StakingVault, [
+        yieldVaultAddress, // asset
+        "Prime Staked YLDS", // name
+        "PRIME", // symbol
         deployer.address, // admin
-        yieldVaultAddress // YieldVault address for minting rewards
-      );
+        yieldVaultAddress // yieldVault address
+      ], { kind: 'uups' });
       await stakingVault.waitForDeployment();
       stakingVaultAddress = await stakingVault.getAddress();
-      console.log("StakingVault deployed to:", stakingVaultAddress);
+      console.log("StakingVault (Proxy) deployed to:", stakingVaultAddress);
   }
 
   // ============ Setup Roles for YieldVault ============

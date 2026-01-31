@@ -1,6 +1,6 @@
 import {expect} from "chai";
 import pkg from "hardhat";
-const { ethers } = pkg;
+const { ethers, upgrades } = pkg;
 import {loadFixture} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("YieldVault Ratio Checks", function () {
@@ -13,14 +13,14 @@ describe("YieldVault Ratio Checks", function () {
     
     // 2. Setup YieldVault
     const YieldVault = await ethers.getContractFactory("YieldVault");
-    const yieldVault = await YieldVault.deploy(
+    const yieldVault = await upgrades.deployProxy(YieldVault, [
       await usdc.getAddress(), 
       "wYLDS", 
       "wYLDS", 
       owner.address, 
       owner.address, 
       ethers.ZeroAddress
-    );
+    ], { kind: 'uups' });
     
     return { yieldVault, usdc, userA, owner };
   }
@@ -184,7 +184,9 @@ describe("YieldVault Ratio Checks", function () {
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const usdc = await MockUSDC.deploy();
     const YieldVault = await ethers.getContractFactory("YieldVault");
-    const yieldVault = await YieldVault.deploy(await usdc.getAddress(), "wYLDS", "wYLDS", owner.address, owner.address, ethers.ZeroAddress);
+    const yieldVault = await upgrades.deployProxy(YieldVault, [
+        await usdc.getAddress(), "wYLDS", "wYLDS", owner.address, owner.address, ethers.ZeroAddress
+    ], { kind: 'uups' });
 
     const amount = ethers.parseUnits("1000", 6);
     

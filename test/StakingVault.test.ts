@@ -1,8 +1,6 @@
-import {expect} from "chai";
-import pkg from "hardhat";
-const { ethers } = pkg;
-import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
-import {StakingVault} from "../typechain-types";
+import { expect } from "chai";
+import { ethers, upgrades } from "hardhat";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("StakingVault", function () {
   // ============ Fixtures ============
@@ -16,29 +14,27 @@ describe("StakingVault", function () {
     const usdc = await MockUSDC.deploy();
     await usdc.waitForDeployment();
 
-    // Deploy YieldVault
+    // Deploy YieldVault (Upgradeable)
     const YieldVault = await ethers.getContractFactory("YieldVault");
-    const yieldVault = await YieldVault.deploy(
+    const yieldVault = await upgrades.deployProxy(YieldVault, [
       await usdc.getAddress(),
       "Wrapped YLDS",
       "wYLDS",
       owner.address,
       redeemVault.address,
-      ethers.ZeroAddress // No initial whitelist
-    );
+      ethers.ZeroAddress
+    ], { kind: 'uups' });
     await yieldVault.waitForDeployment();
 
-    // Deploy StakingVault
-    const unbondingPeriod = 21 * 24 * 60 * 60; // 21 days
+    // Deploy StakingVault (Upgradeable)
     const StakingVault = await ethers.getContractFactory("StakingVault");
-    const stakingVault = await StakingVault.deploy(
+    const stakingVault = await upgrades.deployProxy(StakingVault, [
       await yieldVault.getAddress(),
       "Prime Staked YLDS",
       "PRIME",
       owner.address,
-      unbondingPeriod,
       await yieldVault.getAddress()
-    );
+    ], { kind: 'uups' });
     await stakingVault.waitForDeployment();
 
     // Setup roles
@@ -86,8 +82,7 @@ describe("StakingVault", function () {
       rewardsAdmin, 
       user1, 
       user2, 
-      user3,
-      unbondingPeriod
+      user3
     };
   }
 
@@ -103,11 +98,6 @@ describe("StakingVault", function () {
       const { stakingVault } = await loadFixture(deployStakingVaultFixture);
       expect(await stakingVault.name()).to.equal("Prime Staked YLDS");
       expect(await stakingVault.symbol()).to.equal("PRIME");
-    });
-
-    it("Should set the correct unbonding period", async function () {
-      const { stakingVault, unbondingPeriod } = await loadFixture(deployStakingVaultFixture);
-      expect(await stakingVault.UNBONDING_PERIOD()).to.equal(unbondingPeriod);
     });
 
     it("Should grant admin role", async function () {
@@ -165,143 +155,6 @@ describe("StakingVault", function () {
       await expect(stakingVault.connect(user1).deposit(stakeAmount, user1.address))
         .to.emit(stakingVault, "Deposit")
         .withArgs(user1.address, user1.address, stakeAmount, stakeAmount);
-    });
-  });
-
-  // ============ Unbonding Tests ============
-
-  describe("Unbonding", function () {
-    it("Should allow initiating unbonding", async function () {
-      const { stakingVault, user1, unbondingPeriod } = await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("1000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      const unbondAmount = ethers.parseUnits("500", 6);
-      const currentTime = await time.latest();
-      const expectedUnlockTime = currentTime + unbondingPeriod + 1;
-      
-      await expect(stakingVault.connect(user1).unbond(unbondAmount))
-        .to.emit(stakingVault, "Unbonded")
-        .withArgs(user1.address, 0, unbondAmount, unbondAmount, expectedUnlockTime);
-      
-      const positions = await stakingVault.getUnbondingPositions(user1.address);
-      expect(positions.length).to.equal(1);
-      expect(positions[0].shares).to.equal(unbondAmount);
-      expect(positions[0].assets).to.equal(unbondAmount);
-    });
-
-    it("Should lock PRIME when unbonding", async function () {
-      const { stakingVault, user1 } = await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("1000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      const unbondAmount = ethers.parseUnits("500", 6);
-      await stakingVault.connect(user1).unbond(unbondAmount);
-      
-      // PRIME should be transferred to vault
-      expect(await stakingVault.balanceOf(user1.address)).to.equal(stakeAmount - unbondAmount);
-      expect(await stakingVault.balanceOf(await stakingVault.getAddress())).to.equal(unbondAmount);
-    });
-
-    it("Should not allow completing unbonding before unlock time", async function () {
-      const { stakingVault, user1 } = await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("1000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      const unbondAmount = ethers.parseUnits("500", 6);
-      await stakingVault.connect(user1).unbond(unbondAmount);
-      
-      await expect(
-        stakingVault.connect(user1).completeUnbonding(0)
-      ).to.be.revertedWithCustomError(stakingVault, "StillLocked");
-    });
-
-    it("Should allow completing unbonding after unlock time", async function () {
-      const { stakingVault, yieldVault, user1, unbondingPeriod } = 
-        await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("1000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      const unbondAmount = ethers.parseUnits("500", 6);
-      await stakingVault.connect(user1).unbond(unbondAmount);
-      
-      // Fast forward time
-      await time.increase(unbondingPeriod);
-      
-      const wyldsBalanceBefore = await yieldVault.balanceOf(user1.address);
-      
-      await expect(stakingVault.connect(user1).completeUnbonding(0))
-        .to.emit(stakingVault, "UnbondingCompleted")
-        .withArgs(user1.address, 0, unbondAmount, unbondAmount);
-      
-      const wyldsBalanceAfter = await yieldVault.balanceOf(user1.address);
-      expect(wyldsBalanceAfter - wyldsBalanceBefore).to.equal(unbondAmount);
-      
-      // Position should be removed
-      const positions = await stakingVault.getUnbondingPositions(user1.address);
-      expect(positions.length).to.equal(0);
-    });
-
-    it("Should allow cancelling unbonding", async function () {
-      const { stakingVault, user1 } = await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("1000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      const unbondAmount = ethers.parseUnits("500", 6);
-      await stakingVault.connect(user1).unbond(unbondAmount);
-      
-      await expect(stakingVault.connect(user1).cancelUnbonding(0))
-        .to.emit(stakingVault, "UnbondingCancelled")
-        .withArgs(user1.address, 0, unbondAmount);
-      
-      // PRIME should be returned
-      expect(await stakingVault.balanceOf(user1.address)).to.equal(stakeAmount);
-      
-      // Position should be removed
-      const positions = await stakingVault.getUnbondingPositions(user1.address);
-      expect(positions.length).to.equal(0);
-    });
-
-    it("Should handle multiple unbonding positions", async function () {
-      const { stakingVault, user1 } = await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("3000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      await stakingVault.connect(user1).unbond(ethers.parseUnits("1000", 6));
-      await stakingVault.connect(user1).unbond(ethers.parseUnits("1000", 6));
-      await stakingVault.connect(user1).unbond(ethers.parseUnits("1000", 6));
-      
-      const positions = await stakingVault.getUnbondingPositions(user1.address);
-      expect(positions.length).to.equal(3);
-    });
-
-    it("Should correctly track total unbonding", async function () {
-      const { stakingVault, user1 } = await loadFixture(deployStakingVaultFixture);
-
-      const stakeAmount = ethers.parseUnits("2000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-
-      const unbond1Shares = ethers.parseUnits("500", 6);
-      const unbond2Shares = ethers.parseUnits("300", 6);
-
-      await stakingVault.connect(user1).unbond(unbond1Shares);
-
-      // After first unbond, totalAssets decreases, but activeSupply also decreases
-      // Conversion rate should remain 1:1 (no dilution)
-      await stakingVault.connect(user1).unbond(unbond2Shares);
-
-      // Total unbonding should be the sum of assets locked from both unbonds
-      // First unbond: 500 shares = 500 assets
-      // Second unbond: 300 shares = 300 assets (conversion rate maintained)
-      // Total = 500 + 300 = 800
-      const expectedTotal = ethers.parseUnits("800", 6);
-      expect(await stakingVault.totalUnbonding()).to.be.closeTo(expectedTotal, 1);
     });
   });
 
@@ -371,25 +224,6 @@ describe("StakingVault", function () {
       await expect(
         stakingVault.connect(user1).distributeRewards(rewardAmount)
       ).to.be.reverted;
-    });
-
-    it("Should handle rewards with unbonding positions correctly", async function () {
-      const { stakingVault, rewardsAdmin, user1 } = 
-        await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("1000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      // Unbond half
-      const unbondAmount = ethers.parseUnits("500", 6);
-      await stakingVault.connect(user1).unbond(unbondAmount);
-      
-      const rewardAmount = ethers.parseUnits("100", 6);
-      await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
-      
-      // totalAssets should exclude unbonding amount
-      const totalAssets = await stakingVault.totalAssets();
-      expect(totalAssets).to.equal(stakeAmount - unbondAmount + rewardAmount);
     });
   });
 
@@ -502,62 +336,13 @@ describe("StakingVault", function () {
       
       expect(await stakingVault.totalAssets()).to.equal(stakeAmount);
     });
-
-    it("Should exclude unbonding from total assets", async function () {
-      const { stakingVault, user1 } = await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("1000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      const unbondAmount = ethers.parseUnits("300", 6);
-      await stakingVault.connect(user1).unbond(unbondAmount);
-      
-      // Total assets should exclude unbonding amount
-      expect(await stakingVault.totalAssets()).to.equal(stakeAmount - unbondAmount);
-    });
-  });
-
-  // ============ View Functions Tests ============
-
-  describe("View Functions", function () {
-    it("Should return unbonding positions count", async function () {
-      const { stakingVault, user1 } = await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("3000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      await stakingVault.connect(user1).unbond(ethers.parseUnits("1000", 6));
-      await stakingVault.connect(user1).unbond(ethers.parseUnits("1000", 6));
-      
-      const count = await stakingVault.getUnbondingPositionCount(user1.address);
-      expect(count).to.equal(2);
-    });
-
-    it("Should check if unbonding is unlocked", async function () {
-      const { stakingVault, user1, unbondingPeriod } = 
-        await loadFixture(deployStakingVaultFixture);
-      
-      const stakeAmount = ethers.parseUnits("1000", 6);
-      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
-      
-      await stakingVault.connect(user1).unbond(ethers.parseUnits("500", 6));
-      
-      // Should be locked initially
-      let isUnlocked = await stakingVault.isUnbondingUnlocked(user1.address, 0);
-      expect(isUnlocked).to.be.false;
-      
-      // Should be unlocked after period
-      await time.increase(unbondingPeriod);
-      isUnlocked = await stakingVault.isUnbondingUnlocked(user1.address, 0);
-      expect(isUnlocked).to.be.true;
-    });
   });
 
   // ============ Integration Tests ============
 
   describe("Integration", function () {
-    it("Should handle complete staking lifecycle", async function () {
-      const { stakingVault, yieldVault, rewardsAdmin, user1, unbondingPeriod } = 
+    it("Should handle complete staking lifecycle (Deposit -> Reward -> Redeem)", async function () {
+      const { stakingVault, yieldVault, rewardsAdmin, user1 } = 
         await loadFixture(deployStakingVaultFixture);
       
       // 1. Stake
@@ -568,16 +353,11 @@ describe("StakingVault", function () {
       const rewardAmount = ethers.parseUnits("100", 6);
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
       
-      // 3. Unbond
+      // 3. Redeem (Instant Exit)
       const primeBalance = await stakingVault.balanceOf(user1.address);
-      await stakingVault.connect(user1).unbond(primeBalance);
       
-      // 4. Wait
-      await time.increase(unbondingPeriod);
-      
-      // 5. Complete unbonding
       const wyldsBalanceBefore = await yieldVault.balanceOf(user1.address);
-      await stakingVault.connect(user1).completeUnbonding(0);
+      await stakingVault.connect(user1).redeem(primeBalance, user1.address, user1.address);
       const wyldsBalanceAfter = await yieldVault.balanceOf(user1.address);
       
       // Should receive original stake + rewards

@@ -33,7 +33,7 @@
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.0",
-    "@openzeppelin/hardhat-upgrades": "^3.0.0",
+    "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.3.0",
@@ -51,6 +51,13 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.1",
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "dotenv": "^16.3.0"
+  },
+  "resolutions": {
+    "fast-xml-parser": "5.3.4",
+    "lodash": "4.17.23",
+    "undici": "6.23.0",
+    "elliptic": "6.6.1"
   }
 }

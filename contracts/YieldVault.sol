@@ -1,93 +1,60 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title YieldVault
  * @author Hastra
- * @notice ERC-4626 compliant yield-bearing vault with two-step redemptions and merkle-based rewards
- * @dev Implements a vault where users deposit USDC and receive wYLDS tokens (shares).
- *      Features include:
- *      - Two-step redemption process for off-chain liquidity management
- *      - Merkle tree-based epoch rewards distribution
- *      - Account freeze/thaw functionality for compliance
- *      - Role-based access control for administration
+ * @notice Upgradeable ERC-4626 yield-bearing vault
  */
-contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, ReentrancyGuard {
+contract YieldVault is 
+    Initializable, 
+    ERC4626Upgradeable, 
+    ERC20PermitUpgradeable, 
+    AccessControlUpgradeable, 
+    PausableUpgradeable, 
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable 
+{
     
     // ============ Roles ============
     
-    /// @notice Role for managing frozen accounts
     bytes32 public constant FREEZE_ADMIN_ROLE = keccak256("FREEZE_ADMIN");
-    
-    /// @notice Role for managing rewards and completing redemptions
     bytes32 public constant REWARDS_ADMIN_ROLE = keccak256("REWARDS_ADMIN");
-    
-    /// @notice Role for pausing the contract
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    
-    /// @notice Role for managing the withdrawal whitelist
     bytes32 public constant WHITELIST_ADMIN_ROLE = keccak256("WHITELIST_ADMIN");
-    
-    /// @notice Role for withdrawing USDC to whitelisted addresses
     bytes32 public constant WITHDRAWAL_ADMIN_ROLE = keccak256("WITHDRAWAL_ADMIN");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     
     // ============ State Variables ============
     
-    /// @notice Address where off-chain entity funds redemptions
     address public redeemVault;
-    
-    /// @notice Mapping of pending redemption requests
     mapping(address => PendingRedemption) public pendingRedemptions;
-    
-    /// @notice Mapping of epoch index to rewards epoch data
     mapping(uint256 => RewardsEpoch) public rewardsEpochs;
-    
-    /// @notice Mapping to track claimed rewards per user per epoch
-    /// @dev keccak256(abi.encodePacked(user, epochIndex)) => claimed
     mapping(bytes32 => bool) public claimedRewards;
-    
-    /// @notice Mapping of frozen account status
     mapping(address => bool) public frozen;
-    
-    /// @notice Latest epoch index
     uint256 public currentEpochIndex;
-    
-    /// @notice Mapping of whitelisted addresses for USDC withdrawal
     mapping(address => bool) public whitelistedAddresses;
-    
-    /// @notice Array to enumerate whitelisted addresses
     address[] private _whitelistArray;
     
     // ============ Structs ============
     
-    /**
-     * @notice Represents a pending redemption request
-     * @param shares Number of shares to redeem
-     * @param assets Expected assets to receive (locked at request time)
-     * @param timestamp When the redemption was requested
-     */
     struct PendingRedemption {
         uint256 shares;
         uint256 assets;
         uint256 timestamp;
     }
     
-    /**
-     * @notice Represents a rewards epoch
-     * @param merkleRoot Root of the merkle tree for this epoch's rewards
-     * @param totalRewards Total rewards distributed in this epoch
-     * @param timestamp When the epoch was created
-     */
     struct RewardsEpoch {
         bytes32 merkleRoot;
         uint256 totalRewards;
@@ -96,56 +63,16 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     
     // ============ Events ============
     
-    /// @notice Emitted when a redemption is requested
-    event RedemptionRequested(
-        address indexed user,
-        uint256 shares,
-        uint256 assets,
-        uint256 timestamp
-    );
-    
-    /// @notice Emitted when a redemption is completed
-    event RedemptionCompleted(
-        address indexed user,
-        uint256 shares,
-        uint256 assets,
-        uint256 timestamp
-    );
-    
-    /// @notice Emitted when a redemption is cancelled
+    event RedemptionRequested(address indexed user, uint256 shares, uint256 assets, uint256 timestamp);
+    event RedemptionCompleted(address indexed user, uint256 shares, uint256 assets, uint256 timestamp);
     event RedemptionCancelled(address indexed user, uint256 shares);
-    
-    /// @notice Emitted when a new rewards epoch is created
-    event RewardsEpochCreated(
-        uint256 indexed epochIndex,
-        bytes32 merkleRoot,
-        uint256 totalRewards,
-        uint256 timestamp
-    );
-    
-    /// @notice Emitted when rewards are claimed
-    event RewardsClaimed(
-        address indexed user,
-        uint256 indexed epochIndex,
-        uint256 amount
-    );
-    
-    /// @notice Emitted when an account is frozen
+    event RewardsEpochCreated(uint256 indexed epochIndex, bytes32 merkleRoot, uint256 totalRewards, uint256 timestamp);
+    event RewardsClaimed(address indexed user, uint256 indexed epochIndex, uint256 amount);
     event AccountFrozen(address indexed account);
-    
-    /// @notice Emitted when an account is thawed
     event AccountThawed(address indexed account);
-    
-    /// @notice Emitted when redeem vault address is updated
     event RedeemVaultUpdated(address indexed oldVault, address indexed newVault);
-    
-    /// @notice Emitted when an address is added to the whitelist
     event AddressWhitelisted(address indexed account);
-    
-    /// @notice Emitted when an address is removed from the whitelist
     event AddressRemovedFromWhitelist(address indexed account);
-    
-    /// @notice Emitted when USDC is withdrawn to a whitelisted address
     event USDCWithdrawn(address indexed to, uint256 amount, address indexed by);
     
     // ============ Errors ============
@@ -168,33 +95,38 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     
     // ============ Constructor ============
     
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+    
     /**
      * @notice Initializes the YieldVault
-     * @param asset_ The underlying asset (e.g., USDC)
-     * @param name_ Name of the share token (e.g., "Wrapped YLDS")
-     * @param symbol_ Symbol of the share token (e.g., "wYLDS")
-     * @param admin_ Address of the default admin
-     * @param redeemVault_ Address where redemptions are funded from
-     * @param initialWhitelist_ Optional address to whitelist immediately on deployment (can be address(0))
      */
-    constructor(
+    function initialize(
         IERC20 asset_,
         string memory name_,
         string memory symbol_,
         address admin_,
         address redeemVault_,
         address initialWhitelist_
-    ) 
-        ERC4626(asset_)
-        ERC20(name_, symbol_)
-        ERC20Permit(name_)
-    {
+    ) public initializer {
         if (admin_ == address(0) || redeemVault_ == address(0)) {
             revert InvalidAddress();
         }
+
+        __ERC20_init(name_, symbol_);
+        __ERC4626_init(asset_);
+        __ERC20Permit_init(name_);
+        __AccessControl_init();
+        __Pausable_init();
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
         
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(PAUSER_ROLE, admin_);
+        _grantRole(UPGRADER_ROLE, admin_);
+        
         redeemVault = redeemVault_;
 
         if (initialWhitelist_ != address(0)) {
@@ -204,14 +136,10 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         }
     }
     
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
+    
     // ============ Deposit & Withdraw Overrides ============
     
-    /**
-     * @notice Deposits assets and mints shares (ERC-4626 override with pause check)
-     * @param assets Amount of assets to deposit
-     * @param receiver Address to receive shares
-     * @return shares Amount of shares minted
-     */
     function deposit(uint256 assets, address receiver)
         public
         override
@@ -222,17 +150,6 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         return super.deposit(assets, receiver);
     }
     
-    /**
-     * @notice Deposit with permit - one transaction approval + deposit
-     * @dev Uses EIP-2612 permit to approve and deposit in a single transaction
-     * @param assets Amount of assets to deposit
-     * @param receiver Address to receive shares
-     * @param deadline Permit signature deadline
-     * @param v Signature v component
-     * @param r Signature r component
-     * @param s Signature s component
-     * @return shares Amount of shares minted
-     */
     function depositWithPermit(
         uint256 assets,
         address receiver,
@@ -241,19 +158,10 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         bytes32 r,
         bytes32 s
     ) external whenNotPaused nonReentrant returns (uint256 shares) {
-        // Use EIP-2612 permit to set allowance via signature, enabling a single-transaction deposit
         IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s);
-        
-        // Perform the deposit using the newly set allowance
         return super.deposit(assets, receiver);
     }
     
-    /**
-     * @notice Mints shares by depositing assets (ERC-4626 override with pause check)
-     * @param shares Amount of shares to mint
-     * @param receiver Address to receive shares
-     * @return assets Amount of assets deposited
-     */
     function mint(uint256 shares, address receiver)
         public
         override
@@ -264,9 +172,6 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         return super.mint(shares, receiver);
     }
     
-    /**
-     * @notice Standard withdraw is disabled - use two-step redemption process
-     */
     function withdraw(uint256, address, address) 
         public 
         pure 
@@ -276,9 +181,6 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         revert("Use requestRedeem/completeRedeem");
     }
     
-    /**
-     * @notice Standard redeem is disabled - use two-step redemption process
-     */
     function redeem(uint256, address, address) 
         public 
         pure 
@@ -290,12 +192,6 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     
     // ============ Two-Step Redemption ============
     
-    /**
-     * @notice Request a redemption (step 1 of 2)
-     * @dev Creates a pending redemption that must be completed by a rewards admin
-     *      after off-chain liquidity is arranged
-     * @param shares Amount of shares to redeem
-     */
     function requestRedeem(uint256 shares) external whenNotPaused nonReentrant {
         if (shares == 0) revert InvalidAmount();
         if (pendingRedemptions[msg.sender].shares != 0) {
@@ -303,8 +199,6 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         }
         
         uint256 assets = convertToAssets(shares);
-        
-        // Lock the shares by transferring to this contract
         _transfer(msg.sender, address(this), shares);
         
         pendingRedemptions[msg.sender] = PendingRedemption({
@@ -316,34 +210,22 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         emit RedemptionRequested(msg.sender, shares, assets, block.timestamp);
     }
     
-    /**
-     * @notice Complete a redemption (step 2 of 2)
-     * @dev Called by rewards admin after funding the redeem vault off-chain
-     * @param user Address of the user whose redemption to complete
-     */
     function completeRedeem(address user) 
         external 
         onlyRole(REWARDS_ADMIN_ROLE)
         nonReentrant 
     {
         PendingRedemption memory redemption = pendingRedemptions[user];
-        
         if (redemption.shares == 0) revert NoRedemptionPending();
         
-        // Verify redeem vault has sufficient balance
         uint256 vaultBalance = IERC20(asset()).balanceOf(redeemVault);
         if (vaultBalance < redemption.assets) {
             revert InsufficientVaultBalance();
         }
         
-        // Clear the pending redemption
         delete pendingRedemptions[user];
-        
-        // Burn the locked shares
         _burn(address(this), redemption.shares);
         
-        // Transfer assets from redeem vault to user
-        // Note: Redeem vault must have approved this contract
         SafeERC20.safeTransferFrom(
             IERC20(asset()),
             redeemVault,
@@ -351,26 +233,14 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
             redemption.assets
         );
         
-        emit RedemptionCompleted(
-            user,
-            redemption.shares,
-            redemption.assets,
-            block.timestamp
-        );
+        emit RedemptionCompleted(user, redemption.shares, redemption.assets, block.timestamp);
     }
     
-    /**
-     * @notice Cancel a pending redemption
-     * @dev Returns shares to the user
-     */
     function cancelRedeem() external nonReentrant {
         PendingRedemption memory redemption = pendingRedemptions[msg.sender];
-        
         if (redemption.shares == 0) revert NoRedemptionPending();
         
         delete pendingRedemptions[msg.sender];
-        
-        // Return shares to user
         _transfer(address(this), msg.sender, redemption.shares);
         
         emit RedemptionCancelled(msg.sender, redemption.shares);
@@ -378,13 +248,6 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
     
     // ============ Merkle Rewards ============
     
-    /**
-     * @notice Create a new rewards epoch
-     * @dev Only rewards admin can create epochs
-     * @param epochIndex Index of the epoch (must be sequential)
-     * @param merkleRoot Merkle root of the rewards distribution
-     * @param totalRewards Total rewards being distributed in this epoch
-     */
     function createRewardsEpoch(
         uint256 epochIndex,
         bytes32 merkleRoot,
@@ -400,17 +263,9 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         });
         
         currentEpochIndex++;
-        
         emit RewardsEpochCreated(epochIndex, merkleRoot, totalRewards, block.timestamp);
     }
     
-    /**
-     * @notice Claim rewards for a specific epoch
-     * @dev Verifies merkle proof and mints reward shares
-     * @param epochIndex Index of the epoch to claim from
-     * @param amount Amount of rewards to claim
-     * @param proof Merkle proof for the claim
-     */
     function claimRewards(
         uint256 epochIndex,
         uint256 amount,
@@ -423,7 +278,6 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         
         RewardsEpoch memory epoch = rewardsEpochs[epochIndex];
         
-        // Verify merkle proof
         bytes32 leaf = keccak256(
             bytes.concat(keccak256(abi.encode(msg.sender, amount, epochIndex)))
         );
@@ -432,21 +286,11 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
             revert InvalidProof();
         }
         
-        // Mark as claimed
         claimedRewards[claimKey] = true;
-        
-        // Mint reward shares
         _mint(msg.sender, amount);
-        
         emit RewardsClaimed(msg.sender, epochIndex, amount);
     }
     
-    /**
-     * @notice Mint reward shares to a recipient
-     * @dev Only rewards admin can mint. Used by StakingVault for reward distribution
-     * @param to Address to receive the minted shares
-     * @param amount Amount of shares to mint
-     */
     function mintRewards(address to, uint256 amount)
         external
         onlyRole(REWARDS_ADMIN_ROLE)
@@ -459,46 +303,29 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
 
     // ============ Freeze Functionality ============
 
-    /**
-     * @notice Freeze an account, preventing transfers
-     * @param account Address to freeze
-     */
     function freezeAccount(address account) external onlyRole(FREEZE_ADMIN_ROLE) {
         if (frozen[account]) revert AccountIsFrozen();
         frozen[account] = true;
         emit AccountFrozen(account);
     }
     
-    /**
-     * @notice Thaw a frozen account, allowing transfers
-     * @param account Address to thaw
-     */
     function thawAccount(address account) external onlyRole(FREEZE_ADMIN_ROLE) {
         if (!frozen[account]) revert AccountNotFrozen();
         frozen[account] = false;
         emit AccountThawed(account);
     }
     
-    /**
-     * @notice Override transfer to check frozen status
-     */
     function _update(address from, address to, uint256 amount)
         internal
-        override(ERC20)
+        override(ERC20Upgradeable)
     {
-        // Allow minting and burning
         if (from != address(0) && frozen[from]) revert AccountIsFrozen();
         if (to != address(0) && frozen[to]) revert AccountIsFrozen();
-
         super._update(from, to, amount);
     }
     
     // ============ Admin Functions ============
     
-    /**
-     * @notice Update the redeem vault address
-     * @param newRedeemVault New redeem vault address
-     */
     function setRedeemVault(address newRedeemVault) 
         external 
         onlyRole(DEFAULT_ADMIN_ROLE) 
@@ -509,26 +336,16 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         emit RedeemVaultUpdated(oldVault, newRedeemVault);
     }
     
-    /**
-     * @notice Pause the contract
-     */
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
     
-    /**
-     * @notice Unpause the contract
-     */
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
     
     // ============ Whitelist Functions ============
     
-    /**
-     * @notice Add an address to the USDC withdrawal whitelist
-     * @param account Address to whitelist
-     */
     function addToWhitelist(address account) external onlyRole(WHITELIST_ADMIN_ROLE) {
         if (account == address(0)) revert InvalidAddress();
         if (whitelistedAddresses[account]) revert AddressAlreadyWhitelisted();
@@ -539,38 +356,23 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         emit AddressWhitelisted(account);
     }
     
-    /**
-     * @notice Remove an address from the USDC withdrawal whitelist
-     * @param account Address to remove from whitelist
-     */
     function removeFromWhitelist(address account) external onlyRole(WHITELIST_ADMIN_ROLE) {
         if (!whitelistedAddresses[account]) revert AddressNotInWhitelist();
         if (_whitelistArray.length <= 1) revert CannotRemoveLastWhitelistedAddress();
         
         whitelistedAddresses[account] = false;
         
-        bool found = false;
-        // Remove from array by finding and swapping with last element
         for (uint256 i = 0; i < _whitelistArray.length; i++) {
             if (_whitelistArray[i] == account) {
                 _whitelistArray[i] = _whitelistArray[_whitelistArray.length - 1];
                 _whitelistArray.pop();
-                found = true;
                 break;
             }
         }
         
-        if (!found) revert AddressNotFoundInWhitelistArray();
-        
         emit AddressRemovedFromWhitelist(account);
     }
     
-    /**
-     * @notice Withdraw USDC to a whitelisted address
-     * @dev Only WITHDRAWAL_ADMIN_ROLE can call this, and only to whitelisted addresses
-     * @param to Destination address (must be whitelisted)
-     * @param amount Amount of USDC to withdraw
-     */
     function withdrawUSDC(address to, uint256 amount)
         external
         onlyRole(WITHDRAWAL_ADMIN_ROLE)
@@ -584,79 +386,43 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         if (balance < amount) revert InsufficientVaultBalance();
         
         SafeERC20.safeTransfer(IERC20(asset()), to, amount);
-        
         emit USDCWithdrawn(to, amount, msg.sender);
     }
     
-    /**
-     * @notice Check if an address is whitelisted
-     * @param account Address to check
-     * @return True if address is whitelisted
-     */
     function isWhitelisted(address account) external view returns (bool) {
         return whitelistedAddresses[account];
     }
     
-    /**
-     * @notice Get all whitelisted addresses
-     * @return Array of whitelisted addresses
-     */
     function getWhitelistedAddresses() external view returns (address[] memory) {
         return _whitelistArray;
     }
     
-    /**
-     * @notice Get the number of whitelisted addresses
-     * @return Count of whitelisted addresses
-     */
     function getWhitelistCount() external view returns (uint256) {
         return _whitelistArray.length;
     }
     
     // ============ View Functions ============
 
-    /**
-     * @notice Enforce 1:1 exchange rate: 1 Asset = 1 Share
-     */
-    function convertToShares(uint256 assets) public view override returns (uint256) {
+    function convertToShares(uint256 assets) public pure override returns (uint256) {
         return assets;
     }
 
-    /**
-     * @notice Enforce 1:1 exchange rate: 1 Share = 1 Asset
-     */
-    function convertToAssets(uint256 shares) public view override returns (uint256) {
+    function convertToAssets(uint256 shares) public pure override returns (uint256) {
         return shares;
     }
 
-    /**
-     * @dev Internal conversion function override to ensure 1:1 ratio
-     */
-    function _convertToShares(uint256 assets, Math.Rounding /*rounding*/) internal view override returns (uint256) {
+    function _convertToShares(uint256 assets, Math.Rounding /*rounding*/) internal pure override returns (uint256) {
         return assets;
     }
 
-    /**
-     * @dev Internal conversion function override to ensure 1:1 ratio
-     */
-    function _convertToAssets(uint256 shares, Math.Rounding /*rounding*/) internal view override returns (uint256) {
+    function _convertToAssets(uint256 shares, Math.Rounding /*rounding*/) internal pure override returns (uint256) {
         return shares;
     }
 
-    /**
-     * @notice Override decimals to resolve ERC20/ERC4626 conflict
-     */
-    function decimals() public view override(ERC4626, ERC20) returns (uint8) {
+    function decimals() public view override(ERC4626Upgradeable, ERC20Upgradeable) returns (uint8) {
         return super.decimals();
     }
 
-    /**
-     * @notice Check if user has a pending redemption
-     * @param user Address to check
-     * @return hasPending True if user has pending redemption
-     * @return shares Amount of shares pending
-     * @return assets Amount of assets pending
-     */
     function getPendingRedemption(address user) 
         external 
         view 
@@ -670,12 +436,6 @@ contract YieldVault is ERC4626, ERC20Permit, AccessControl, Pausable, Reentrancy
         );
     }
     
-    /**
-     * @notice Check if rewards have been claimed
-     * @param user Address to check
-     * @param epochIndex Epoch to check
-     * @return claimed True if already claimed
-     */
     function hasClaimedRewards(address user, uint256 epochIndex) 
         external 
         view 
