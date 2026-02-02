@@ -1,4 +1,6 @@
 import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * Interactive script demonstrating the full user flow
@@ -7,12 +9,45 @@ import { ethers } from "hardhat";
  * 1. User deposits USDC → receives wYLDS
  * 2. User stakes wYLDS → receives PRIME
  * 3. User earns rewards (PRIME value increases)
- * 4. User unbonds PRIME → starts 21-day waiting period
- * 5. User completes unbonding → receives wYLDS back
- * 6. User redeems wYLDS → receives USDC back
+ * 4. Rewards distributed to stakers
+ * 5. User redeems PRIME → receives wYLDS (specify shares to burn)
+ * 6. User withdraws from PRIME → receives wYLDS (specify assets to receive)
+ * 7. User requests redemption (wYLDS → USDC)
+ * 8. Admin completes redemption → user receives USDC
  */
 
+interface DeploymentInfo {
+  contracts: {
+    usdc: string;
+    yieldVault: string;
+    stakingVault: string;
+  };
+}
+
+function loadDeploymentInfo(): DeploymentInfo {
+  const deploymentPath = path.join(__dirname, "..", "deployment.json");
+
+  if (!fs.existsSync(deploymentPath)) {
+    console.error("\n❌ ERROR: deployment.json not found!");
+    console.error("\nPlease run the deployment script first:");
+    console.error("   npx hardhat run scripts/deploy.ts --network localhost\n");
+    process.exit(1);
+  }
+
+  const data = fs.readFileSync(deploymentPath, "utf-8");
+  return JSON.parse(data) as DeploymentInfo;
+}
+
 async function main() {
+  // Prevent running on mainnet
+  const network = await ethers.provider.getNetwork();
+  const MAINNET_CHAIN_ID = 1n;
+  if (network.chainId === MAINNET_CHAIN_ID) {
+    console.error("\n❌ ERROR: This script cannot be run on mainnet!");
+    console.error("This is a demo script that mints tokens and should only be used on testnets.\n");
+    process.exit(1);
+  }
+
   console.log("\n===========================================");
   console.log("Hastra Vault Protocol - Interactive Demo");
   console.log("===========================================\n");
@@ -25,24 +60,11 @@ async function main() {
   console.log("  User:", user1.address);
   console.log("  Rewards Admin:", rewardsAdmin.address);
 
-  // NOTE: You must set these environment variables or deploy contracts first
-  // Run: npx hardhat run scripts/deploy.ts --network localhost
-  // Then set the addresses in your .env file
-  const USDC_ADDRESS = process.env.USDC_ADDRESS;
-  const YIELD_VAULT_ADDRESS = process.env.YIELD_VAULT_ADDRESS;
-  const STAKING_VAULT_ADDRESS = process.env.STAKING_VAULT_ADDRESS;
-
-  if (!USDC_ADDRESS || !YIELD_VAULT_ADDRESS || !STAKING_VAULT_ADDRESS) {
-    console.error("\n❌ ERROR: Contract addresses not set!");
-    console.error("\nPlease either:");
-    console.error("1. Run the deployment script first:");
-    console.error("   npx hardhat run scripts/deploy.ts --network localhost");
-    console.error("\n2. Set these environment variables in your .env file:");
-    console.error("   USDC_ADDRESS=0x...");
-    console.error("   YIELD_VAULT_ADDRESS=0x...");
-    console.error("   STAKING_VAULT_ADDRESS=0x...\n");
-    process.exit(1);
-  }
+  // Load contract addresses from deployment.json
+  const deployment = loadDeploymentInfo();
+  const USDC_ADDRESS = deployment.contracts.usdc;
+  const YIELD_VAULT_ADDRESS = deployment.contracts.yieldVault;
+  const STAKING_VAULT_ADDRESS = deployment.contracts.stakingVault;
 
   // Get contract instances
   const usdc = await ethers.getContractAt("MockUSDC", USDC_ADDRESS);
@@ -53,6 +75,17 @@ async function main() {
   console.log("  USDC:", await usdc.getAddress());
   console.log("  YieldVault (wYLDS):", await yieldVault.getAddress());
   console.log("  StakingVault (PRIME):", await stakingVault.getAddress());
+
+  // ============ Setup: Fund redeemVault for redemptions ============
+
+  console.log("\n--- Setup: Fund redeemVault for redemptions ---");
+  // Mint USDC to redeemVault so it can fulfill redemptions
+  await usdc.mint(redeemVault.address, ethers.parseUnits("100000", 6));
+  console.log("Minted 100,000 USDC to redeemVault");
+
+  // redeemVault approves YieldVault to pull USDC for redemptions
+  await usdc.connect(redeemVault).approve(await yieldVault.getAddress(), ethers.MaxUint256);
+  console.log("redeemVault approved YieldVault to spend USDC");
 
   // ============ Step 1: Mint USDC for user ============
 
@@ -109,56 +142,62 @@ async function main() {
   console.log("New PRIME value:", ethers.formatUnits(primeValue, 6), "wYLDS");
   console.log("Rewards earned:", ethers.formatUnits(primeValue - stakeAmount, 6), "wYLDS");
 
-  // ============ Step 5: Unbond PRIME ============
 
-  console.log("\n--- Step 5: Unbond PRIME (Start 21-day Waiting) ---");
-  const unbondAmount = ethers.parseUnits("1000", 6); // 1,000 PRIME
+  // ============ Step 5: Redeem PRIME → wYLDS (specify shares) ============
 
-  const tx = await stakingVault.connect(user1).unbond(unbondAmount);
-  const receipt = await tx.wait();
-  console.log("Unbonded", ethers.formatUnits(unbondAmount, 6), "PRIME");
+  console.log("\n--- Step 5: Redeem PRIME for wYLDS (specify shares to burn) ---");
 
-  // Get unbonding positions
-  const positions = await stakingVault.getUnbondingPositions(user1.address);
-  console.log("\nUnbonding Positions:");
-  positions.forEach((pos, idx) => {
-    const unlockDate = new Date(Number(pos.unlockTime) * 1000);
-    console.log(`  Position ${idx}:`);
-    console.log(`    Shares: ${ethers.formatUnits(pos.shares, 6)} PRIME`);
-    console.log(`    Assets: ${ethers.formatUnits(pos.assets, 6)} wYLDS`);
-    console.log(`    Unlock: ${unlockDate.toLocaleString()}`);
-  });
+  // Check current balances
+  const primeBeforeRedeem = await stakingVault.balanceOf(user1.address);
+  console.log("PRIME balance before redeem:", ethers.formatUnits(primeBeforeRedeem, 6), "PRIME");
 
-  // ============ Step 6: Fast-forward Time (Hardhat Only!) ============
+  // Redeem 1000 PRIME shares
+  const redeemShares = ethers.parseUnits("1000", 6); // 1,000 PRIME
 
-  console.log("\n--- Step 6: Fast-forward 21 Days (Testing) ---");
-  const unbondingPeriod = 21 * 24 * 60 * 60; // 21 days
-  await ethers.provider.send("evm_increaseTime", [unbondingPeriod]);
-  await ethers.provider.send("evm_mine", []);
-  console.log("Time increased by 21 days");
+  // Preview how many wYLDS assets will be received
+  const assetsToReceive = await stakingVault.previewRedeem(redeemShares);
+  console.log("Assets to receive for", ethers.formatUnits(redeemShares, 6), "PRIME:", ethers.formatUnits(assetsToReceive, 6), "wYLDS");
 
-  // Check if unlocked
-  const isUnlocked = await stakingVault.isUnbondingUnlocked(user1.address, 0);
-  console.log("Position 0 unlocked:", isUnlocked);
+  // Execute redeem: specify shares (PRIME) you want to burn
+  const wyldsBeforeRedeem = await yieldVault.balanceOf(user1.address);
+  await stakingVault.connect(user1).redeem(redeemShares, user1.address, user1.address);
 
-  // ============ Step 7: Complete Unbonding ============
+  const wyldsAfterRedeem = await yieldVault.balanceOf(user1.address);
+  const primeAfterRedeem = await stakingVault.balanceOf(user1.address);
 
-  console.log("\n--- Step 7: Complete Unbonding ---");
-  const wyldsBeforeUnbond = await yieldVault.balanceOf(user1.address);
+  console.log("Received", ethers.formatUnits(wyldsAfterRedeem - wyldsBeforeRedeem, 6), "wYLDS");
+  console.log("PRIME balance after redeem:", ethers.formatUnits(primeAfterRedeem, 6), "PRIME");
+  console.log("PRIME burned:", ethers.formatUnits(primeBeforeRedeem - primeAfterRedeem, 6), "PRIME");
 
-  await stakingVault.connect(user1).completeUnbonding(0);
-  console.log("Completed unbonding of position 0");
+  // ============ Step 6: Withdraw wYLDS from PRIME (specify assets) ============
 
-  const wyldsAfterUnbond = await yieldVault.balanceOf(user1.address);
-  const wyldsReceived = wyldsAfterUnbond - wyldsBeforeUnbond;
-  console.log("Received", ethers.formatUnits(wyldsReceived, 6), "wYLDS");
+  console.log("\n--- Step 6: Withdraw wYLDS from StakingVault (specify assets to receive) ---");
 
-  wyldsBalance = await yieldVault.balanceOf(user1.address);
-  console.log("Total wYLDS balance:", ethers.formatUnits(wyldsBalance, 6), "wYLDS");
+  // Check current PRIME balance
+  const primeBeforeWithdraw = await stakingVault.balanceOf(user1.address);
+  console.log("PRIME balance before withdraw:", ethers.formatUnits(primeBeforeWithdraw, 6), "PRIME");
 
-  // ============ Step 8: Request Redemption ============
+  // Withdraw 500 wYLDS worth of assets (burns equivalent PRIME shares)
+  const withdrawAmount = ethers.parseUnits("500", 6); // 500 wYLDS
 
-  console.log("\n--- Step 8: Request Redemption (wYLDS → USDC) ---");
+  // Preview how many shares will be burned
+  const sharesToBurn = await stakingVault.previewWithdraw(withdrawAmount);
+  console.log("Shares to burn for", ethers.formatUnits(withdrawAmount, 6), "wYLDS:", ethers.formatUnits(sharesToBurn, 6), "PRIME");
+
+  // Execute withdraw: specify assets (wYLDS) you want to receive
+  const wyldsBeforeWithdraw = await yieldVault.balanceOf(user1.address);
+  await stakingVault.connect(user1).withdraw(withdrawAmount, user1.address, user1.address);
+
+  const wyldsAfterWithdraw = await yieldVault.balanceOf(user1.address);
+  const primeAfterWithdraw = await stakingVault.balanceOf(user1.address);
+
+  console.log("Withdrew", ethers.formatUnits(wyldsAfterWithdraw - wyldsBeforeWithdraw, 6), "wYLDS");
+  console.log("PRIME balance after withdraw:", ethers.formatUnits(primeAfterWithdraw, 6), "PRIME");
+  console.log("PRIME burned:", ethers.formatUnits(primeBeforeWithdraw - primeAfterWithdraw, 6), "PRIME");
+
+  // ============ Step 7: Request Redemption (wYLDS → USDC) ============
+
+  console.log("\n--- Step 7: Request Redemption (wYLDS → USDC) ---");
   const redeemAmount = ethers.parseUnits("1000", 6); // 1,000 wYLDS
 
   await yieldVault.connect(user1).requestRedeem(redeemAmount);
@@ -170,9 +209,9 @@ async function main() {
   console.log("  Shares:", ethers.formatUnits(pending.shares, 6), "wYLDS");
   console.log("  Assets:", ethers.formatUnits(pending.assets, 6), "USDC");
 
-  // ============ Step 9: Complete Redemption (Admin) ============
+  // ============ Step 8: Complete Redemption (Admin) ============
 
-  console.log("\n--- Step 9: Complete Redemption (Admin) ---");
+  console.log("\n--- Step 8: Complete Redemption (Admin) ---");
 
   const usdcBeforeRedeem = await usdc.balanceOf(user1.address);
 

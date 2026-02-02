@@ -46,7 +46,10 @@ That's it! You now have a full DeFi protocol running locally.
    - MockUSDC (a test stablecoin)
    - YieldVault (deposit USDC, get wYLDS)
    - StakingVault (stake wYLDS, get PRIME, earn rewards)
-3. **Demo Executed**: You saw the full user flow in action
+3. **Deployment Saved**: Contract addresses saved to `deployment.json`
+4. **Demo Executed**: The interact script reads from `deployment.json` and runs the full user flow
+
+**Note:** The interact script cannot run on mainnet (safety check built-in).
 
 ## Understanding the Flow
 
@@ -54,25 +57,38 @@ That's it! You now have a full DeFi protocol running locally.
 ┌──────────────────────────────────────────────────┐
 │  You have USDC (stablecoin)                      │
 │      ↓                                            │
-│  Deposit into YieldVault                         │
+│  Step 1: Deposit USDC into YieldVault            │
 │      ↓                                            │
-│  Receive wYLDS tokens (1:1 with USDC)            │
+│  Step 2: Receive wYLDS tokens (1:1 with USDC)    │
 │      ↓                                            │
-│  Stake wYLDS in StakingVault                     │
+│  Step 3: Stake wYLDS in StakingVault             │
 │      ↓                                            │
 │  Receive PRIME tokens (represents your stake)    │
 │      ↓                                            │
-│  Earn rewards (PRIME value increases!)           │
+│  Step 4: Earn rewards (PRIME value increases!)   │
 │      ↓                                            │
-│  Unbond PRIME (21-day waiting period)            │
+│  Step 5: Redeem PRIME → wYLDS (specify shares)   │
 │      ↓                                            │
-│  Receive wYLDS back (original + rewards)         │
+│  Step 6: Withdraw PRIME → wYLDS (specify assets) │
 │      ↓                                            │
-│  Redeem wYLDS for USDC                           │
+│  Step 7: Request redemption (wYLDS → USDC)       │
+│      ↓                                            │
+│  Step 8: Admin completes redemption              │
 │      ↓                                            │
 │  Get USDC back in your wallet!                   │
 └──────────────────────────────────────────────────┘
 ```
+
+### Redeem vs Withdraw (ERC-4626)
+
+The StakingVault follows the ERC-4626 standard with two ways to unstake:
+
+| Method | You Specify | Calculated | Use When |
+|--------|-------------|------------|----------|
+| `redeem(shares)` | PRIME to burn | wYLDS received | "I want to unstake 1000 PRIME" |
+| `withdraw(assets)` | wYLDS to receive | PRIME burned | "I need exactly 500 wYLDS" |
+
+Both are instant - no waiting period required.
 
 ## Try It Yourself
 
@@ -218,6 +234,12 @@ hastra-eth-vault/
 
 **"Cannot find module"**
 → Run `yarn install` or `npm install`
+
+**"deployment.json not found"**
+→ Run `npx hardhat run scripts/deploy.ts --network localhost` first
+
+**"could not decode result data" or "function selector was not recognized"**
+→ The Hardhat node was restarted after deploying. Re-run `deploy.ts` to deploy fresh contracts, then run `interact.ts` again. The contracts from the previous session no longer exist.
 
 ## Where to Go From Here
 

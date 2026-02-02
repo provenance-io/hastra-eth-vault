@@ -6,7 +6,8 @@
       "Bash(yarn add:*)",
       "Bash(npm test:*)",
       "Bash(yarn test:*)",
-      "Bash(./node_modules/.bin/hardhat compile:*)"
+      "Bash(./node_modules/.bin/hardhat compile:*)",
+      "Bash(ls:*)"
     ]
   }
 }
