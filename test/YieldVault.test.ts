@@ -432,6 +432,45 @@ describe("YieldVault", function () {
       const pending = await vault.pendingRedemptions(user1.address);
       expect(pending.shares).to.equal(0);
     });
+
+    it("Should revert withdraw() function (disabled in favor of two-step)", async function () {
+      const { vault, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await vault.connect(user1).deposit(depositAmount, user1.address);
+      
+      await expect(
+        vault.connect(user1).withdraw(ethers.parseUnits("100", 6), user1.address, user1.address)
+      ).to.be.revertedWith("Use requestRedeem/completeRedeem");
+    });
+
+    it("Should revert redeem() function (disabled in favor of two-step)", async function () {
+      const { vault, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await vault.connect(user1).deposit(depositAmount, user1.address);
+      
+      await expect(
+        vault.connect(user1).redeem(ethers.parseUnits("100", 6), user1.address, user1.address)
+      ).to.be.revertedWith("Use requestRedeem/completeRedeem");
+    });
+
+    it("Should revert if redeem vault has insufficient balance", async function () {
+      const { vault, usdc, redeemVault, rewardsAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await vault.connect(user1).deposit(depositAmount, user1.address);
+      
+      const redeemAmount = ethers.parseUnits("500", 6);
+      await vault.connect(user1).requestRedeem(redeemAmount);
+      
+      const redeemVaultBalance = await usdc.balanceOf(redeemVault.address);
+      await usdc.connect(redeemVault).transfer(user1.address, redeemVaultBalance);
+      
+      await expect(
+        vault.connect(rewardsAdmin).completeRedeem(user1.address)
+      ).to.be.revertedWithCustomError(vault, "InsufficientVaultBalance");
+    });
   });
 
   // ============ Merkle Rewards Tests ============
@@ -552,6 +591,66 @@ describe("YieldVault", function () {
         vault.connect(user2).claimRewards(epochIndex, rewardAmount, proof)
       ).to.be.revertedWithCustomError(vault, "InvalidProof");
     });
+
+    it("Should correctly report claimed status via hasClaimedRewards", async function () {
+      const { vault, rewardsAdmin, user1, user2 } = await loadFixture(deployYieldVaultFixture);
+      
+      const epochIndex = 0;
+      const rewardAmount = ethers.parseUnits("100", 6);
+      const rewards = [
+        { user: user1.address, amount: rewardAmount, epoch: epochIndex },
+      ];
+      const tree = createMerkleTree(rewards);
+      const root = tree.getHexRoot();
+      
+      await vault.connect(rewardsAdmin).createRewardsEpoch(epochIndex, root, rewardAmount);
+
+      expect(await vault.hasClaimedRewards(user1.address, epochIndex)).to.be.false;
+      expect(await vault.hasClaimedRewards(user2.address, epochIndex)).to.be.false;
+
+      const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["address", "uint256", "uint256"],
+        [user1.address, rewardAmount, epochIndex]
+      );
+      const leaf = ethers.keccak256(ethers.concat([ethers.keccak256(encoded)]));
+      const proof = tree.getHexProof(leaf);
+
+      await vault.connect(user1).claimRewards(epochIndex, rewardAmount, proof);
+      
+      expect(await vault.hasClaimedRewards(user1.address, epochIndex)).to.be.true;
+      expect(await vault.hasClaimedRewards(user2.address, epochIndex)).to.be.false;
+    });
+
+    it("Should track claimed status across multiple epochs", async function () {
+      const { vault, rewardsAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      const epochIndex0 = 0;
+      const epochIndex1 = 1;
+      const rewardAmount = ethers.parseUnits("100", 6);
+      
+      const rewards0 = [{ user: user1.address, amount: rewardAmount, epoch: epochIndex0 }];
+      const tree0 = createMerkleTree(rewards0);
+      await vault.connect(rewardsAdmin).createRewardsEpoch(epochIndex0, tree0.getHexRoot(), rewardAmount);
+      
+      const rewards1 = [{ user: user1.address, amount: rewardAmount, epoch: epochIndex1 }];
+      const tree1 = createMerkleTree(rewards1);
+      await vault.connect(rewardsAdmin).createRewardsEpoch(epochIndex1, tree1.getHexRoot(), rewardAmount);
+      
+      expect(await vault.hasClaimedRewards(user1.address, epochIndex0)).to.be.false;
+      expect(await vault.hasClaimedRewards(user1.address, epochIndex1)).to.be.false;
+      
+      const encoded0 = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["address", "uint256", "uint256"],
+        [user1.address, rewardAmount, epochIndex0]
+      );
+      const leaf0 = ethers.keccak256(ethers.concat([ethers.keccak256(encoded0)]));
+      const proof0 = tree0.getHexProof(leaf0);
+      
+      await vault.connect(user1).claimRewards(epochIndex0, rewardAmount, proof0);
+      
+      expect(await vault.hasClaimedRewards(user1.address, epochIndex0)).to.be.true;
+      expect(await vault.hasClaimedRewards(user1.address, epochIndex1)).to.be.false;
+    });
   });
 
   // ============ Freeze Functionality Tests ============
@@ -650,6 +749,36 @@ describe("YieldVault", function () {
       await expect(vault.connect(user1).pause()).to.be.reverted;
       
       await expect(vault.connect(owner).pause()).to.not.be.reverted;
+    });
+
+    it("Should unpause after pausing", async function () {
+      const { vault, owner, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      const PAUSER_ROLE = await vault.PAUSER_ROLE();
+      await vault.grantRole(PAUSER_ROLE, owner.address);
+      
+      await vault.connect(owner).pause();
+      expect(await vault.paused()).to.be.true;
+      
+      await vault.connect(owner).unpause();
+      expect(await vault.paused()).to.be.false;
+      
+      const depositAmount = ethers.parseUnits("100", 6);
+      await vault.connect(user1).deposit(depositAmount, user1.address);
+      expect(await vault.balanceOf(user1.address)).to.equal(depositAmount);
+    });
+
+    it("Should only allow pauser to unpause", async function () {
+      const { vault, owner, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      const PAUSER_ROLE = await vault.PAUSER_ROLE();
+      await vault.grantRole(PAUSER_ROLE, owner.address);
+      
+      await vault.connect(owner).pause();
+      
+      await expect(vault.connect(user1).unpause()).to.be.reverted;
+      
+      await expect(vault.connect(owner).unpause()).to.not.be.reverted;
     });
   });
 

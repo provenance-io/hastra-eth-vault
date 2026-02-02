@@ -368,6 +368,161 @@ describe("StakingVault", function () {
 
   // ============ Redeem vs Withdraw Tests ============
 
+  describe("Admin Functions", function () {
+    it("Should unpause after pausing", async function () {
+      const { stakingVault, owner, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const PAUSER_ROLE = await stakingVault.PAUSER_ROLE();
+      await stakingVault.grantRole(PAUSER_ROLE, owner.address);
+      
+      await stakingVault.pause();
+      expect(await stakingVault.paused()).to.be.true;
+      
+      await stakingVault.unpause();
+      expect(await stakingVault.paused()).to.be.false;
+      
+      const depositAmount = ethers.parseUnits("100", 6);
+      await stakingVault.connect(user1).deposit(depositAmount, user1.address);
+    });
+
+    it("Should set new yield vault address", async function () {
+      const { stakingVault, owner, yieldVault } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const MockUSDC = await ethers.getContractFactory("MockUSDC");
+      const newUsdc = await MockUSDC.deploy();
+      await newUsdc.waitForDeployment();
+      
+      const YieldVault = await ethers.getContractFactory("YieldVault");
+      const newYieldVault = await upgrades.deployProxy(YieldVault, [
+        await newUsdc.getAddress(),
+        "New wYLDS",
+        "nwYLDS",
+        owner.address,
+        owner.address,
+        ethers.ZeroAddress
+      ], { kind: 'uups' });
+      await newYieldVault.waitForDeployment();
+      
+      const oldVaultAddress = await stakingVault.yieldVault();
+      await expect(stakingVault.setYieldVault(await newYieldVault.getAddress()))
+        .to.emit(stakingVault, "YieldVaultUpdated")
+        .withArgs(oldVaultAddress, await newYieldVault.getAddress());
+      
+      expect(await stakingVault.yieldVault()).to.equal(await newYieldVault.getAddress());
+    });
+
+    it("Should revert setYieldVault with zero address", async function () {
+      const { stakingVault } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      await expect(stakingVault.setYieldVault(ethers.ZeroAddress))
+        .to.be.revertedWithCustomError(stakingVault, "InvalidAddress");
+    });
+
+    it("Should only allow admin to set yield vault", async function () {
+      const { stakingVault, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      await expect(stakingVault.connect(user1).setYieldVault(user1.address))
+        .to.be.reverted;
+    });
+  });
+
+  describe("Mint Function", function () {
+    it("Should mint exact shares and transfer corresponding assets", async function () {
+      const { stakingVault, yieldVault, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const sharesToMint = ethers.parseUnits("100", 6);
+      const assetsNeeded = await stakingVault.previewMint(sharesToMint);
+      
+      await stakingVault.connect(user1).mint(sharesToMint, user1.address);
+      
+      expect(await stakingVault.balanceOf(user1.address)).to.equal(sharesToMint);
+    });
+
+    it("Should not allow mint when paused", async function () {
+      const { stakingVault, owner, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const PAUSER_ROLE = await stakingVault.PAUSER_ROLE();
+      await stakingVault.grantRole(PAUSER_ROLE, owner.address);
+      await stakingVault.pause();
+      
+      await expect(
+        stakingVault.connect(user1).mint(ethers.parseUnits("100", 6), user1.address)
+      ).to.be.revertedWithCustomError(stakingVault, "EnforcedPause");
+    });
+  });
+
+  describe("Deposit With Permit", function () {
+    it("Should deposit using permit signature", async function () {
+      const { stakingVault, yieldVault, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("100", 6);
+      const deadline = ethers.MaxUint256;
+      
+      const domain = {
+        name: await yieldVault.name(),
+        version: "1",
+        chainId: (await ethers.provider.getNetwork()).chainId,
+        verifyingContract: await yieldVault.getAddress()
+      };
+      
+      const types = {
+        Permit: [
+          { name: "owner", type: "address" },
+          { name: "spender", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" }
+        ]
+      };
+      
+      const nonce = await yieldVault.nonces(user1.address);
+      
+      const value = {
+        owner: user1.address,
+        spender: await stakingVault.getAddress(),
+        value: depositAmount,
+        nonce: nonce,
+        deadline: deadline
+      };
+      
+      const signature = await user1.signTypedData(domain, types, value);
+      const sig = ethers.Signature.from(signature);
+      
+      const balanceBefore = await stakingVault.balanceOf(user1.address);
+      await stakingVault.connect(user1).depositWithPermit(
+        depositAmount,
+        user1.address,
+        deadline,
+        sig.v,
+        sig.r,
+        sig.s
+      );
+      const balanceAfter = await stakingVault.balanceOf(user1.address);
+      
+      expect(balanceAfter - balanceBefore).to.equal(depositAmount);
+    });
+  });
+
+  describe("View Functions", function () {
+    it("Should return correct decimals", async function () {
+      const { stakingVault, yieldVault } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const vaultDecimals = await stakingVault.decimals();
+      const assetDecimals = await yieldVault.decimals();
+      
+      expect(vaultDecimals).to.equal(assetDecimals);
+      expect(vaultDecimals).to.equal(6);
+    });
+  });
+
   describe("Redeem vs Withdraw", function () {
     it("Should redeem exact shares (use case: 'Withdraw All' button)", async function () {
       const { stakingVault, yieldVault, user1 } = 
