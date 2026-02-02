@@ -365,4 +365,124 @@ describe("StakingVault", function () {
       expect(wyldsBalanceAfter - wyldsBalanceBefore).to.be.closeTo(stakeAmount + rewardAmount, 1);
     });
   });
+
+  // ============ Redeem vs Withdraw Tests ============
+
+  describe("Redeem vs Withdraw", function () {
+    it("Should redeem exact shares (use case: 'Withdraw All' button)", async function () {
+      const { stakingVault, yieldVault, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await stakingVault.connect(user1).deposit(depositAmount, user1.address);
+      
+      const primeBalance = await stakingVault.balanceOf(user1.address);
+      expect(primeBalance).to.be.gt(0);
+      
+      const wyldsBalanceBefore = await yieldVault.balanceOf(user1.address);
+      await stakingVault.connect(user1).redeem(primeBalance, user1.address, user1.address);
+      const wyldsBalanceAfter = await yieldVault.balanceOf(user1.address);
+      
+      expect(await stakingVault.balanceOf(user1.address)).to.equal(0);
+      expect(wyldsBalanceAfter - wyldsBalanceBefore).to.be.closeTo(depositAmount, 1);
+    });
+
+    it("Should redeem partial shares (use case: 'Unstake 100 PRIME tokens')", async function () {
+      const { stakingVault, yieldVault, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await stakingVault.connect(user1).deposit(depositAmount, user1.address);
+      
+      const redeemShares = ethers.parseUnits("100", 6);
+      const primeBalanceBefore = await stakingVault.balanceOf(user1.address);
+      
+      const wyldsBalanceBefore = await yieldVault.balanceOf(user1.address);
+      await stakingVault.connect(user1).redeem(redeemShares, user1.address, user1.address);
+      const wyldsBalanceAfter = await yieldVault.balanceOf(user1.address);
+      const primeBalanceAfter = await stakingVault.balanceOf(user1.address);
+      
+      expect(primeBalanceBefore - primeBalanceAfter).to.equal(redeemShares);
+      expect(wyldsBalanceAfter - wyldsBalanceBefore).to.be.closeTo(ethers.parseUnits("100", 6), 1);
+    });
+
+    it("Should withdraw exact assets (use case: 'I want exactly 500 wYLDS back')", async function () {
+      const { stakingVault, yieldVault, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await stakingVault.connect(user1).deposit(depositAmount, user1.address);
+      
+      const withdrawAssets = ethers.parseUnits("500", 6);
+      const wyldsBalanceBefore = await yieldVault.balanceOf(user1.address);
+      
+      await stakingVault.connect(user1).withdraw(withdrawAssets, user1.address, user1.address);
+      
+      const wyldsBalanceAfter = await yieldVault.balanceOf(user1.address);
+      
+      expect(wyldsBalanceAfter - wyldsBalanceBefore).to.equal(withdrawAssets);
+    });
+
+    it("Should withdraw all assets using asset amount (alternative to redeem)", async function () {
+      const { stakingVault, yieldVault, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await stakingVault.connect(user1).deposit(depositAmount, user1.address);
+      
+      const maxAssets = await stakingVault.maxWithdraw(user1.address);
+      
+      const wyldsBalanceBefore = await yieldVault.balanceOf(user1.address);
+      await stakingVault.connect(user1).withdraw(maxAssets, user1.address, user1.address);
+      const wyldsBalanceAfter = await yieldVault.balanceOf(user1.address);
+      
+      expect(await stakingVault.balanceOf(user1.address)).to.equal(0);
+      expect(wyldsBalanceAfter - wyldsBalanceBefore).to.be.closeTo(depositAmount, 1);
+    });
+
+    it("Should handle withdraw and redeem with different share/asset ratios after rewards", async function () {
+      const { stakingVault, yieldVault, rewardsAdmin, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await stakingVault.connect(user1).deposit(depositAmount, user1.address);
+      
+      const rewardAmount = ethers.parseUnits("500", 6);
+      await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
+      
+      const totalAssets = await stakingVault.totalAssets();
+      const totalShares = await stakingVault.totalSupply();
+      expect(totalAssets).to.be.gt(totalShares);
+      
+      const redeemShares = ethers.parseUnits("100", 6);
+      const previewAssets = await stakingVault.previewRedeem(redeemShares);
+      
+      const wyldsBalanceBefore = await yieldVault.balanceOf(user1.address);
+      await stakingVault.connect(user1).redeem(redeemShares, user1.address, user1.address);
+      const wyldsBalanceAfter = await yieldVault.balanceOf(user1.address);
+      
+      expect(wyldsBalanceAfter - wyldsBalanceBefore).to.be.closeTo(previewAssets, 1);
+      expect(previewAssets).to.be.gt(redeemShares);
+    });
+
+    it("Should enforce pause on both redeem and withdraw", async function () {
+      const { stakingVault, owner, user1 } = 
+        await loadFixture(deployStakingVaultFixture);
+      
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await stakingVault.connect(user1).deposit(depositAmount, user1.address);
+      
+      const PAUSER_ROLE = await stakingVault.PAUSER_ROLE();
+      await stakingVault.grantRole(PAUSER_ROLE, owner.address);
+      await stakingVault.pause();
+      
+      await expect(
+        stakingVault.connect(user1).redeem(ethers.parseUnits("100", 6), user1.address, user1.address)
+      ).to.be.revertedWithCustomError(stakingVault, "EnforcedPause");
+      
+      await expect(
+        stakingVault.connect(user1).withdraw(ethers.parseUnits("100", 6), user1.address, user1.address)
+      ).to.be.revertedWithCustomError(stakingVault, "EnforcedPause");
+    });
+  });
 });
