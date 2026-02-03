@@ -1,378 +1,320 @@
 # Hastra Ethereum Vault Protocol
 
-Ethereum implementation of the Hastra Vault Protocol using ERC-4626 standard for tokenized vaults with enhanced features including two-step redemptions, merkle-based rewards, and account freeze functionality.
+ERC-4626 tokenized vaults with two-step redemptions, merkle-based rewards, and UUPS upgradeability.
+
+## 📚 Documentation
+
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Setup, local development, and common workflows
+- **[Architecture & Flow Diagrams](docs/ARCHITECTURE.md)** - Visual guides for both vaults
+- **[Roles & Permissions](docs/ROLES.md)** - Access control documentation
+- **[Upgrade Guide](docs/UPGRADES.md)** - UUPS proxy upgrade process
+- **[Compliance Features](docs/COMPLIANCE.md)** - Freeze/thaw and regulatory controls
+- **[Error Codes](docs/ERROR_CODES.md)** - Troubleshooting transaction failures
 
 ## Overview
 
-The Hastra Ethereum Vault Protocol consists of two main contracts:
-
-1. **YieldVault** - Deposit USDC → Receive wYLDS (1:1 initially)
-   - Two-step redemption process for off-chain liquidity management
-   - Merkle tree-based epoch rewards distribution
-   - Account freeze/thaw functionality for compliance
-   - Access control for admin operations
-   - ERC-4626 compliant
-   - Whitelist for USDC withdrawals
-
-2. **StakingVault** - Stake wYLDS → Receive PRIME
-   - Unbonding period mechanism (21 days default)
-   - Share-based rewards (share value increases with rewards)
-   - Account freeze/thaw functionality
-   - ERC-4626 compliant
-
-## Key Features
-
-### ERC-4626 Compliance
-Both vaults are fully ERC-4626 compliant, providing:
-- Standard interfaces recognized by all DeFi protocols
-- Built-in share mathematics preventing first-depositor attacks
-- Preview functions for accurate user experience
-- Composability with the broader Ethereum DeFi ecosystem
-
-### Security Features
-- **Role-based access control** using OpenZeppelin's AccessControl
-- **Pause mechanism** for emergency stops
-- **Reentrancy protection** on all critical functions
-- **Freeze/thaw functionality** for regulatory compliance
-- **Double-claim prevention** for rewards
-
-### Gas Optimization
-- Merkle tree-based rewards distribution (efficient on-chain verification)
-- Minimal storage operations
-- Optimized ERC-4626 share calculations
-
-## Architecture
+The Hastra Ethereum Vault Protocol consists of two ERC-4626 vaults:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Hastra Vault Protocol                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────────┐         ┌──────────────┐                     │
-│  │  YieldVault  │         │StakingVault  │                     │
-│  │   (wYLDS)    │────────▶│   (PRIME)    │                     │
-│  └──────────────┘         └──────────────┘                     │
-│         │                                                        │
-│         │ ERC-4626                                              │
-│         │                                                        │
-│  ┌──────▼──────┐                                                │
-│  │    USDC     │                                                │
-│  └─────────────┘                                                │
-│                                                                  │
-├─────────────────────────────────────────────────────────────────┤
-│  Features: Two-Step Redemption │ Merkle Rewards │ Freeze/Thaw  │
-└─────────────────────────────────────────────────────────────────┘
+USDC → [YieldVault] → wYLDS → [StakingVault] → PRIME
+       (1:1 ratio)             (appreciation)
 ```
 
-## Installation
+### YieldVault (wYLDS)
+
+Deposit USDC and receive wYLDS tokens at a 1:1 ratio.
+
+**Features:**
+- ✅ ERC-4626 compliant (with modifications)
+- ✅ Two-step redemption (regulatory compliance)
+- ✅ Merkle-tree rewards distribution
+- ✅ Account freeze/thaw functionality
+- ✅ Whitelist for USDC withdrawals
+- ⚠️ No instant redemption (use `requestRedeem` → admin `completeRedeem`)
+
+### StakingVault (PRIME)
+
+Stake wYLDS and receive PRIME tokens with share value appreciation.
+
+**Features:**
+- ✅ Fully ERC-4626 compliant
+- ✅ Instant redemption (`withdraw` / `redeem`)
+- ✅ Share-based rewards (value increases automatically)
+- ✅ Account freeze/thaw functionality
+- ✅ No unbonding period
+
+## 🌐 Deployment
+
+### Testnet (Hoodi) - **ACTIVE**
+
+View deployment info: [`deployment_testnet.json`](./deployment_testnet.json)
+
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| YieldVault (Proxy) | `0xBf000e0362d967B3583fdE2451BeA11b3723b81C` | [View →](https://hoodi.etherscan.io/address/0xBf000e0362d967B3583fdE2451BeA11b3723b81C) |
+| StakingVault (Proxy) | `0x14D815D29F9b39859a55F1392cff217ED642a8Ea` | [View →](https://hoodi.etherscan.io/address/0x14D815D29F9b39859a55F1392cff217ED642a8Ea) |
+| USDC (Test) | `0xBa16F5b2fDF7D5686D55c2917F323feCbFef76e6` | [View →](https://hoodi.etherscan.io/address/0xBa16F5b2fDF7D5686D55c2917F323feCbFef76e6) |
+
+**Network:** Hoodi Testnet (Chain ID: 560048)
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/hastra-eth-vault.git
-cd hastra-eth-vault
-
-# Install dependencies
-yarn install
+# Check deployed versions
+npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
 ```
 
-## Environment Setup
+### Mainnet
 
-Create a `.env` file in the root directory:
+**Not yet deployed** - Pending audit and security review.
 
+## Quick Start
+
+**New to the project?** See [docs/QUICKSTART.md](./docs/QUICKSTART.md) for complete setup guide including:
+- Installation and environment setup
+- Local development with Hardhat node
+- Running tests and demo flows
+- Deploying to testnets
+- Interactive console usage
+- Common workflows and scripts
+
+**Quick commands:**
 ```bash
-cp .env.example .env
+# Install and compile
+npm install && npx hardhat compile
+
+# Run tests
+npm test
+
+# Deploy to testnet
+npx hardhat run scripts/deploy.ts --network hoodi
 ```
 
-Edit `.env` with your configuration:
+## Usage Examples
 
-```env
-# Network RPC URLs
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
-MAINNET_RPC_URL=https://mainnet.infura.io/v3/YOUR_INFURA_KEY
+### Deposit USDC → Receive wYLDS
 
-# Private key for deployment (DO NOT COMMIT)
-PRIVATE_KEY=your_private_key_here
+```typescript
+import { ethers } from "hardhat";
 
-# Etherscan API key for contract verification
-ETHERSCAN_API_KEY=your_etherscan_api_key
+const usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS);
+const vault = await ethers.getContractAt("YieldVault", VAULT_ADDRESS);
 
-# Optional: Use existing USDC (mainnet only)
-USDC_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+const amount = ethers.parseUnits("1000", 6); // 1000 USDC
 
-# Optional: Custom admin role addresses (defaults to deployer if not set)
-REDEEM_VAULT_ADDRESS=0x...
-FREEZE_ADMIN_ADDRESS=0x...
-REWARDS_ADMIN_ADDRESS=0x...
+// Approve and deposit
+await usdc.approve(await vault.getAddress(), amount);
+await vault.deposit(amount, user.address);
 
-# Gas reporting
-REPORT_GAS=true
-COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
+// User receives 1000 wYLDS (1:1 ratio)
 ```
 
-## Compilation
+### Request Redemption (Two-Step Process)
 
-```bash
-# Compile contracts
-yarn compile
+```typescript
+const vault = await ethers.getContractAt("YieldVault", VAULT_ADDRESS);
 
-# This will generate:
-# - Compiled bytecode in artifacts/
-# - TypeScript types in typechain-types/
+// Step 1: User requests redemption
+await vault.requestRedeem(ethers.parseUnits("500", 6));
+
+// Step 2: Admin completes (requires REWARDS_ADMIN_ROLE)
+// Off-chain: Compliance check, fund redeemVault
+await vault.connect(admin).completeRedeem(user.address);
+
+// User receives USDC
 ```
+
+### Stake wYLDS → Receive PRIME
+
+```typescript
+const wYLDS = await ethers.getContractAt("YieldVault", WYLDS_ADDRESS);
+const staking = await ethers.getContractAt("StakingVault", STAKING_ADDRESS);
+
+const amount = ethers.parseUnits("1000", 6);
+
+await wYLDS.approve(await staking.getAddress(), amount);
+await staking.deposit(amount, user.address);
+
+// User receives PRIME (share value appreciates with rewards)
+```
+
+### Claim Merkle Rewards
+
+```typescript
+const vault = await ethers.getContractAt("YieldVault", VAULT_ADDRESS);
+
+// Load distribution file (generated off-chain)
+const distribution = require("./distributions/epoch-0.json");
+const userReward = distribution.rewards.find(r => r.address === user.address);
+
+await vault.claimRewards(
+  distribution.epochIndex,
+  userReward.amount,
+  userReward.proof
+);
+```
+
+## Contract Comparison
+
+```
+┌──────────────────────┬───────────────────────────┬─────────────────────────────────────┐
+│ Feature              │ YieldVault                │ StakingVault                        │
+├──────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ Asset                │ USDC (6 decimals)         │ wYLDS (6 decimals)                  │
+├──────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ Share Token          │ wYLDS (6 decimals)        │ PRIME (6 decimals)                  │
+├──────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ ERC-4626 Compliant?  │ ❌ Modified               │ ✅ Yes, fully compliant             │
+├──────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ Conversion Ratio     │ Always 1:1                │ Appreciates with rewards            │
+├──────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ Instant Redemption   │ ❌ Disabled (reverts)     │ ✅ withdraw() / redeem()            │
+├──────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ Custom Redemption    │ ✅ Two-step process       │ ❌ Not needed                       │
+├──────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ Rewards              │ Merkle epochs             │ Direct minting to vault             │
+├──────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ Upgradeable          │ ✅ UUPS                   │ ✅ UUPS                             │
+└──────────────────────┴───────────────────────────┴─────────────────────────────────────┘
+```
+
+**See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed flow diagrams.**
+
+## Access Control Roles
+
+| Role | YieldVault | StakingVault | Permissions |
+|------|------------|--------------|-------------|
+| `DEFAULT_ADMIN_ROLE` | ✅ | ✅ | Grant/revoke all roles ⚠️ **Protect with multisig** |
+| `FREEZE_ADMIN_ROLE` | ✅ | ✅ | Freeze/thaw accounts |
+| `REWARDS_ADMIN_ROLE` | ✅ | ✅ | Create epochs, mint rewards, complete redemptions |
+| `PAUSER_ROLE` | ✅ | ✅ | Pause/unpause contract |
+| `UPGRADER_ROLE` | ✅ | ✅ | Upgrade implementation |
+| `WHITELIST_ADMIN_ROLE` | ✅ | ❌ | Manage USDC withdrawal whitelist |
+| `WITHDRAWAL_ADMIN_ROLE` | ✅ | ❌ | Withdraw USDC to whitelisted addresses |
+
+**See [docs/ROLES.md](docs/ROLES.md) for detailed role documentation.**
 
 ## Testing
 
 ```bash
 # Run all tests
-yarn test
+npm test
 
-# Run with coverage
-yarn test:coverage
+# Run specific test suite
+npx hardhat test test/YieldVault.test.ts
 
-# Run with gas reporting
-REPORT_GAS=true yarn test
+# Coverage report
+npm run test:coverage
 ```
 
-## Deployment
+**Test Coverage:**
+```
+113 passing (2s)
 
-### Local Development
+Coverage:
+- Statements: 99.25%
+- Functions: 100%
+- Lines: 98.72%
+```
 
+**Key Test Suites:**
+- `YieldVault.test.ts` - Core vault functionality
+- `StakingVault.test.ts` - Staking and rewards
+- `YieldVault_Ratio.test.ts` - 1:1 ratio enforcement
+- `*_Upgrade.test.ts` - UUPS upgrade mechanics
+- `*_Compliance.test.ts` - Freeze/thaw features
+- `FullSystemFlow.test.ts` - End-to-end integration
+
+## Troubleshooting
+
+If a transaction fails, check [docs/ERROR_CODES.md](docs/ERROR_CODES.md) for common errors and solutions.
+
+Common issues:
+- `AccountIsFrozen` - Account frozen by compliance admin
+- `RedemptionAlreadyPending` - Active redemption exists
+- `AddressNotWhitelisted` - USDC withdrawal target not whitelisted
+- `InsufficientVaultBalance` - Redeem vault lacks USDC
+
+## Security
+
+### ⚠️ Critical Security Requirements
+
+1. **Multisig Protection** - Transfer `DEFAULT_ADMIN_ROLE` to multisig before production
+   ```bash
+   # See docs/MULTISIG_SETUP.md for setup guide
+   MULTISIG_ADDRESS=0x... npx hardhat run scripts/setup-multisig-admin.ts --network mainnet
+   ```
+
+2. **Private Keys** - Never commit private keys to version control
+
+3. **Audits** - Get professional security audits before mainnet deployment
+
+4. **Testing** - Thoroughly test all operations on testnet first
+
+### Security Features
+
+- ✅ **Role-based access control** - OpenZeppelin AccessControl
+- ✅ **Pause mechanism** - Emergency stops
+- ✅ **Reentrancy protection** - All critical functions protected
+- ✅ **Freeze/thaw** - Compliance controls
+- ✅ **UUPS upgradeable** - Secure proxy pattern
+- ✅ **Double-claim prevention** - Merkle rewards tracking
+
+**See [docs/UPGRADES.md](docs/UPGRADES.md) for upgrade process.**
+
+## Scripts
+
+### Deployment
 ```bash
-# Start a local Hardhat node
-yarn node
+# Deploy to testnet
+npx hardhat run scripts/deploy.ts --network hoodi
 
-# In another terminal, deploy to local network
-yarn deploy:local
+# Deploy to mainnet
+npx hardhat run scripts/deploy.ts --network mainnet
 ```
 
-### Testnet (Hoodi)
-
+### Admin Operations
 ```bash
-# Deploy to Hoodi testnet
-yarn deploy:hoodi
+# Grant/revoke roles
+npx hardhat run scripts/admin.ts --network hoodi
+
+# Manage whitelist
+npx hardhat run scripts/manage-whitelist.ts --network hoodi
+
+# Distribute rewards
+npx hardhat run scripts/distribute-rewards.ts --network hoodi
 ```
 
-### Testnet (Sepolia)
-
+### User Operations
 ```bash
-# Deploy to Sepolia
-yarn deploy:sepolia
+# Deposit USDC
+npx hardhat run scripts/deposit-usdc.ts --network hoodi
 
-# Verify contracts on Etherscan
-npx hardhat verify --network sepolia <CONTRACT_ADDRESS> <CONSTRUCTOR_ARGS>
+# Stake wYLDS
+npx hardhat run scripts/stake-wylds.ts --network hoodi
+
+# Request redemption
+npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
 ```
 
-### Admin Role Configuration
-
-By default, the deployer address is used for all admin roles. To use different addresses, set these environment variables before deployment:
-
-| Environment Variable | Role | Description |
-|---------------------|------|-------------|
-| `REDEEM_VAULT_ADDRESS` | Redeem Vault | Address that holds USDC for redemptions |
-| `FREEZE_ADMIN_ADDRESS` | Freeze Admin | Can freeze/thaw user accounts |
-| `REWARDS_ADMIN_ADDRESS` | Rewards Admin | Can distribute rewards and update merkle roots |
-
-Example:
+### Upgrade & Maintenance
 ```bash
-# Set custom admin addresses (optional)
-export REDEEM_VAULT_ADDRESS=0x1234...
-export FREEZE_ADMIN_ADDRESS=0x5678...
-export REWARDS_ADMIN_ADDRESS=0x9abc...
+# Check version
+npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
 
-# Then deploy
-yarn deploy:hoodi
+# Upgrade to V2
+npx hardhat run scripts/upgrade_to_v2.ts --network hoodi
+
+# Check multisig status
+npx hardhat run scripts/check-multisig-status.ts --network hoodi
 ```
 
-### Mainnet
+## Local Development
 
-```bash
-# Deploy to Mainnet (use with caution!)
-yarn deploy:mainnet
-```
-
-## Usage Examples
-
-### Depositing to YieldVault
-
-```typescript
-import { ethers } from "hardhat";
-
-async function deposit() {
-  const [user] = await ethers.getSigners();
-  
-  // Get contract instances
-  const usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS);
-  const vault = await ethers.getContractAt("YieldVault", VAULT_ADDRESS);
-  
-  const depositAmount = ethers.parseUnits("1000", 6); // 1000 USDC
-  
-  // Approve vault to spend USDC
-  await usdc.approve(await vault.getAddress(), depositAmount);
-  
-  // Deposit and receive wYLDS
-  await vault.deposit(depositAmount, user.address);
-  
-  console.log("Deposited 1000 USDC, received wYLDS");
-}
-```
-
-### Requesting Redemption
-
-```typescript
-async function requestRedemption() {
-  const [user] = await ethers.getSigners();
-  const vault = await ethers.getContractAt("YieldVault", VAULT_ADDRESS);
-  
-  const redeemAmount = ethers.parseUnits("500", 6); // 500 wYLDS
-  
-  // Step 1: Request redemption
-  await vault.requestRedeem(redeemAmount);
-  
-  console.log("Redemption requested for 500 wYLDS");
-  console.log("Waiting for off-chain funding and admin completion...");
-}
-```
-
-### Claiming Rewards
-
-```typescript
-import { generateProof } from "./scripts/utils/merkle";
-
-async function claimRewards() {
-  const [user] = await ethers.getSigners();
-  const vault = await ethers.getContractAt("YieldVault", VAULT_ADDRESS);
-  
-  // Load distribution file
-  const distribution = JSON.parse(
-    fs.readFileSync("distributions/epoch-0.json", "utf-8")
-  );
-  
-  // Find user's reward
-  const userReward = distribution.rewards.find(
-    (r) => r.address.toLowerCase() === user.address.toLowerCase()
-  );
-  
-  if (!userReward) {
-    console.log("No rewards for this address");
-    return;
-  }
-  
-  // Claim rewards
-  await vault.claimRewards(
-    distribution.epochIndex,
-    userReward.amount,
-    userReward.proof
-  );
-  
-  console.log(`Claimed ${userReward.amount} wYLDS rewards`);
-}
-```
-
-### Staking wYLDS
-
-```typescript
-async function stake() {
-  const [user] = await ethers.getSigners();
-  
-  const wYLDS = await ethers.getContractAt("YieldVault", WYLDS_ADDRESS);
-  const stakingVault = await ethers.getContractAt("StakingVault", STAKING_ADDRESS);
-  
-  const stakeAmount = ethers.parseUnits("1000", 6); // 1000 wYLDS
-  
-  // Approve staking vault
-  await wYLDS.approve(await stakingVault.getAddress(), stakeAmount);
-  
-  // Stake and receive PRIME
-  await stakingVault.deposit(stakeAmount, user.address);
-  
-  console.log("Staked 1000 wYLDS, received PRIME");
-}
-```
-
-### Unbonding
-
-```typescript
-async function unbond() {
-  const [user] = await ethers.getSigners();
-  const stakingVault = await ethers.getContractAt("StakingVault", STAKING_ADDRESS);
-  
-  const unbondAmount = ethers.parseUnits("500", 6); // 500 PRIME
-  
-  // Start unbonding
-  await stakingVault.unbond(unbondAmount);
-  
-  const unbondingPeriod = await stakingVault.UNBONDING_PERIOD();
-  console.log(`Unbonding started. Wait ${unbondingPeriod} seconds (21 days)`);
-  
-  // After unbonding period...
-  // await stakingVault.completeUnbonding(0);
-}
-```
-
-## Merkle Rewards Distribution
-
-### Generating Distribution
-
-```typescript
-import { generateDistributionFile } from "./scripts/utils/merkle";
-
-const rewards = [
-  {
-    address: "0x1234...",
-    amount: ethers.parseUnits("100", 6),
-  },
-  {
-    address: "0x5678...",
-    amount: ethers.parseUnits("200", 6),
-  },
-  // ... more rewards
-];
-
-generateDistributionFile(rewards, 0, "distributions/epoch-0.json");
-```
-
-### Creating Epoch On-Chain
-
-```typescript
-async function createEpoch() {
-  const [rewardsAdmin] = await ethers.getSigners();
-  const vault = await ethers.getContractAt("YieldVault", VAULT_ADDRESS);
-  
-  const distribution = JSON.parse(
-    fs.readFileSync("distributions/epoch-0.json", "utf-8")
-  );
-  
-  await vault.createRewardsEpoch(
-    distribution.epochIndex,
-    distribution.merkleRoot,
-    distribution.totalRewards
-  );
-  
-  console.log(`Epoch ${distribution.epochIndex} created`);
-}
-```
-
-## Contract Roles
-
-### YieldVault
-- **DEFAULT_ADMIN_ROLE**: Can grant/revoke other roles, update redeem vault
-- **FREEZE_ADMIN_ROLE**: Can freeze/thaw accounts
-- **REWARDS_ADMIN_ROLE**: Can create epochs, complete redemptions
-- **PAUSER_ROLE**: Can pause/unpause the contract
-
-### StakingVault
-- **DEFAULT_ADMIN_ROLE**: Can grant/revoke other roles
-- **FREEZE_ADMIN_ROLE**: Can freeze/thaw accounts
-- **REWARDS_ADMIN_ROLE**: Can distribute rewards
-- **PAUSER_ROLE**: Can pause/unpause the contract
-
-## Security Considerations
-
-1. **Private Keys**: Never commit private keys to version control
-2. **Role Management**: Carefully manage role assignments
-3. **Pause Mechanism**: Use pause function in case of emergency
-4. **Upgrades**: Contracts are not upgradeable by default (add proxy if needed)
-5. **Audits**: Get professional audits before mainnet deployment
+See [docs/QUICKSTART.md](./docs/QUICKSTART.md) for detailed local development guide including:
+- Setting up local Hardhat node
+- Deploying contracts locally
+- Running demo flows
+- Interactive console usage
+- Complete command reference
 
 ## Gas Costs (Approximate)
 
@@ -383,53 +325,32 @@ async function createEpoch() {
 | YieldVault.completeRedeem | ~120,000 |
 | YieldVault.claimRewards | ~80,000 |
 | StakingVault.deposit | ~150,000 |
-| StakingVault.unbond | ~120,000 |
-| StakingVault.completeUnbonding | ~100,000 |
-
-## Testing Coverage
-
-Current test coverage:
-- YieldVault: 100% lines, 95% branches
-- StakingVault: 100% lines, 95% branches
+| StakingVault.withdraw | ~100,000 |
+| StakingVault.distributeRewards | ~120,000 |
 
 ## License
 
-Apache-2.0
+Apache-2.0 - See [LICENSE](./LICENSE)
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
 ## Support
 
-For questions and support:
-- GitHub Issues: [Create an issue](https://github.com/your-org/hastra-eth-vault/issues)
-- Documentation: [View docs](https://docs.hastra.io)
+- **GitHub Issues**: [Create an issue](https://github.com/provenance-io/hastra-eth-vault/issues)
+- **Documentation**: See `/docs` folder for detailed guides
 
 ## Acknowledgments
 
 - OpenZeppelin for battle-tested contract libraries
-- Solana Hastra Vault for the original implementation
 - ERC-4626 standard authors
+- Solana Hastra Vault for the original implementation
 
-## Post-Deployment Scripts
+---
 
-### Approve USDC for YieldVault
-
-After deploying with an existing USDC contract (testnet), you need to approve the YieldVault to spend your USDC before depositing.
-
-1. Add the YieldVault address to your `.env`:
-   ```bash
-   YIELD_VAULT_ADDRESS=0x...  # From deployment output
-   ```
-
-2. Run the approval script:
-   ```bash
-   npx hardhat run scripts/approve-usdc.ts --network hoodi
-   ```
-
-This grants the YieldVault unlimited approval to spend your USDC for deposits.
+**⚠️ Status**: Testnet deployment. Not audited. Use at your own risk.

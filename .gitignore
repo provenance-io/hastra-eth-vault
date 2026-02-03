@@ -60,3 +60,6 @@ dist/
 
 # Misc
 *.tsbuildinfo
+
+# Ignore scripts that maybe used for local development
+local_scripts/
