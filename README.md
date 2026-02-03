@@ -1,3 +1,4 @@
+
 # Hastra Ethereum Vault Protocol
 
 Ethereum implementation of the Hastra Vault Protocol using ERC-4626 standard for tokenized vaults with enhanced features including two-step redemptions, merkle-based rewards, and account freeze functionality.

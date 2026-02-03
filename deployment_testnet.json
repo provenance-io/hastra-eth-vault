@@ -4,7 +4,7 @@
   "timestamp": "2026-01-30T21:11:03.637Z",
   "contracts": {
     "usdc": "0xBa16F5b2fDF7D5686D55c2917F323feCbFef76e6",
-      "yieldVault": "0xBf000e0362d967B3583fdE2451BeA11b3723b81C",
+    "yieldVault": "0xBf000e0362d967B3583fdE2451BeA11b3723b81C",
     "stakingVault": "0x14D815D29F9b39859a55F1392cff217ED642a8Ea"
   },
   "transactions": {

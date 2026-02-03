@@ -31,6 +31,8 @@ const config: HardhatUserConfig = {
       url: process.env.HOODI_RPC_URL || "https://rpc.hoodi.tech",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 560048,
+      gasPrice: 20000000000, // 20 Gwei
+      gas: 8000000, // 8M gas limit
     },
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL || "",
