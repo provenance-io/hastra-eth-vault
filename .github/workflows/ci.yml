@@ -15,7 +15,7 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-    - run: npm ci
+    - run: npm install
     - name: Check TypeScript
       run: npx tsc --noEmit
       continue-on-error: true
@@ -29,7 +29,7 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-    - run: npm ci
+    - run: npm install
     - name: Compile contracts
       run: npx hardhat compile
     - name: Upload compiled artifacts
@@ -50,7 +50,7 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-    - run: npm ci
+    - run: npm install
     - name: Download compiled artifacts
       uses: actions/download-artifact@v4
       with:
@@ -75,7 +75,7 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-    - run: npm ci
+    - run: npm install
     - name: Download compiled artifacts
       uses: actions/download-artifact@v4
       with:
