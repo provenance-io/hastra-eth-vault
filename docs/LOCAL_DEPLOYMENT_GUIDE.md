@@ -88,7 +88,7 @@ USDC (ERC20)
     ↓ (deposit)
 YieldVault (wYLDS - ERC4626 vault)
     ↓ (stake)
-StakingVault (PRIME - ERC4626 vault with unbonding)
+StakingVault (PRIME - ERC4626 vault)
 ```
 
 ### Default Accounts
