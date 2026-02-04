@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    - run: npm ci
+    - name: Check TypeScript
+      run: npx tsc --noEmit
+      continue-on-error: true
+      
+  compile:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    - run: npm ci
+    - name: Compile contracts
+      run: npx hardhat compile
+    - name: Upload compiled artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: compiled-contracts
+        path: |
+          artifacts/
+          typechain-types/
+        retention-days: 7
+        
+  test:
+    runs-on: ubuntu-latest
+    needs: compile
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    - run: npm ci
+    - name: Download compiled artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: compiled-contracts
+    - name: Run tests
+      run: npm test
+    - name: Generate coverage
+      run: npm run test:coverage
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage/lcov.info
+        fail_ci_if_error: false
+        
+  extract-abis:
+    runs-on: ubuntu-latest
+    needs: compile
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    - run: npm ci
+    - name: Download compiled artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: compiled-contracts
+    - name: Extract ABIs
+      run: |
+        mkdir -p abi-exports
+        
+        # Extract YieldVault ABI
+        jq '.abi' artifacts/contracts/YieldVault.sol/YieldVault.json > abi-exports/YieldVault.json
+        
+        # Extract StakingVault ABI
+        jq '.abi' artifacts/contracts/StakingVault.sol/StakingVault.json > abi-exports/StakingVault.json
+        
+        # Extract MockUSDC ABI (for testing)
+        jq '.abi' artifacts/contracts/mocks/MockUSDC.sol/MockUSDC.json > abi-exports/MockUSDC.json
+        
+        # Create combined contracts.json
+        cat > abi-exports/contracts.json << 'EOF'
+        {
+          "YieldVault": {
+            "contractName": "YieldVault",
+            "abi": $(cat abi-exports/YieldVault.json)
+          },
+          "StakingVault": {
+            "contractName": "StakingVault",
+            "abi": $(cat abi-exports/StakingVault.json)
+          },
+          "MockUSDC": {
+            "contractName": "MockUSDC",
+            "abi": $(cat abi-exports/MockUSDC.json)
+          }
+        }
+        EOF
+        
+        # Create version info
+        echo "{\"version\": \"main-${{ github.sha }}\", \"commit\": \"${{ github.sha }}\", \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > abi-exports/version.json
+        
+        echo "✅ ABIs extracted successfully"
+        ls -lh abi-exports/
+        
+    - name: Upload ABIs as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: contract-abis-latest
+        path: abi-exports/
+        retention-days: 90
+        
+  status-check:
+    runs-on: ubuntu-latest
+    needs: [lint, compile, test]
+    if: always()
+    steps:
+    - name: Check status
+      run: |
+        if [ "${{ needs.lint.result }}" != "success" ] || \
+           [ "${{ needs.compile.result }}" != "success" ] || \
+           [ "${{ needs.test.result }}" != "success" ]; then
+          echo "❌ CI failed"
+          exit 1
+        fi
+        echo "✅ All checks passed"

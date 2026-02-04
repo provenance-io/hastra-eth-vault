@@ -1,0 +1,105 @@
+name: Release ABIs
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Compile contracts
+      run: npx hardhat compile
+      
+    - name: Extract ABIs
+      run: |
+        mkdir -p abi-exports
+        
+        # Extract YieldVault ABI
+        jq '.abi' artifacts/contracts/YieldVault.sol/YieldVault.json > abi-exports/YieldVault.json
+        
+        # Extract StakingVault ABI
+        jq '.abi' artifacts/contracts/StakingVault.sol/StakingVault.json > abi-exports/StakingVault.json
+        
+        # Extract MockUSDC ABI (for testing)
+        jq '.abi' artifacts/contracts/mocks/MockUSDC.sol/MockUSDC.json > abi-exports/MockUSDC.json
+        
+        # Create a combined package with contract info
+        cat > abi-exports/contracts.json << 'EOF'
+        {
+          "YieldVault": {
+            "contractName": "YieldVault",
+            "abi": $(cat abi-exports/YieldVault.json)
+          },
+          "StakingVault": {
+            "contractName": "StakingVault",
+            "abi": $(cat abi-exports/StakingVault.json)
+          },
+          "MockUSDC": {
+            "contractName": "MockUSDC",
+            "abi": $(cat abi-exports/MockUSDC.json)
+          }
+        }
+        EOF
+        
+        # Create version info
+        echo "{\"version\": \"${{ github.ref_name }}\", \"commit\": \"${{ github.sha }}\", \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > abi-exports/version.json
+        
+        echo "✅ ABIs extracted successfully"
+        ls -lh abi-exports/
+        
+    - name: Create ABI packages
+      run: |
+        cd abi-exports
+        tar -czf ../hastra-vault-abis-${{ github.ref_name }}.tar.gz .
+        cd ..
+        zip -r hastra-vault-abis-${{ github.ref_name }}.zip abi-exports/
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          hastra-vault-abis-${{ github.ref_name }}.tar.gz
+          hastra-vault-abis-${{ github.ref_name }}.zip
+        body: |
+          ## Contract ABIs - ${{ github.ref_name }}
+          
+          This release includes the compiled ABIs for:
+          - YieldVault (wYLDS)
+          - StakingVault (PRIME)
+          - MockUSDC
+          
+          ### Files
+          - `hastra-vault-abis-${{ github.ref_name }}.tar.gz` - Compressed tarball
+          - `hastra-vault-abis-${{ github.ref_name }}.zip` - Zip archive
+          
+          ### Usage
+          Download and extract to integrate with your frontend/backend application.
+          
+          ```javascript
+          import YieldVaultABI from './abi-exports/YieldVault.json';
+          
+          const contract = new ethers.Contract(
+            YIELD_VAULT_ADDRESS,
+            YieldVaultABI,
+            provider
+          );
+          ```
+          
+          **Commit:** ${{ github.sha }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
