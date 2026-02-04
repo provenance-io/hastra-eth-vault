@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
+import type { MockUSDC, YieldVault, StakingVault } from "../typechain-types";
 
 describe("StakingVault", function () {
   // ============ Fixtures ============
@@ -11,7 +12,7 @@ describe("StakingVault", function () {
 
     // Deploy MockUSDC
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdc = await MockUSDC.deploy();
+    const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
     await usdc.waitForDeployment();
 
     // Deploy YieldVault (Upgradeable)
@@ -23,7 +24,7 @@ describe("StakingVault", function () {
       owner.address,
       redeemVault.address,
       ethers.ZeroAddress
-    ], { kind: 'uups' });
+    ], { kind: 'uups' }) as unknown as YieldVault;
     await yieldVault.waitForDeployment();
 
     // Deploy StakingVault (Upgradeable)
@@ -34,7 +35,7 @@ describe("StakingVault", function () {
       "PRIME",
       owner.address,
       await yieldVault.getAddress()
-    ], { kind: 'uups' });
+    ], { kind: 'uups' }) as unknown as StakingVault;
     await stakingVault.waitForDeployment();
 
     // Setup roles
@@ -173,9 +174,13 @@ describe("StakingVault", function () {
       const sharesBefore = await stakingVault.balanceOf(user1.address);
       const assetsBefore = await stakingVault.convertToAssets(sharesBefore);
       
-      await expect(stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount))
+      const tx = await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
+      const receipt = await tx.wait();
+      const block = await ethers.provider.getBlock(receipt!.blockNumber);
+      
+      await expect(tx)
         .to.emit(stakingVault, "RewardsDistributed")
-        .withArgs(rewardAmount, await time.latest() + 1);
+        .withArgs(rewardAmount, block!.timestamp);
       
       const sharesAfter = await stakingVault.balanceOf(user1.address);
       const assetsAfter = await stakingVault.convertToAssets(sharesAfter);

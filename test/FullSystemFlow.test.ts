@@ -1,6 +1,7 @@
 import {expect} from "chai";
 import { ethers, upgrades } from "hardhat";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
+import type { MockUSDC, YieldVault, StakingVault } from "../typechain-types";
 
 describe("Full System Flow: Deposit -> Stake -> Rewards -> Profit", function () {
   async function deploySystemFixture() {
@@ -8,7 +9,7 @@ describe("Full System Flow: Deposit -> Stake -> Rewards -> Profit", function () 
 
     // 1. Setup Tokens
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdc = await MockUSDC.deploy();
+    const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
     
     // 2. Setup YieldVault (Upgradeable)
     const YieldVault = await ethers.getContractFactory("YieldVault");
@@ -19,7 +20,7 @@ describe("Full System Flow: Deposit -> Stake -> Rewards -> Profit", function () 
       owner.address, 
       owner.address, 
       ethers.ZeroAddress
-    ], { kind: 'uups' });
+    ], { kind: 'uups' }) as unknown as YieldVault;
     
     // 3. Setup StakingVault (Upgradeable)
     const StakingVault = await ethers.getContractFactory("StakingVault");
@@ -29,7 +30,7 @@ describe("Full System Flow: Deposit -> Stake -> Rewards -> Profit", function () 
       "PRIME", 
       owner.address, 
       await yieldVault.getAddress()
-    ], { kind: 'uups' });
+    ], { kind: 'uups' }) as unknown as StakingVault;
 
     // Setup Roles
     const REWARDS_ADMIN_ROLE = await stakingVault.REWARDS_ADMIN_ROLE();
