@@ -38,14 +38,22 @@ async function main() {
   // ============ Deploy USDC (or use existing) ============
   
   let usdcAddress: string;
+  const network = await ethers.provider.getNetwork();
+  const isLocalNetwork = network.name === "localhost" || network.name === "hardhat";
   
-  if (process.env.USDC_ADDRESS) {
-    // Use existing USDC on mainnet
+  // Only use existing USDC on mainnet/production, always deploy fresh for localhost/testing
+  if (process.env.USDC_ADDRESS && !isLocalNetwork) {
+    // Use existing USDC on mainnet/testnets
     usdcAddress = process.env.USDC_ADDRESS;
     console.log("\nUsing existing USDC at:", usdcAddress);
   } else {
-    // Deploy mock USDC for testing
-    console.log("\nDeploying MockUSDC...");
+    // Deploy mock USDC for localhost/testing
+    if (isLocalNetwork) {
+      console.log("\n[Localhost] Deploying fresh MockUSDC...");
+    } else {
+      console.log("\nDeploying MockUSDC...");
+    }
+    
     if (isDryRun) {
         console.log("[Dry Run] Would deploy MockUSDC");
         console.log("[Dry Run] Would mint 1,000,000 USDC to deployer");
@@ -194,7 +202,7 @@ async function main() {
   
   console.log("\nSetting up approvals...");
   
-  const network = await ethers.provider.getNetwork();
+  // Reuse network variable from earlier
   const isMainnet = network.chainId === 1n;
   
   if (!process.env.USDC_ADDRESS) {
