@@ -17,7 +17,6 @@
     "lib": ["ES2020"]
   },
   "include": [
-    "./scripts/**/*",
     "./test/**/*",
     "./typechain-types/**/*"
   ],
@@ -25,7 +24,8 @@
     "node_modules",
     "dist",
     "artifacts",
-    "cache"
+    "cache",
+    "scripts"
   ],
   "files": [
     "./hardhat.config.ts"
