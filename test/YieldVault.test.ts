@@ -2,7 +2,6 @@ import {expect} from "chai";
 import { ethers, upgrades } from "hardhat";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
 import { MerkleTree } from "merkletreejs";
-import keccak256 from "keccak256";
 
 describe("YieldVault", function () {
   // ============ Fixtures ============

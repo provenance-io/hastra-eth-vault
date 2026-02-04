@@ -205,15 +205,16 @@ async function stakeWYLDS(amount: string) {
 }
 
 /**
- * Unbond PRIME tokens
+ * Unbond PRIME tokens (instant redemption using ERC-4626)
  */
 async function unbondPRIME(amount: string) {
   const [user] = await ethers.getSigners();
   const stakingVault = await ethers.getContractAt("StakingVault", STAKING_VAULT_ADDRESS);
+  const yieldVault = await ethers.getContractAt("YieldVault", YIELD_VAULT_ADDRESS);
   
   const unbondAmount = ethers.parseUnits(amount, 6);
   
-  console.log(`Unbonding ${amount} PRIME...`);
+  console.log(`Redeeming ${amount} PRIME for wYLDS (instant)...`);
   
   // Check balance
   const balance = await stakingVault.balanceOf(user.address);
@@ -223,58 +224,14 @@ async function unbondPRIME(amount: string) {
     throw new Error("Insufficient PRIME balance");
   }
   
-  // Unbond
-  const tx = await stakingVault.unbond(unbondAmount);
-  const receipt = await tx.wait();
-  
-  // Get position index from event
-  const event = receipt?.logs.find(
-    (log: any) => log.fragment?.name === "Unbonded"
-  );
-  const positionIndex = event?.args?.positionIndex || 0;
-  
-  console.log(`✓ Unbonding started in tx: ${tx.hash}`);
-  console.log(`Position index: ${positionIndex}`);
-  
-  // Show unbonding period
-  const unbondingPeriod = await stakingVault.UNBONDING_PERIOD();
-  const unlockTime = (await ethers.provider.getBlock("latest"))!.timestamp + Number(unbondingPeriod);
-  const unlockDate = new Date(unlockTime * 1000);
-  
-  console.log(`\nUnbonding period: ${unbondingPeriod} seconds (${Number(unbondingPeriod) / 86400} days)`);
-  console.log(`Unlock time: ${unlockDate.toLocaleString()}`);
-  console.log(`\nTo complete unbonding after unlock time:`);
-  console.log(`  npx hardhat run scripts/user.ts complete-unbonding ${positionIndex}`);
-}
-
-/**
- * Complete unbonding and withdraw wYLDS
- */
-async function completeUnbonding(positionIndex: number) {
-  const [user] = await ethers.getSigners();
-  const stakingVault = await ethers.getContractAt("StakingVault", STAKING_VAULT_ADDRESS);
-  const yieldVault = await ethers.getContractAt("YieldVault", YIELD_VAULT_ADDRESS);
-  
-  console.log(`Completing unbonding for position ${positionIndex}...`);
-  
-  // Check if unlocked
-  const isUnlocked = await stakingVault.isUnbondingUnlocked(user.address, positionIndex);
-  if (!isUnlocked) {
-    const positions = await stakingVault.getUnbondingPositions(user.address);
-    if (positionIndex >= positions.length) {
-      throw new Error("Invalid position index");
-    }
-    const unlockTime = positions[positionIndex].unlockTime;
-    const unlockDate = new Date(Number(unlockTime) * 1000);
-    throw new Error(`Position still locked until ${unlockDate.toLocaleString()}`);
-  }
-  
-  // Complete unbonding
+  // Check wYLDS balance before
   const wyldsBalanceBefore = await yieldVault.balanceOf(user.address);
   
-  const tx = await stakingVault.completeUnbonding(positionIndex);
-  await tx.wait();
-  console.log(`✓ Unbonding completed in tx: ${tx.hash}`);
+  // Redeem PRIME for wYLDS (instant redemption)
+  const tx = await stakingVault.redeem(unbondAmount, user.address, user.address);
+  const receipt = await tx.wait();
+  
+  console.log(`✓ Redeemed in tx: ${tx.hash}`);
   
   // Show updated balances
   const wyldsBalanceAfter = await yieldVault.balanceOf(user.address);
@@ -282,21 +239,7 @@ async function completeUnbonding(positionIndex: number) {
   
   console.log(`Received: ${ethers.formatUnits(received, 6)} wYLDS`);
   console.log(`New wYLDS balance: ${ethers.formatUnits(wyldsBalanceAfter, 6)}`);
-}
-
-/**
- * Cancel unbonding
- */
-async function cancelUnbonding(positionIndex: number) {
-  const [user] = await ethers.getSigners();
-  const stakingVault = await ethers.getContractAt("StakingVault", STAKING_VAULT_ADDRESS);
-  
-  console.log(`Canceling unbonding for position ${positionIndex}...`);
-  
-  const tx = await stakingVault.cancelUnbonding(positionIndex);
-  await tx.wait();
-  console.log(`✓ Unbonding canceled in tx: ${tx.hash}`);
-  console.log("Your PRIME have been returned");
+  console.log(`\nNote: Redemption is instant (no unbonding period)`);
 }
 
 /**
@@ -331,19 +274,6 @@ async function viewBalances() {
     console.log(`  Assets: ${ethers.formatUnits(pending.assets, 6)}`);
   }
   
-  // Check unbonding positions
-  const positions = await stakingVault.getUnbondingPositions(user.address);
-  if (positions.length > 0) {
-    console.log("\nUnbonding Positions:");
-    for (let i = 0; i < positions.length; i++) {
-      const pos = positions[i];
-      const unlockDate = new Date(Number(pos.unlockTime) * 1000);
-      const isUnlocked = await stakingVault.isUnbondingUnlocked(user.address, i);
-      console.log(`  [${i}] Shares: ${ethers.formatUnits(pos.shares, 6)}, Assets: ${ethers.formatUnits(pos.assets, 6)}`);
-      console.log(`      Unlock: ${unlockDate.toLocaleString()} ${isUnlocked ? "✓" : "⏳"}`);
-    }
-  }
-  
   console.log("========================================\n");
 }
 
@@ -373,12 +303,6 @@ async function main() {
     case "unbond":
       await unbondPRIME(args[1]);
       break;
-    case "complete-unbonding":
-      await completeUnbonding(parseInt(args[1]));
-      break;
-    case "cancel-unbonding":
-      await cancelUnbonding(parseInt(args[1]));
-      break;
     case "balances":
       await viewBalances();
       break;
@@ -390,9 +314,7 @@ async function main() {
       console.log("  cancel-redeem                 - Cancel pending redemption");
       console.log("  claim-rewards <epoch> <file>  - Claim rewards");
       console.log("  stake <amount>                - Stake wYLDS to get PRIME");
-      console.log("  unbond <amount>               - Unbond PRIME");
-      console.log("  complete-unbonding <index>    - Complete unbonding");
-      console.log("  cancel-unbonding <index>      - Cancel unbonding");
+      console.log("  unbond <amount>               - Redeem PRIME for wYLDS (instant)");
       console.log("  balances                      - View all balances");
   }
 }
@@ -414,7 +336,5 @@ export {
   claimRewards,
   stakeWYLDS,
   unbondPRIME,
-  completeUnbonding,
-  cancelUnbonding,
   viewBalances,
 };
