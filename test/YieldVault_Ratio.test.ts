@@ -1,6 +1,7 @@
 import {expect} from "chai";
 import pkg from "hardhat";
 const { ethers, upgrades } = pkg;
+import type { MockUSDC, YieldVault } from "../typechain-types";
 import {loadFixture} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("YieldVault Ratio Checks", function () {
@@ -9,7 +10,7 @@ describe("YieldVault Ratio Checks", function () {
 
     // 1. Setup Tokens
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdc = await MockUSDC.deploy();
+    const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
     
     // 2. Setup YieldVault
     const YieldVault = await ethers.getContractFactory("YieldVault");
@@ -20,7 +21,7 @@ describe("YieldVault Ratio Checks", function () {
       owner.address, 
       owner.address, 
       ethers.ZeroAddress
-    ], { kind: 'uups' });
+    ], {   kind: 'uups' }) as unknown as YieldVault;
     
     return { yieldVault, usdc, userA, owner };
   }
@@ -182,11 +183,11 @@ describe("YieldVault Ratio Checks", function () {
     const [owner, user1, user2, user3] = await ethers.getSigners();
     // Setup fresh fixture manualy since we need more users
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdc = await MockUSDC.deploy();
+    const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
     const YieldVault = await ethers.getContractFactory("YieldVault");
     const yieldVault = await upgrades.deployProxy(YieldVault, [
         await usdc.getAddress(), "wYLDS", "wYLDS", owner.address, owner.address, ethers.ZeroAddress
-    ], { kind: 'uups' });
+    ], {   kind: 'uups' }) as unknown as YieldVault;
 
     const amount = ethers.parseUnits("1000", 6);
     

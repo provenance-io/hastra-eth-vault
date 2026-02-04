@@ -1,6 +1,7 @@
 import {expect} from "chai";
 import pkg from "hardhat";
 const { ethers, upgrades } = pkg;
+import type { MockUSDC, YieldVault, StakingVault } from "../typechain-types";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("StakingVault Ratio Repro", function () {
@@ -8,7 +9,7 @@ describe("StakingVault Ratio Repro", function () {
     const [owner, userA] = await ethers.getSigners();
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdc = await MockUSDC.deploy();
+    const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
     
     const YieldVault = await ethers.getContractFactory("YieldVault");
     const yieldVault = await upgrades.deployProxy(YieldVault, [
@@ -18,7 +19,7 @@ describe("StakingVault Ratio Repro", function () {
       owner.address, 
       owner.address, 
       ethers.ZeroAddress
-    ], { kind: 'uups' });
+    ], {   kind: 'uups' }) as unknown as StakingVault;
     
     const StakingVault = await ethers.getContractFactory("StakingVault");
     const stakingVault = await upgrades.deployProxy(StakingVault, [
@@ -27,7 +28,7 @@ describe("StakingVault Ratio Repro", function () {
       "PRIME", 
       owner.address, 
       await yieldVault.getAddress()
-    ], { kind: 'uups' });
+    ], {   kind: 'uups' }) as unknown as StakingVault;
 
     // Distribute wYLDS to user
     const startAmount = ethers.parseUnits("1000", 6);

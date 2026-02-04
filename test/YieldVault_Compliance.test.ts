@@ -1,6 +1,7 @@
 import {expect} from "chai";
 import pkg from "hardhat";
 const { ethers, upgrades } = pkg;
+import type { MockUSDC, YieldVault } from "../typechain-types";
 import {loadFixture} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("YieldVault Compliance (Freeze/Thaw)", function () {
@@ -8,7 +9,7 @@ describe("YieldVault Compliance (Freeze/Thaw)", function () {
     const [owner, freezeAdmin, userA, userB] = await ethers.getSigners();
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdc = await MockUSDC.deploy();
+    const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
     
     const YieldVault = await ethers.getContractFactory("YieldVault");
     const yieldVault = await upgrades.deployProxy(YieldVault, [
@@ -18,7 +19,7 @@ describe("YieldVault Compliance (Freeze/Thaw)", function () {
       owner.address, 
       owner.address, 
       ethers.ZeroAddress
-    ], { kind: 'uups' });
+    ], {   kind: 'uups' }) as unknown as YieldVault;
 
     // Setup: Grant FREEZE_ADMIN_ROLE to freezeAdmin
     const FREEZE_ADMIN_ROLE = await yieldVault.FREEZE_ADMIN_ROLE();

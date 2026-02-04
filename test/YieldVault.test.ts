@@ -1,6 +1,7 @@
 import {expect} from "chai";
 import { ethers, upgrades } from "hardhat";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
+import type { MockUSDC, YieldVault } from "../typechain-types";
 import { MerkleTree } from "merkletreejs";
 
 describe("YieldVault", function () {
@@ -12,7 +13,7 @@ describe("YieldVault", function () {
 
     // Deploy MockUSDC
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdc = await MockUSDC.deploy();
+    const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
     await usdc.waitForDeployment();
 
     // Deploy YieldVault (Upgradeable)
@@ -24,7 +25,7 @@ describe("YieldVault", function () {
       owner.address,
       redeemVault.address,
       ethers.ZeroAddress
-    ], { kind: 'uups' });
+    ], {   kind: 'uups' }) as unknown as YieldVault;
     await yieldVault.waitForDeployment();
 
     // Setup roles
@@ -90,7 +91,7 @@ describe("YieldVault", function () {
     it("Should support setting initial whitelist in constructor", async function () {
       const [owner, redeemVault, user1] = await ethers.getSigners();
       const MockUSDC = await ethers.getContractFactory("MockUSDC");
-      const usdc = await MockUSDC.deploy();
+      const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
       
       const YieldVault = await ethers.getContractFactory("YieldVault");
       const vault = await upgrades.deployProxy(YieldVault, [
@@ -100,7 +101,7 @@ describe("YieldVault", function () {
         owner.address,
         redeemVault.address,
         user1.address // Pass user1 as initial whitelist
-      ], { kind: 'uups' });
+      ], {   kind: 'uups' }) as unknown as YieldVault;
       
       expect(await vault.isWhitelisted(user1.address)).to.be.true;
       expect(await vault.getWhitelistCount()).to.equal(1);
