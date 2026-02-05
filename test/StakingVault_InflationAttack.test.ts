@@ -124,14 +124,9 @@ describe("StakingVault - Inflation Attack Protection", function () {
     const attackerAssets = await stakingVault.convertToAssets(attackerShares);
     const victimAssets = await stakingVault.convertToAssets(victimShares);
     
-    console.log("\nFinal distribution:");
-    console.log("Attacker shares:", ethers.formatUnits(attackerShares, 6), "worth:", ethers.formatUnits(attackerAssets, 6), "wYLDS");
-    console.log("Victim shares:", ethers.formatUnits(victimShares, 6), "worth:", ethers.formatUnits(victimAssets, 6), "wYLDS");
-
     // Attacker should NOT profit at all - their donation is completely wasted
     const attackerSpent = BigInt(1) + ethers.parseUnits("10000", 6);
     const attackerProfit = attackerAssets > attackerSpent ? attackerAssets - attackerSpent : 0n;
-    console.log("Attacker profit:", ethers.formatUnits(attackerProfit, 6), "wYLDS");
     
     // With internal accounting protection, attacker gets ZERO profit (donation is ignored)
     expect(attackerProfit).to.equal(0n); // No profit at all!
