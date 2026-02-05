@@ -50,6 +50,10 @@ contract StakingVault is
     /// @notice Mapping of frozen account status
     mapping(address => bool) public frozen;
     
+    /// @notice Internal accounting of wYLDS deposited (prevents donation inflation attack)
+    /// @dev Tracks only legitimate deposits, ignoring direct transfers to contract
+    uint256 private _totalManagedAssets;
+    
     // ============ Events ============
     
     event RewardsDistributed(uint256 amount, uint256 timestamp);
@@ -164,13 +168,59 @@ contract StakingVault is
     
     // ============ Rewards Distribution ============
     
+    // ============ Inflation Attack Protection ============
+    
+    /**
+     * @dev Override totalAssets to use internal accounting instead of balanceOf
+     * @notice Prevents inflation attacks via direct token transfers to the vault
+     * @return Total wYLDS assets managed by the vault (deposits + rewards only)
+     */
+    function totalAssets() public view virtual override returns (uint256) {
+        return _totalManagedAssets;
+    }
+
+    /**
+     * @dev Override deposit to track assets internally
+     */
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) 
+        internal 
+        virtual 
+        override 
+    {
+        _totalManagedAssets += assets;
+        super._deposit(caller, receiver, assets, shares);
+    }
+
+    /**
+     * @dev Override withdraw to track assets internally
+     */
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual override {
+        _totalManagedAssets -= assets;
+        super._withdraw(caller, receiver, owner, assets, shares);
+    }
+    
+    /**
+     * @dev Track rewards when distributed
+     */
     function distributeRewards(uint256 amount)
         external
         onlyRole(REWARDS_ADMIN_ROLE)
         nonReentrant
     {
         if (amount == 0) revert InvalidAmount();
+        
+        // Mint wYLDS rewards to this vault
         IYieldVault(yieldVault).mintRewards(address(this), amount);
+        
+        // Track the new assets internally
+        _totalManagedAssets += amount;
+        
         emit RewardsDistributed(amount, block.timestamp);
     }
     

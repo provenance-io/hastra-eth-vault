@@ -1,3 +1,4 @@
+// @ts-ignore
 import { ethers } from "hardhat";
 
 /**
@@ -16,11 +17,11 @@ import { ethers } from "hardhat";
 async function main() {
   const [depositor] = await ethers.getSigners();
   
-  const usdcAddress = process.env.MOCK_USDC_ADDRESS;
+  const usdcAddress = process.env.USDC_ADDRESS;
   const yieldVaultAddress = process.env.YIELD_VAULT_ADDRESS;
   
   if (!usdcAddress) {
-    throw new Error("MOCK_USDC_ADDRESS not set in .env");
+    throw new Error("USDC_ADDRESS not set in .env");
   }
   if (!yieldVaultAddress) {
     throw new Error("YIELD_VAULT_ADDRESS not set in .env");
