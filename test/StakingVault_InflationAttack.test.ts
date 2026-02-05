@@ -90,19 +90,17 @@ describe("StakingVault - Inflation Attack Protection", function () {
     const victimAssetsValue = await stakingVault.convertToAssets(victimSharesReceived);
     console.log("Victim's shares worth:", ethers.formatUnits(victimAssetsValue, 6), "wYLDS");
 
-    // WITH PROTECTION: Victim should receive shares roughly equal to deposit
-    // The virtual offset prevents the donation from severely inflating share price
+    // WITH INTERNAL ACCOUNTING PROTECTION: Victim should receive EXACT 1:1 shares
+    // Direct transfers are completely ignored by totalAssets()
     const lossPercentage = ((victimDeposit - victimAssetsValue) * 10000n) / victimDeposit;
     console.log("Victim loss percentage:", Number(lossPercentage) / 100, "%");
 
-    // Loss should be minimal (< 1%) with protection
+    // With internal accounting, there should be ZERO loss
     // Without protection, loss would be ~50%
-    expect(Number(lossPercentage)).to.be.lessThan(100); // Less than 1% loss
+    expect(lossPercentage).to.equal(0n); // Perfect 1:1, zero loss!
     
-    // With the virtual offset protection, the victim's asset value should be close to deposit
-    // Allow for small rounding (within 1%)
-    const minExpectedValue = (victimDeposit * 99n) / 100n;
-    expect(victimAssetsValue).to.be.greaterThan(minExpectedValue); // At least 99% of deposit value
+    // Victim's shares should be worth exactly what they deposited
+    expect(victimAssetsValue).to.equal(victimDeposit); // Exact match, no rounding loss
   });
 
   it("Should maintain fair share pricing after attack attempt", async function () {
@@ -126,12 +124,16 @@ describe("StakingVault - Inflation Attack Protection", function () {
     console.log("Attacker shares:", ethers.formatUnits(attackerShares, 6), "worth:", ethers.formatUnits(attackerAssets, 6), "wYLDS");
     console.log("Victim shares:", ethers.formatUnits(victimShares, 6), "worth:", ethers.formatUnits(victimAssets, 6), "wYLDS");
 
-    // Attacker should NOT profit significantly
+    // Attacker should NOT profit at all - their donation is completely wasted
     const attackerSpent = BigInt(1) + ethers.parseUnits("10000", 6);
     const attackerProfit = attackerAssets > attackerSpent ? attackerAssets - attackerSpent : 0n;
     console.log("Attacker profit:", ethers.formatUnits(attackerProfit, 6), "wYLDS");
     
-    // With protection, attacker profit should be minimal
-    expect(attackerProfit).to.be.lessThan(ethers.parseUnits("100", 6)); // Less than 100 wYLDS profit
+    // With internal accounting protection, attacker gets ZERO profit (donation is ignored)
+    expect(attackerProfit).to.equal(0n); // No profit at all!
+    
+    // Attacker's donation is permanently lost
+    const attackerLoss = attackerSpent - attackerAssets;
+    expect(attackerLoss).to.equal(ethers.parseUnits("10000", 6)); // Lost the entire donation
   });
 });
