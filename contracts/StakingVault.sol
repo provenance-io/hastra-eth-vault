@@ -53,6 +53,10 @@ contract StakingVault is
     /// @notice Internal accounting of wYLDS deposited (prevents donation inflation attack)
     /// @dev Tracks only legitimate deposits, ignoring direct transfers to contract
     uint256 private _totalManagedAssets;
+
+    /// @dev Storage gap for future upgrades (reserves 49 storage slots)
+    /// @notice Allows adding up to 49 new state variables in future versions without storage collision
+    uint256[49] private __gap;
     
     // ============ Events ============
     
@@ -67,6 +71,7 @@ contract StakingVault is
     error AccountNotFrozen();
     error InvalidAmount();
     error InvalidAddress();
+    error ZeroAmount();
     
     // ============ Constructor ============
     
@@ -187,6 +192,7 @@ contract StakingVault is
         virtual 
         override 
     {
+        if (assets == 0) revert ZeroAmount();
         _totalManagedAssets += assets;
         super._deposit(caller, receiver, assets, shares);
     }
@@ -201,6 +207,7 @@ contract StakingVault is
         uint256 assets,
         uint256 shares
     ) internal virtual override {
+        if (assets == 0) revert ZeroAmount();
         _totalManagedAssets -= assets;
         super._withdraw(caller, receiver, owner, assets, shares);
     }

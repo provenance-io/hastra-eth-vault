@@ -343,4 +343,38 @@ describe("StakingVault - Inflation Attack Protection", function () {
     
     expect(discrepancy).to.equal(ethers.parseUnits("5000", 6)); // The ignored donation
   });
+
+  describe("Zero Amount Validation", function () {
+    it("Should revert on zero amount deposit", async function () {
+      const { stakingVault, attacker } = await loadFixture(deployFixture);
+
+      await expect(
+        stakingVault.connect(attacker).deposit(0, attacker.address)
+      ).to.be.revertedWithCustomError(stakingVault, "ZeroAmount");
+    });
+
+    it("Should revert on zero amount withdraw", async function () {
+      const { stakingVault, attacker } = await loadFixture(deployFixture);
+
+      // First deposit some amount
+      await stakingVault.connect(attacker).deposit(ethers.parseUnits("100", 6), attacker.address);
+
+      // Try to withdraw zero
+      await expect(
+        stakingVault.connect(attacker).withdraw(0, attacker.address, attacker.address)
+      ).to.be.revertedWithCustomError(stakingVault, "ZeroAmount");
+    });
+
+    it("Should revert on zero shares redeem", async function () {
+      const { stakingVault, attacker } = await loadFixture(deployFixture);
+
+      // First deposit some amount
+      await stakingVault.connect(attacker).deposit(ethers.parseUnits("100", 6), attacker.address);
+
+      // Try to redeem zero shares
+      await expect(
+        stakingVault.connect(attacker).redeem(0, attacker.address, attacker.address)
+      ).to.be.revertedWithCustomError(stakingVault, "ZeroAmount");
+    });
+  });
 });

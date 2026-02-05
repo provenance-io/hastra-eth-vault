@@ -47,6 +47,10 @@ contract YieldVault is
     mapping(address => bool) public whitelistedAddresses;
     address[] private _whitelistArray;
     
+    /// @dev Storage gap for future upgrades (allows adding up to 42 new state variables)
+    /// @dev 50 slots total - 8 used = 42 available
+    uint256[42] private __gap;
+    
     // ============ Structs ============
     
     struct PendingRedemption {

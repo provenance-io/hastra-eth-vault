@@ -415,9 +415,53 @@ Major protocols using UUPS:
 - **Compound** - Upgradeable governance
 - **Aave V3** - UUPS for upgradeability
 
+## Storage Gaps for Future Upgrades
+
+**StakingVault** includes a storage gap to allow safe future upgrades:
+
+```solidity
+address public yieldVault;
+mapping(address => bool) public frozen;
+uint256 private _totalManagedAssets;
+uint256[49] private __gap;  // Reserves 49 slots for future variables
+```
+
+### Why Storage Gaps Matter
+
+Without a gap, adding new storage variables in future upgrades could cause storage collisions. The `__gap` reserves 49 storage slots that can be consumed by future variables.
+
+### Adding Variables in Future Upgrades
+
+When adding a new variable, reduce the gap size:
+
+```solidity
+// Future V3 upgrade
+uint256 private _totalManagedAssets;
+uint256 private _newFeatureVariable;  // New variable (uses 1 slot)
+uint256[48] private __gap;             // Reduced from 49 to 48
+```
+
+This maintains the same total storage footprint while adding new functionality.
+
+### What You CAN Add in Upgrades
+
+✅ **Safe to add:**
+- New functions
+- Constants (`constant`, `immutable`)
+- View/pure logic changes
+- Bug fixes
+- New storage variables **at the end** (while reducing `__gap`)
+
+❌ **Unsafe (breaks storage):**
+- Reordering existing variables
+- Changing variable types
+- Removing variables
+- Adding variables in the middle
+
 ## See Also
 
 - [OpenZeppelin UUPS](https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable)
 - [EIP-1822: UUPS](https://eips.ethereum.org/EIPS/eip-1822)
+- [Storage Gaps](https://docs.openzeppelin.com/contracts/5.x/upgradeable#storage_gaps)
 - [ROLES.md](./ROLES.md) - UPGRADER_ROLE details
 - [Test Files](../test/*_Upgrade.test.ts) - Upgrade test examples
