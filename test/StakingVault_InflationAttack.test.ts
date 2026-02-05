@@ -208,4 +208,139 @@ describe("StakingVault - Inflation Attack Protection", function () {
     console.log("✅ New depositors get fair shares!");
     console.log("✅ Attacker's 50,000 wYLDS donation wasted!");
   });
+
+  it("Should correctly track assets through deposit and withdrawal cycles", async function () {
+    const { stakingVault, yieldVault, attacker, victim } = await loadFixture(deployFixture);
+
+    // Deposit cycle
+    const deposit1 = ethers.parseUnits("1000", 6);
+    const deposit2 = ethers.parseUnits("2000", 6);
+    
+    await stakingVault.connect(attacker).deposit(deposit1, attacker.address);
+    expect(await stakingVault.totalAssets()).to.equal(deposit1);
+    
+    await stakingVault.connect(victim).deposit(deposit2, victim.address);
+    expect(await stakingVault.totalAssets()).to.equal(deposit1 + deposit2);
+
+    console.log("After deposits - Total assets:", ethers.formatUnits(await stakingVault.totalAssets(), 6));
+
+    // Withdrawal cycle
+    const attackerShares = await stakingVault.balanceOf(attacker.address);
+    const withdrawAmount = attackerShares / 2n; // Withdraw half
+    
+    await stakingVault.connect(attacker).redeem(withdrawAmount, attacker.address, attacker.address);
+    
+    const expectedAfterWithdraw = deposit1 + deposit2 - deposit1 / 2n;
+    expect(await stakingVault.totalAssets()).to.equal(expectedAfterWithdraw);
+    
+    console.log("After withdrawal - Total assets:", ethers.formatUnits(await stakingVault.totalAssets(), 6));
+
+    // Full withdrawal of remaining attacker shares
+    const remainingShares = await stakingVault.balanceOf(attacker.address);
+    await stakingVault.connect(attacker).redeem(remainingShares, attacker.address, attacker.address);
+    
+    expect(await stakingVault.totalAssets()).to.equal(deposit2); // Only victim's deposit left
+    console.log("After full attacker withdrawal - Total assets:", ethers.formatUnits(await stakingVault.totalAssets(), 6));
+
+    // Verify victim's shares still worth exact amount
+    const victimShares = await stakingVault.balanceOf(victim.address);
+    const victimValue = await stakingVault.convertToAssets(victimShares);
+    expect(victimValue).to.equal(deposit2);
+  });
+
+  it("Should maintain correct accounting during withdrawals after donation attack", async function () {
+    const { stakingVault, yieldVault, attacker, victim } = await loadFixture(deployFixture);
+
+    // Setup: Users deposit
+    const deposit1 = ethers.parseUnits("5000", 6);
+    const deposit2 = ethers.parseUnits("3000", 6);
+    
+    await stakingVault.connect(attacker).deposit(deposit1, attacker.address);
+    await stakingVault.connect(victim).deposit(deposit2, victim.address);
+
+    const totalBefore = await stakingVault.totalAssets();
+    expect(totalBefore).to.equal(deposit1 + deposit2);
+
+    // Attack: Donate large amount
+    const donation = ethers.parseUnits("20000", 6);
+    await yieldVault.connect(attacker).transfer(await stakingVault.getAddress(), donation);
+
+    console.log("\nDonation of", ethers.formatUnits(donation, 6), "wYLDS made");
+    
+    // Verify donation is ignored
+    const totalAfterDonation = await stakingVault.totalAssets();
+    expect(totalAfterDonation).to.equal(totalBefore);
+    console.log("Total assets still:", ethers.formatUnits(totalAfterDonation, 6), "(donation ignored ✅)");
+
+    // Now attacker withdraws
+    const attackerShares = await stakingVault.balanceOf(attacker.address);
+    const attackerAssetsBefore = await stakingVault.convertToAssets(attackerShares);
+    
+    await stakingVault.connect(attacker).redeem(attackerShares, attacker.address, attacker.address);
+    
+    const totalAfterWithdraw = await stakingVault.totalAssets();
+    expect(totalAfterWithdraw).to.equal(deposit2); // Only victim's deposit should remain
+    console.log("After attacker withdrawal - Total assets:", ethers.formatUnits(totalAfterWithdraw, 6));
+
+    // Victim's shares should still be worth exactly their deposit
+    const victimShares = await stakingVault.balanceOf(victim.address);
+    const victimValue = await stakingVault.convertToAssets(victimShares);
+    expect(victimValue).to.equal(deposit2);
+    console.log("Victim's shares still worth:", ethers.formatUnits(victimValue, 6), "wYLDS ✅");
+
+    // Verify attacker got back exactly what they deposited (no benefit from donation)
+    expect(attackerAssetsBefore).to.equal(deposit1);
+  });
+
+  it("Should handle multiple deposit/withdraw cycles with correct internal accounting", async function () {
+    const { stakingVault, yieldVault, attacker, victim, owner } = await loadFixture(deployFixture);
+
+    let expectedTotal = 0n;
+
+    // Cycle 1: Deposits
+    await stakingVault.connect(attacker).deposit(ethers.parseUnits("1000", 6), attacker.address);
+    expectedTotal += ethers.parseUnits("1000", 6);
+    expect(await stakingVault.totalAssets()).to.equal(expectedTotal);
+
+    // Cycle 2: More deposits
+    await stakingVault.connect(victim).deposit(ethers.parseUnits("2000", 6), victim.address);
+    expectedTotal += ethers.parseUnits("2000", 6);
+    expect(await stakingVault.totalAssets()).to.equal(expectedTotal);
+
+    // Cycle 3: Donation (should be ignored)
+    await yieldVault.connect(owner).transfer(await stakingVault.getAddress(), ethers.parseUnits("5000", 6));
+    expect(await stakingVault.totalAssets()).to.equal(expectedTotal); // Unchanged!
+
+    // Cycle 4: Partial withdrawal
+    const attackerShares = await stakingVault.balanceOf(attacker.address);
+    await stakingVault.connect(attacker).redeem(attackerShares / 2n, attacker.address, attacker.address);
+    expectedTotal -= ethers.parseUnits("500", 6);
+    expect(await stakingVault.totalAssets()).to.equal(expectedTotal);
+
+    // Cycle 5: Another deposit
+    await stakingVault.connect(owner).deposit(ethers.parseUnits("3000", 6), owner.address);
+    expectedTotal += ethers.parseUnits("3000", 6);
+    expect(await stakingVault.totalAssets()).to.equal(expectedTotal);
+
+    // Cycle 6: Full withdrawal
+    const victimShares = await stakingVault.balanceOf(victim.address);
+    await stakingVault.connect(victim).redeem(victimShares, victim.address, victim.address);
+    expectedTotal -= ethers.parseUnits("2000", 6);
+    expect(await stakingVault.totalAssets()).to.equal(expectedTotal);
+
+    console.log("\nFinal total assets:", ethers.formatUnits(await stakingVault.totalAssets(), 6));
+    console.log("Expected total:", ethers.formatUnits(expectedTotal, 6));
+    console.log("✅ All cycles maintained perfect accounting!");
+
+    // Verify actual balance vs tracked assets discrepancy
+    const actualBalance = await yieldVault.balanceOf(await stakingVault.getAddress());
+    const trackedAssets = await stakingVault.totalAssets();
+    const discrepancy = actualBalance - trackedAssets;
+    
+    console.log("Actual balance:", ethers.formatUnits(actualBalance, 6));
+    console.log("Tracked assets:", ethers.formatUnits(trackedAssets, 6));
+    console.log("Discrepancy (donations):", ethers.formatUnits(discrepancy, 6));
+    
+    expect(discrepancy).to.equal(ethers.parseUnits("5000", 6)); // The ignored donation
+  });
 });
