@@ -448,7 +448,8 @@ Slot 0-N: OpenZeppelin Upgradeable base contracts (with gaps)
 
 Custom State Variables:
   ├─ address yieldVault
-  └─ mapping(address => bool) frozen
+  ├─ mapping(address => bool) frozen
+  └─ uint256 _totalManagedAssets
 ```
 
 ## Gas Optimization Notes
@@ -472,6 +473,7 @@ Custom State Variables:
 5. **Pausable**: Emergency stop for both vaults
 6. **UUPS Upgradeable**: Can fix bugs without losing state
 7. **Role-Based Access**: Separation of duties
+8. **Inflation Attack Protection**: Internal accounting via `_totalManagedAssets` prevents donation-based inflation attacks on share price
 
 ## See Also
 
