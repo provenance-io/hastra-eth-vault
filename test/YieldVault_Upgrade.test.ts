@@ -23,7 +23,7 @@ describe("YieldVault Upgradeability", function () {
     const YieldVaultV2 = await ethers.getContractFactory("YieldVaultV2");
     const yieldVaultV2 = await upgrades.upgradeProxy(await yieldVault.getAddress(), YieldVaultV2);
     
-    expect(await yieldVaultV2.version()).to.equal("V2");
+    expect(await yieldVaultV2.version()).to.equal(3);
     expect(await yieldVaultV2.getAddress()).to.equal(await yieldVault.getAddress());
   });
 });

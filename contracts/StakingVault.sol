@@ -225,6 +225,7 @@ contract StakingVault is
     
     /**
      * @dev Track rewards when distributed
+     * @notice Follows checks-effects-interactions pattern
      */
     function distributeRewards(uint256 amount)
         external
@@ -233,11 +234,11 @@ contract StakingVault is
     {
         if (amount == 0) revert InvalidAmount();
         
-        // Mint wYLDS rewards to this vault
-        IYieldVault(yieldVault).mintRewards(address(this), amount);
-        
-        // Track the new assets internally
+        // Effects: Track the new assets internally BEFORE external call
         _totalManagedAssets += amount;
+        
+        // Interactions: Mint wYLDS rewards to this vault
+        IYieldVault(yieldVault).mintRewards(address(this), amount);
         
         emit RewardsDistributed(amount, block.timestamp);
     }
