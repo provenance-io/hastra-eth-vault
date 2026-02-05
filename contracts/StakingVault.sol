@@ -50,6 +50,14 @@ contract StakingVault is
     /// @notice Mapping of frozen account status
     mapping(address => bool) public frozen;
     
+    /// @notice Internal accounting of wYLDS deposited (prevents donation inflation attack)
+    /// @dev Tracks only legitimate deposits, ignoring direct transfers to contract
+    uint256 private _totalManagedAssets;
+
+    /// @dev Storage gap for future upgrades (reserves 49 storage slots)
+    /// @notice Allows adding up to 49 new state variables in future versions without storage collision
+    uint256[49] private __gap;
+    
     // ============ Events ============
     
     event RewardsDistributed(uint256 amount, uint256 timestamp);
@@ -63,6 +71,7 @@ contract StakingVault is
     error AccountNotFrozen();
     error InvalidAmount();
     error InvalidAddress();
+    error ZeroAmount();
     
     // ============ Constructor ============
     
@@ -102,6 +111,17 @@ contract StakingVault is
         _grantRole(UPGRADER_ROLE, admin_); // Admin can upgrade
         
         yieldVault = yieldVault_;
+    }
+
+    /**
+     * @notice Reinitializer for migration to version with _totalManagedAssets tracking
+     * @dev Should be called when upgrading from a previous version to sync _totalManagedAssets
+     *      with the actual asset balance. This is critical for existing vaults with deposits.
+     *      This is a data migration only - no parent initializers needed.
+     *      Only callable by UPGRADER_ROLE to prevent unauthorized reinitialization.
+     */
+    function initializeV2() public reinitializer(2) onlyRole(UPGRADER_ROLE) {
+        _totalManagedAssets = IERC20(asset()).balanceOf(address(this));
     }
     
     // ============ UUPS Required Override ============
@@ -164,13 +184,62 @@ contract StakingVault is
     
     // ============ Rewards Distribution ============
     
+    // ============ Inflation Attack Protection ============
+    
+    /**
+     * @dev Override totalAssets to use internal accounting instead of balanceOf
+     * @notice Prevents inflation attacks via direct token transfers to the vault
+     * @return Total wYLDS assets managed by the vault (deposits + rewards only)
+     */
+    function totalAssets() public view virtual override returns (uint256) {
+        return _totalManagedAssets;
+    }
+
+    /**
+     * @dev Override deposit to track assets internally
+     */
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) 
+        internal 
+        virtual 
+        override 
+    {
+        if (assets == 0) revert ZeroAmount();
+        _totalManagedAssets += assets;
+        super._deposit(caller, receiver, assets, shares);
+    }
+
+    /**
+     * @dev Override withdraw to track assets internally
+     */
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual override {
+        if (assets == 0) revert ZeroAmount();
+        _totalManagedAssets -= assets;
+        super._withdraw(caller, receiver, owner, assets, shares);
+    }
+    
+    /**
+     * @dev Track rewards when distributed
+     * @notice Follows checks-effects-interactions pattern
+     */
     function distributeRewards(uint256 amount)
         external
         onlyRole(REWARDS_ADMIN_ROLE)
         nonReentrant
     {
         if (amount == 0) revert InvalidAmount();
+        
+        // Effects: Track the new assets internally BEFORE external call
+        _totalManagedAssets += amount;
+        
+        // Interactions: Mint wYLDS rewards to this vault
         IYieldVault(yieldVault).mintRewards(address(this), amount);
+        
         emit RewardsDistributed(amount, block.timestamp);
     }
     

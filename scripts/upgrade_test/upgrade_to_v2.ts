@@ -1,3 +1,4 @@
+// @ts-ignore
 import { ethers, upgrades } from "hardhat";
 
 async function main() {
@@ -98,6 +99,12 @@ async function main() {
     }
   }
 
+  // Initialize V2 - Critical for syncing _totalManagedAssets with actual balance
+  console.log("\n🔧 Initializing StakingVault V2...");
+  const initTx = await stakingVaultV2.initializeV2();
+  await initTx.wait();
+  console.log("✅ StakingVault V2 initialized - _totalManagedAssets synced with balance");
+
   // Get new implementation addresses
   const yieldV2Impl = await upgrades.erc1967.getImplementationAddress(yieldVaultProxy);
   const stakingV2Impl = await upgrades.erc1967.getImplementationAddress(stakingVaultProxy);
@@ -123,10 +130,10 @@ async function main() {
   console.log("  - Total Supply:", ethers.formatUnits(stakingTotalSupplyAfter, 6), "PRIME");
   console.log("  - Asset:", stakingAssetAfter);
   try {
-    const stakingVersion = await stakingVaultV2.VERSION();
-    console.log("  - Version:", stakingVersion.toString());
+    const stakingVersion = await stakingVaultV2.version();
+    console.log("  - Version:", stakingVersion.toString(), "(Contract version)");
   } catch {
-    console.log("  - Version: Unable to read (may use version() function instead of VERSION constant)");
+    console.log("  - Version: Unable to read version() function");
   }
 
   // Verify state preservation

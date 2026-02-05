@@ -5,21 +5,20 @@ import "../StakingVault.sol";
 
 /**
  * @title StakingVaultV2
- * @notice Mock upgrade to test storage layout and logic preservation
+ * @notice Production upgrade with inflation attack protection
+ * @dev Version tracking:
+ *      - Version 1: Initial deployment with initialize()
+ *      - Version 2: Migration with initializeV2() to sync _totalManagedAssets
+ *      - Version 3: This contract - production version with inflation protection
  */
 contract StakingVaultV2 is StakingVault {
-    // New state variable (must be appended to avoid storage collision if not using storage gaps)
-    // However, StakingVault inherits from Upgradeable contracts which use gaps.
-    // We should be careful. Since StakingVault is the leaf, we can append here.
-    
-    uint256 public constant VERSION = 2;
+    uint256 public constant VERSION = 3;
 
+    /**
+     * @notice Returns the contract version for monitoring/verification
+     * @return Current version number
+     */
     function version() external pure returns (uint256) {
         return VERSION;
-    }
-    
-    // Example of adding functionality
-    function echo(string memory msg_) external pure returns (string memory) {
-        return msg_;
     }
 }

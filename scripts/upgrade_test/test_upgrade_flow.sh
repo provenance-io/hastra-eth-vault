@@ -73,7 +73,6 @@ async function main() {
   
   console.log("YieldVault version:", await yieldVaultV2.version());
   console.log("StakingVault version:", (await stakingVaultV2.version()).toString());
-  console.log("Echo test:", await stakingVaultV2.echo("Hello from V2!"));
   
   console.log("\n✅ V2 features working!");
 }
