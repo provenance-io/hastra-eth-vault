@@ -39,15 +39,19 @@ describe("StakingVault - Inflation Attack Protection", function () {
 
     // Mint USDC and get wYLDS for participants
     const amount = ethers.parseUnits("100000", 6);
+    await usdc.mint(owner.address, amount);
     await usdc.mint(attacker.address, amount);
     await usdc.mint(victim.address, amount);
 
+    await usdc.connect(owner).approve(await yieldVault.getAddress(), ethers.MaxUint256);
     await usdc.connect(attacker).approve(await yieldVault.getAddress(), ethers.MaxUint256);
     await usdc.connect(victim).approve(await yieldVault.getAddress(), ethers.MaxUint256);
 
+    await yieldVault.connect(owner).deposit(amount, owner.address);
     await yieldVault.connect(attacker).deposit(amount, attacker.address);
     await yieldVault.connect(victim).deposit(amount, victim.address);
 
+    await yieldVault.connect(owner).approve(await stakingVault.getAddress(), ethers.MaxUint256);
     await yieldVault.connect(attacker).approve(await stakingVault.getAddress(), ethers.MaxUint256);
     await yieldVault.connect(victim).approve(await stakingVault.getAddress(), ethers.MaxUint256);
 
@@ -135,5 +139,73 @@ describe("StakingVault - Inflation Attack Protection", function () {
     // Attacker's donation is permanently lost
     const attackerLoss = attackerSpent - attackerAssets;
     expect(attackerLoss).to.equal(ethers.parseUnits("10000", 6)); // Lost the entire donation
+  });
+
+  it("Should protect existing depositors when attacker tries inflation attack on populated vault", async function () {
+    const { stakingVault, yieldVault, attacker, victim, owner } = await loadFixture(deployFixture);
+
+    // Setup: Legitimate users deposit first (vault is NOT empty)
+    const user1Deposit = ethers.parseUnits("50000", 6);
+    const user2Deposit = ethers.parseUnits("30000", 6);
+    
+    await stakingVault.connect(owner).deposit(user1Deposit, owner.address);
+    await stakingVault.connect(victim).deposit(user2Deposit, victim.address);
+
+    const user1SharesBefore = await stakingVault.balanceOf(owner.address);
+    const user2SharesBefore = await stakingVault.balanceOf(victim.address);
+    const totalSupplyBefore = await stakingVault.totalSupply();
+    const totalAssetsBefore = await stakingVault.totalAssets();
+
+    console.log("\nBefore attack:");
+    console.log("User1 shares:", ethers.formatUnits(user1SharesBefore, 6));
+    console.log("User2 shares:", ethers.formatUnits(user2SharesBefore, 6));
+    console.log("Total supply:", ethers.formatUnits(totalSupplyBefore, 6));
+    console.log("Total assets:", ethers.formatUnits(totalAssetsBefore, 6));
+
+    // ATTACK ATTEMPT on populated vault:
+    // Step 1: Attacker deposits small amount
+    await stakingVault.connect(attacker).deposit(ethers.parseUnits("100", 6), attacker.address);
+    
+    // Step 2: Attacker donates large amount (but not more than they have left)
+    const hugeDonation = ethers.parseUnits("50000", 6); // 50,000 wYLDS
+    await yieldVault.connect(attacker).transfer(await stakingVault.getAddress(), hugeDonation);
+    
+    console.log("\nAttacker donated:", ethers.formatUnits(hugeDonation, 6), "wYLDS");
+
+    // Check that totalAssets IGNORES the donation
+    const totalAssetsAfterDonation = await stakingVault.totalAssets();
+    expect(totalAssetsAfterDonation).to.equal(totalAssetsBefore + ethers.parseUnits("100", 6));
+    console.log("Total assets after donation:", ethers.formatUnits(totalAssetsAfterDonation, 6), "(donation ignored ✅)");
+
+    // Step 3: New victim tries to deposit
+    const newVictimDeposit = ethers.parseUnits("20000", 6);
+    await stakingVault.connect(attacker).deposit(newVictimDeposit, attacker.address);
+
+    // Verify existing users' share values are UNCHANGED
+    const user1SharesAfter = await stakingVault.balanceOf(owner.address);
+    const user2SharesAfter = await stakingVault.balanceOf(victim.address);
+    
+    expect(user1SharesAfter).to.equal(user1SharesBefore); // Shares unchanged
+    expect(user2SharesAfter).to.equal(user2SharesBefore); // Shares unchanged
+
+    const user1ValueAfter = await stakingVault.convertToAssets(user1SharesAfter);
+    const user2ValueAfter = await stakingVault.convertToAssets(user2SharesAfter);
+
+    console.log("\nAfter attack:");
+    console.log("User1 shares:", ethers.formatUnits(user1SharesAfter, 6), "worth:", ethers.formatUnits(user1ValueAfter, 6), "wYLDS");
+    console.log("User2 shares:", ethers.formatUnits(user2SharesAfter, 6), "worth:", ethers.formatUnits(user2ValueAfter, 6), "wYLDS");
+
+    // Existing users' shares should still be worth what they deposited (1:1 ratio maintained)
+    expect(user1ValueAfter).to.equal(user1Deposit);
+    expect(user2ValueAfter).to.equal(user2Deposit);
+
+    // Verify new deposits still get fair pricing
+    const totalAssetsAfterAll = await stakingVault.totalAssets();
+    const expectedAssets = user1Deposit + user2Deposit + ethers.parseUnits("100", 6) + newVictimDeposit;
+    expect(totalAssetsAfterAll).to.equal(expectedAssets);
+    
+    console.log("\n✅ Existing users protected!");
+    console.log("✅ New depositors get fair shares!");
+    console.log("✅ Attacker's 50,000 wYLDS donation wasted!");
   });
 });
