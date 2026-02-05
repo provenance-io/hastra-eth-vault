@@ -112,6 +112,17 @@ contract StakingVault is
         
         yieldVault = yieldVault_;
     }
+
+    /**
+     * @notice Reinitializer for migration to version with _totalManagedAssets tracking
+     * @dev Should be called when upgrading from a previous version to sync _totalManagedAssets
+     *      with the actual asset balance. This is critical for existing vaults with deposits.
+     *      This is a data migration only - no parent initializers needed.
+     *      Only callable by UPGRADER_ROLE to prevent unauthorized reinitialization.
+     */
+    function initializeV2() public reinitializer(2) onlyRole(UPGRADER_ROLE) {
+        _totalManagedAssets = IERC20(asset()).balanceOf(address(this));
+    }
     
     // ============ UUPS Required Override ============
     
