@@ -1,16 +1,16 @@
 {
   "network": "hoodi",
   "chainId": "560048",
-  "timestamp": "2026-01-30T21:11:03.637Z",
+  "timestamp": "2026-02-06T23:29:14.928Z",
   "contracts": {
     "usdc": "0xBa16F5b2fDF7D5686D55c2917F323feCbFef76e6",
-    "yieldVault": "0xBf000e0362d967B3583fdE2451BeA11b3723b81C",
-    "stakingVault": "0x14D815D29F9b39859a55F1392cff217ED642a8Ea"
+    "yieldVault": "0x1355eBe3669FA92c1eD94c434aCF9d06E2BF7CC8",
+    "stakingVault": "0x45c3Ce1a86d25a25F7241f1973f12ff1D3D218f3"
   },
   "transactions": {
     "usdc": "existing",
-    "yieldVault": "0xce34953e8cf1874be3f7fee2ab897736b07b7f80e238fc83ec0420d442c8ce1a",
-    "stakingVault": "0x32a8bcb08635d4302417f2abc155a8fbc562d97605a84d95c685a01b049128b8"
+    "yieldVault": "0x268b864eab4dd72a60d70f31e9b01d3f28b211fbea1f185d46ae904a0b977fae",
+    "stakingVault": "0xcb380ba9924db7a9f67675f7b4bbc0f08d2a010d1762fe76c2238e08ad646639"
   },
   "roles": {
     "admin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",

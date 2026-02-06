@@ -1,10 +1,19 @@
 import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 async function main() {
-  const yieldVaultAddress = process.env.YIELD_VAULT_ADDRESS;
-  
+  // Read deployment addresses from deployment_testnet.json
+  const deploymentPath = path.join(__dirname, "../deployment_testnet.json");
+  if (!fs.existsSync(deploymentPath)) {
+    throw new Error(`Deployment file not found at ${deploymentPath}`);
+  }
+
+  const deployment = JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
+  const yieldVaultAddress = deployment.contracts.yieldVault;
+
   if (!yieldVaultAddress) {
-    throw new Error("YIELD_VAULT_ADDRESS not set in .env or environment");
+    throw new Error("YieldVault address not found in deployment_testnet.json");
   }
 
   console.log("Checking YieldVault Whitelist State...");
