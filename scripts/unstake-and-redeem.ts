@@ -35,8 +35,13 @@ async function main() {
 
   if (primeBalance > 0n) {
     // 2. Instant Redeem (Standard ERC-4626)
-    console.log("\nInitiating Instant Redeem...");
-    const redeemTx = await stakingVault.redeem(primeBalance, staker.address, staker.address);
+    // Redeem only 50% to leave some staked
+    const redeemAmount = primeBalance / 2n;
+    console.log("\nInitiating Partial Redeem...");
+    console.log("Redeeming:", ethers.formatUnits(redeemAmount, 6), "PRIME");
+    console.log("Keeping staked:", ethers.formatUnits(primeBalance - redeemAmount, 6), "PRIME");
+    
+    const redeemTx = await stakingVault.redeem(redeemAmount, staker.address, staker.address);
     console.log("Redeem Tx:", redeemTx.hash);
     await redeemTx.wait();
   } else {

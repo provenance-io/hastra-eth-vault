@@ -1,3 +1,4 @@
+// @ts-ignore
 import { ethers } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";

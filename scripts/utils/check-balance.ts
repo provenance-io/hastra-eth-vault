@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-nocheck
 import { ethers } from "hardhat";
 import * as fs from "fs";
 
@@ -43,9 +43,20 @@ async function main() {
   const wyldsBalance = await yieldVault.balanceOf(address);
   const usdcBalance = await usdc.balanceOf(address);
   
+  // Get PRIME balance if StakingVault exists
+  let primeBalance = 0n;
+  const stakingVaultAddress = deployment.contracts.stakingVault;
+  if (stakingVaultAddress) {
+    const stakingVault = await ethers.getContractAt("StakingVault", stakingVaultAddress);
+    primeBalance = await stakingVault.balanceOf(address);
+  }
+  
   console.log("💰 Balances:");
-  console.log(`   wYLDS: ${ethers.formatUnits(wyldsBalance, 6)} wYLDS`);
   console.log(`   USDC:  ${ethers.formatUnits(usdcBalance, 6)} USDC`);
+  console.log(`   wYLDS: ${ethers.formatUnits(wyldsBalance, 6)} wYLDS`);
+  if (stakingVaultAddress) {
+    console.log(`   PRIME: ${ethers.formatUnits(primeBalance, 6)} PRIME`);
+  }
   console.log("");
   
   // Get total supply for context
@@ -56,9 +67,41 @@ async function main() {
   console.log(`   Total Supply: ${ethers.formatUnits(totalSupply, 6)} wYLDS`);
   console.log(`   Total Assets: ${ethers.formatUnits(totalAssets, 6)} USDC`);
   
+  // Also check StakingVault if it exists
+  if (stakingVaultAddress) {
+    console.log("");
+    console.log("📊 StakingVault Stats:");
+    const stakingVault = await ethers.getContractAt("StakingVault", stakingVaultAddress);
+    const stakingTotalSupply = await stakingVault.totalSupply();
+    const stakingTotalAssets = await stakingVault.totalAssets();
+    const stakingActualBalance = await yieldVault.balanceOf(stakingVaultAddress);
+    
+    console.log(`   PRIME Total Supply:       ${ethers.formatUnits(stakingTotalSupply, 6)} PRIME`);
+    console.log(`   totalAssets() [internal]: ${ethers.formatUnits(stakingTotalAssets, 6)} wYLDS`);
+    console.log(`   balanceOf() [actual]:     ${ethers.formatUnits(stakingActualBalance, 6)} wYLDS`);
+    console.log(`   Synced: ${stakingTotalAssets === stakingActualBalance ? "✅ YES" : "❌ NO"}`);
+    
+    if (stakingTotalSupply > 0n) {
+      const sharePrice = (Number(stakingTotalAssets) / Number(stakingTotalSupply));
+      console.log(`   Share Price: ${sharePrice.toFixed(6)} wYLDS per PRIME`);
+      
+      // Show your position if you have PRIME
+      if (primeBalance > 0n) {
+        const yourShare = (Number(primeBalance) / Number(stakingTotalSupply)) * 100;
+        const yourAssets = (primeBalance * stakingTotalAssets) / stakingTotalSupply;
+        console.log("");
+        console.log(`   📈 Your Position:`);
+        console.log(`      PRIME owned: ${ethers.formatUnits(primeBalance, 6)}`);
+        console.log(`      Your share: ${yourShare.toFixed(2)}%`);
+        console.log(`      Can claim: ${ethers.formatUnits(yourAssets, 6)} wYLDS`);
+      }
+    }
+  }
+  
   if (totalSupply > 0n) {
     const percentage = (wyldsBalance * 10000n) / totalSupply;
-    console.log(`   Your Share:   ${(Number(percentage) / 100).toFixed(2)}%`);
+    console.log("");
+    console.log(`   Your wYLDS Share: ${(Number(percentage) / 100).toFixed(2)}%`);
   }
   
   console.log("");
