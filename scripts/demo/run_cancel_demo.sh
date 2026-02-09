@@ -3,6 +3,9 @@
 # Exit on error
 set -e
 
+# Ensure we are in the project root (go up 2 levels from scripts/demo/)
+cd "$(dirname "$0")/../.."
+
 echo "Starting Redemption Cancellation Demo..."
 
 # Determine deployment file
@@ -31,9 +34,9 @@ echo "--------------------------------------------------"
 echo "PRE-STEP: Ensuring wYLDS Balance"
 echo "--------------------------------------------------"
 export MINT_AMOUNT="500"
-npx hardhat run scripts/mint-usdc.ts --network hoodi
+npx hardhat run scripts/demo/mint-usdc.ts --network hoodi
 export DEPOSIT_AMOUNT="500"
-npx hardhat run scripts/deposit-usdc.ts --network hoodi
+npx hardhat run scripts/demo/deposit-usdc.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"
@@ -45,7 +48,7 @@ echo "--------------------------------------------------"
 # Checking scripts... we have unstake-and-redeem.ts but not just 'request-redeem.ts'.
 # I'll use a one-liner hardhat script for now.
 
-cat <<EOF > scripts/request-redeem.ts
+cat <<EOF > scripts/demo/request-redeem.ts
 import { ethers } from "hardhat";
 async function main() {
   const [user] = await ethers.getSigners();
@@ -59,16 +62,16 @@ async function main() {
 main().catch(console.error);
 EOF
 
-npx hardhat run scripts/request-redeem.ts --network hoodi
+npx hardhat run scripts/demo/request-redeem.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"
 echo "STEP 2: Cancelling Redemption"
 echo "--------------------------------------------------"
-npx hardhat run scripts/cancel-redemption.ts --network hoodi
+npx hardhat run scripts/demo/cancel-redemption.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"
 echo "Cancellation Demo Complete!"
 echo "--------------------------------------------------"
-rm scripts/request-redeem.ts
+rm scripts/demo/request-redeem.ts

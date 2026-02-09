@@ -3,6 +3,9 @@
 # Exit on error
 set -e
 
+# Ensure we are in the project root (go up 2 levels from scripts/demo/)
+cd "$(dirname "$0")/../.."
+
 echo "Starting Full Rewards Capture Demo..."
 
 # Determine deployment file
@@ -37,30 +40,30 @@ echo "--------------------------------------------------"
 # Let's just run both to be safe. It's cheap on testnet.
 
 export MINT_AMOUNT="1000"
-npx hardhat run scripts/mint-usdc.ts --network hoodi
+npx hardhat run scripts/demo/mint-usdc.ts --network hoodi
 
 export DEPOSIT_AMOUNT="1000"
-npx hardhat run scripts/deposit-usdc.ts --network hoodi
+npx hardhat run scripts/demo/deposit-usdc.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"
 echo "STEP 1: Staking 100 wYLDS (to capture future rewards)"
 echo "--------------------------------------------------"
 export STAKE_AMOUNT="100"
-npx hardhat run scripts/stake-wylds.ts --network hoodi
+npx hardhat run scripts/demo/stake-wylds.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"
 echo "STEP 2: Distributing 500 wYLDS Rewards"
 echo "--------------------------------------------------"
 export REWARD_AMOUNT="500"
-npx hardhat run scripts/distribute-rewards.ts --network hoodi
+npx hardhat run scripts/demo/distribute-rewards.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"
 echo "STEP 3: Redeeming to capture increased value"
 echo "--------------------------------------------------"
-npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
+npx hardhat run scripts/demo/unstake-and-redeem.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"

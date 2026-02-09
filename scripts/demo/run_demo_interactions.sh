@@ -1,8 +1,8 @@
 #!/bin/bash
 
 set -e
-# Ensure we are in the project root
-cd "$(dirname "$0")/.."
+# Ensure we are in the project root (go up 2 levels from scripts/demo/)
+cd "$(dirname "$0")/../.."
 
 echo "Starting Hastra Vault Protocol Interaction Flow (No Deployment)..."
 
@@ -38,7 +38,7 @@ echo "STEP 1: Minting USDC"
 echo "--------------------------------------------------"
 export MOCK_USDC_ADDRESS=$USDC_ADDRESS
 export MINT_AMOUNT="10000"
-npx hardhat run scripts/mint-usdc.ts --network hoodi
+npx hardhat run scripts/demo/mint-usdc.ts --network hoodi
 
 # 3. Deposit USDC into YieldVault (Get wYLDS)
 echo ""
@@ -47,7 +47,7 @@ echo "STEP 2: Depositing USDC for wYLDS"
 echo "--------------------------------------------------"
 export YIELD_VAULT_ADDRESS=$YIELD_VAULT_ADDRESS
 export DEPOSIT_AMOUNT="5000"
-npx hardhat run scripts/deposit-usdc.ts --network hoodi
+npx hardhat run scripts/demo/deposit-usdc.ts --network hoodi
 
 # 4. Stake wYLDS into StakingVault (Get PRIME)
 echo ""
@@ -56,14 +56,14 @@ echo "STEP 3: Staking wYLDS for PRIME"
 echo "--------------------------------------------------"
 export STAKING_VAULT_ADDRESS=$STAKING_VAULT_ADDRESS
 export STAKE_AMOUNT="2000"
-npx hardhat run scripts/stake-wylds.ts --network hoodi
+npx hardhat run scripts/demo/stake-wylds.ts --network hoodi
 
 # 5. Unstake and Redeem (Verify Unbonding)
 echo ""
 echo "--------------------------------------------------"
 echo "STEP 4: Instant Redeem (Verification)"
 echo "--------------------------------------------------"
-npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
+npx hardhat run scripts/demo/unstake-and-redeem.ts --network hoodi
 
 echo ""
 echo "--------------------------------------------------"

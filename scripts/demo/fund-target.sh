@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 # Ensure we are in the project root
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 # Configuration
-TARGET="0xF4B35857A657eaFE095D1FCeB2bcAf09921E24DB"
 AMOUNT=${1:-1000000000} # Default to 1M if no argument provided
+TARGET=${2:-"0xF4B35857A657eaFE095D1FCeB2bcAf09921E24DB"}
 
 # Determine deployment file
 DEPLOYMENT_FILE=${DEPLOYMENT_FILE:-"deployment.json"}
@@ -30,4 +30,4 @@ export MOCK_USDC_ADDRESS=$USDC_ADDRESS
 export MINT_TO_ADDRESS=$TARGET
 export MINT_AMOUNT=$AMOUNT
 
-npx hardhat run scripts/mint-usdc.ts --network hoodi
+npx hardhat run scripts/demo/mint-usdc.ts --network hoodi
