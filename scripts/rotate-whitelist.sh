@@ -4,9 +4,21 @@ set -e
 # Ensure we are in the project root
 cd "$(dirname "$0")/.."
 
-# Set addresses
-YIELD_VAULT="0x4A5042bA80477ea51Ede73c39a6e620750AC2cFA"
-ADD_ADDR="0x3778F66336F79B2B0D86E759499D191EA030a4c6"
+# Load YieldVault address from deployment file
+DEPLOYMENT_FILE="deployment_testnet.json"
+if [ ! -f "$DEPLOYMENT_FILE" ]; then
+  DEPLOYMENT_FILE="deployment.json"
+fi
+
+if [ ! -f "$DEPLOYMENT_FILE" ]; then
+  echo "Error: No deployment file found!"
+  exit 1
+fi
+
+YIELD_VAULT=$(grep -A 3 '"contracts":' "$DEPLOYMENT_FILE" | grep '"yieldVault":' | cut -d '"' -f 4)
+
+# Set addresses to rotate
+ADD_ADDR="0xc973c6b2c83dcd8793d2b280471f7ea249c0ad5d"
 REMOVE_ADDR="0x803AdF8d4F036134070Bde997f458502Ade2f834"
 
 echo "Rotating whitelist..."
