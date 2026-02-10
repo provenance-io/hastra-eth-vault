@@ -118,13 +118,13 @@ StakingVault deployed to: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
 
 ```bash
 # Run full demo flow
-./scripts/run_demo_interactions.sh
+./scripts/demo/run_demo_interactions.sh
 
 # Run rewards distribution demo
-./scripts/run_rewards_demo.sh
+./scripts/demo/run_rewards_demo.sh
 
 # Run cancellation demo
-./scripts/run_cancel_demo.sh
+./scripts/demo/run_cancel_demo.sh
 ```
 
 ## 5. Interact with Contracts
@@ -171,16 +171,19 @@ Then run operations:
 
 ```bash
 # Deposit USDC
-npx hardhat run scripts/deposit-usdc.ts --network localhost
+npx hardhat run scripts/demo/deposit-usdc.ts --network localhost
 
 # Stake wYLDS
-npx hardhat run scripts/stake-wylds.ts --network localhost
+npx hardhat run scripts/demo/stake-wylds.ts --network localhost
 
 # Check whitelist
-npx hardhat run scripts/check-whitelist.ts --network localhost
+npx hardhat run scripts/admin/check-whitelist.ts --network localhost
 
 # Distribute rewards
-npx hardhat run scripts/distribute-rewards.ts --network localhost
+npx hardhat run scripts/demo/distribute-rewards.ts --network localhost
+
+# Check balances
+npx hardhat run scripts/utils/check-balance.ts --network localhost
 ```
 
 ## 6. Common Workflows
@@ -189,13 +192,13 @@ npx hardhat run scripts/distribute-rewards.ts --network localhost
 
 ```bash
 # 1. Deposit USDC to get wYLDS (1:1 ratio)
-npx hardhat run scripts/deposit-usdc.ts --network localhost
+npx hardhat run scripts/demo/deposit-usdc.ts --network localhost
 
 # 2. Stake wYLDS to get PRIME
-npx hardhat run scripts/stake-wylds.ts --network localhost
+npx hardhat run scripts/demo/stake-wylds.ts --network localhost
 
 # 3. Unstake PRIME back to wYLDS (instant!)
-npx hardhat run scripts/unstake-and-redeem.ts --network localhost
+npx hardhat run scripts/demo/unstake-and-redeem.ts --network localhost
 
 # 4. Request redemption (wYLDS → USDC requires admin)
 # User calls requestRedeem(), admin completes
@@ -205,7 +208,7 @@ npx hardhat run scripts/unstake-and-redeem.ts --network localhost
 
 ```bash
 # 1. Distribute rewards to StakingVault (increases PRIME value)
-npx hardhat run scripts/distribute-rewards.ts --network localhost
+npx hardhat run scripts/demo/distribute-rewards.ts --network localhost
 
 # All PRIME holders automatically benefit - share value increases!
 ```
@@ -217,25 +220,11 @@ npx hardhat run scripts/distribute-rewards.ts --network localhost
 # Create distributions/epoch-0.json with addresses and amounts
 
 # 2. Create epoch on YieldVault
-npx hardhat run scripts/admin.ts --network localhost
+npx hardhat run scripts/admin/admin.ts --network localhost
 # Then use createRewardsEpoch function
 
 # 3. Users claim rewards with merkle proofs
 # Each user can claim their rewards once per epoch
-```
-
-## 8. Testing Rewards Distribution
-
-```javascript
-// scripts/test-rewards.ts
-import { generateDistributionFile } from "./utils/merkle";
-
-const rewards = [
-  { address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", amount: ethers.parseUnits("100", 6) },
-  { address: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", amount: ethers.parseUnits("200", 6) },
-];
-
-generateDistributionFile(rewards, 0, "distributions/epoch-0.json");
 ```
 
 ## 7. Deploy to Testnet
@@ -292,24 +281,43 @@ npx hardhat run scripts/deploy.ts --network sepolia      # Deploy to Sepolia
 
 ### User Operations
 ```bash
-npx hardhat run scripts/deposit-usdc.ts --network localhost
-npx hardhat run scripts/stake-wylds.ts --network localhost
-npx hardhat run scripts/unstake-and-redeem.ts --network localhost
-npx hardhat run scripts/cancel-redemption.ts --network localhost
+npx hardhat run scripts/demo/deposit-usdc.ts --network localhost
+npx hardhat run scripts/demo/stake-wylds.ts --network localhost
+npx hardhat run scripts/demo/unstake-and-redeem.ts --network localhost
+npx hardhat run scripts/demo/cancel-redemption.ts --network localhost
 ```
 
 ### Admin Operations
 ```bash
-npx hardhat run scripts/admin.ts --network localhost
-npx hardhat run scripts/manage-whitelist.ts --network localhost
-npx hardhat run scripts/distribute-rewards.ts --network localhost
+# Role delegation
+COMMAND=delegate-role ROLE=REWARDS_ADMIN TARGET_ADDRESS=0x... \
+  npx hardhat run scripts/admin/admin.ts --network localhost
+
+# Whitelist management
+npx hardhat run scripts/admin/manage-whitelist.ts --network localhost
+npx hardhat run scripts/admin/check-whitelist.ts --network localhost
+./scripts/admin/rotate-whitelist.sh
+
+# Distribute rewards
+npx hardhat run scripts/demo/distribute-rewards.ts --network localhost
 ```
 
-### Maintenance
+### Utilities
 ```bash
+# Check balances
+npx hardhat run scripts/utils/check-balance.ts --network hoodi
+
+# Check contract versions
 npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
-npx hardhat run scripts/upgrade_to_v2.ts --network hoodi
-npx hardhat run scripts/check-multisig-status.ts --network hoodi
+```
+
+### Upgrades
+```bash
+# Upgrade contracts to V2
+npx hardhat run scripts/upgrade_test/upgrade_to_v2.ts --network hoodi
+
+# Verify upgrade
+npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
 ```
 
 ## Troubleshooting
