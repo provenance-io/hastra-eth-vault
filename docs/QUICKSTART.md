@@ -12,7 +12,7 @@ Get started with the Hastra Ethereum Vault Protocol in under 10 minutes.
 
 ```bash
 # Clone repository
-git clone https://github.com/your-org/hastra-eth-vault.git
+git clone https://github.com/provenance-io/hastra-eth-vault
 cd hastra-eth-vault
 
 # Install dependencies
@@ -35,7 +35,7 @@ SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
 PRIVATE_KEY=your_private_key_here
 
 # Optional: Use existing USDC (mainnet)
-USDC_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+USDC_ADDRESS=0x
 
 # Optional: Custom admin addresses
 REDEEM_VAULT_ADDRESS=0x...
