@@ -4,7 +4,7 @@ Get started with the Hastra Ethereum Vault Protocol in under 10 minutes.
 
 ## Prerequisites
 
-- Node.js >= 18
+- Node.js >= 20
 - npm or yarn
 - Git
 
