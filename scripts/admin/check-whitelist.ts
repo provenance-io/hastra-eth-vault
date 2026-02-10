@@ -5,7 +5,7 @@ import * as path from "path";
 
 async function main() {
   // Read deployment addresses from deployment_testnet.json
-  const deploymentPath = path.join(__dirname, "../deployment_testnet.json");
+  const deploymentPath = path.join(__dirname, "../../deployment_testnet.json");
   if (!fs.existsSync(deploymentPath)) {
     throw new Error(`Deployment file not found at ${deploymentPath}`);
   }

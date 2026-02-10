@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
  * Manage Whitelist
  * 
  * Usage: 
- *   npx hardhat run scripts/manage-whitelist.ts --network hoodi
+ *   npx hardhat run scripts/admin/manage-whitelist.ts --network hoodi
  * 
  * Required env vars:
  *   YIELD_VAULT_ADDRESS - The YieldVault contract address

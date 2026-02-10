@@ -2,7 +2,7 @@
 set -e
 
 # Ensure we are in the project root
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 # Load YieldVault address from deployment file
 DEPLOYMENT_FILE="deployment_testnet.json"
@@ -30,14 +30,14 @@ echo "Adding $ADD_ADDR..."
 export YIELD_VAULT_ADDRESS=$YIELD_VAULT
 export TARGET_ADDRESS=$ADD_ADDR
 export ACTION="add"
-npx hardhat run scripts/manage-whitelist.ts --network hoodi
+npx hardhat run scripts/admin/manage-whitelist.ts --network hoodi
 
 # 2. Remove old address
 echo ""
 echo "Removing $REMOVE_ADDR..."
 export TARGET_ADDRESS=$REMOVE_ADDR
 export ACTION="remove"
-npx hardhat run scripts/manage-whitelist.ts --network hoodi
+npx hardhat run scripts/admin/manage-whitelist.ts --network hoodi
 
 echo ""
 echo "Rotation complete!"
