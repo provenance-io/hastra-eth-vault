@@ -131,6 +131,25 @@ describe("YieldVault", function () {
         ], { kind: 'uups' })
       ).to.be.revertedWithCustomError(YieldVault, "InvalidAddress");
     });
+
+    it("Should revert if admin is zero address", async function () {
+      const [, redeemVault] = await ethers.getSigners();
+      const MockUSDC = await ethers.getContractFactory("MockUSDC");
+      const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
+      
+      const YieldVault = await ethers.getContractFactory("YieldVault");
+      
+      await expect(
+        upgrades.deployProxy(YieldVault, [
+          await usdc.getAddress(),
+          "Wrapped YLDS",
+          "wYLDS",
+          ethers.ZeroAddress, // Invalid admin
+          redeemVault.address,
+          ethers.ZeroAddress
+        ], { kind: 'uups' })
+      ).to.be.revertedWithCustomError(YieldVault, "InvalidAddress");
+    });
   });
 
   // ============ Deposit Tests ============
@@ -1041,6 +1060,117 @@ describe("YieldVault", function () {
       await expect(
         vault.connect(withdrawalAdmin).withdrawUSDC(ethers.ZeroAddress, withdrawAmount)
       ).to.be.revertedWithCustomError(vault, "InvalidAddress");
+    });
+  });
+
+  // ============ Error Condition Coverage Tests ============
+  describe("Error Condition Coverage", function () {
+    it("Should revert requestRedeem with zero shares", async function () {
+      const { vault, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      await expect(
+        vault.connect(user1).requestRedeem(0)
+      ).to.be.revertedWithCustomError(vault, "InvalidAmount");
+    });
+
+    it("Should revert cancelRedeem when no redemption pending", async function () {
+      const { vault, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      await expect(
+        vault.connect(user1).cancelRedeem()
+      ).to.be.revertedWithCustomError(vault, "NoRedemptionPending");
+    });
+
+    it("Should revert createRewardsEpoch with invalid epoch index", async function () {
+      const { vault, rewardsAdmin } = await loadFixture(deployYieldVaultFixture);
+      
+      const merkleRoot = ethers.keccak256(ethers.toUtf8Bytes("test"));
+      const invalidEpochIndex = 999; // Wrong epoch
+      const totalRewards = ethers.parseUnits("1000", 6);
+      
+      await expect(
+        vault.connect(rewardsAdmin).createRewardsEpoch(invalidEpochIndex, merkleRoot, totalRewards)
+      ).to.be.revertedWithCustomError(vault, "InvalidEpoch");
+    });
+
+    it("Should revert createRewardsEpoch with zero merkle root", async function () {
+      const { vault, rewardsAdmin } = await loadFixture(deployYieldVaultFixture);
+      
+      const currentEpoch = await vault.currentEpochIndex();
+      const zeroRoot = ethers.ZeroHash;
+      const totalRewards = ethers.parseUnits("1000", 6);
+      
+      await expect(
+        vault.connect(rewardsAdmin).createRewardsEpoch(currentEpoch, zeroRoot, totalRewards)
+      ).to.be.revertedWithCustomError(vault, "InvalidAmount");
+    });
+
+    it("Should revert claimRewards with future epoch", async function () {
+      const { vault, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      const futureEpoch = 999;
+      const proof: string[] = [];
+      const amount = ethers.parseUnits("100", 6);
+      
+      await expect(
+        vault.connect(user1).claimRewards(futureEpoch, amount, proof)
+      ).to.be.revertedWithCustomError(vault, "InvalidEpoch");
+    });
+
+    it("Should revert mintRewards with zero amount", async function () {
+      const { vault, rewardsAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      await expect(
+        vault.connect(rewardsAdmin).mintRewards(user1.address, 0)
+      ).to.be.revertedWithCustomError(vault, "InvalidAmount");
+    });
+
+    it("Should revert mintRewards with zero address", async function () {
+      const { vault, rewardsAdmin } = await loadFixture(deployYieldVaultFixture);
+      
+      const amount = ethers.parseUnits("100", 6);
+      
+      await expect(
+        vault.connect(rewardsAdmin).mintRewards(ethers.ZeroAddress, amount)
+      ).to.be.revertedWithCustomError(vault, "InvalidAddress");
+    });
+
+    it("Should revert freezeAccount if already frozen", async function () {
+      const { vault, freezeAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      // Freeze once
+      await vault.connect(freezeAdmin).freezeAccount(user1.address);
+      
+      // Try to freeze again
+      await expect(
+        vault.connect(freezeAdmin).freezeAccount(user1.address)
+      ).to.be.revertedWithCustomError(vault, "AccountIsFrozen");
+    });
+
+    it("Should revert thawAccount if not frozen", async function () {
+      const { vault, freezeAdmin, user1 } = await loadFixture(deployYieldVaultFixture);
+      
+      // Try to thaw account that was never frozen
+      await expect(
+        vault.connect(freezeAdmin).thawAccount(user1.address)
+      ).to.be.revertedWithCustomError(vault, "AccountNotFrozen");
+    });
+
+    it("Should revert setRedeemVault with zero address", async function () {
+      const { vault, owner } = await loadFixture(deployYieldVaultFixture);
+      
+      await expect(
+        vault.connect(owner).setRedeemVault(ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(vault, "InvalidAddress");
+    });
+
+    it("Should revert removeFromWhitelist if address not whitelisted", async function () {
+      const { vault, whitelistAdmin, user2 } = await loadFixture(deployYieldVaultFixture);
+      
+      // user2 is not whitelisted
+      await expect(
+        vault.connect(whitelistAdmin).removeFromWhitelist(user2.address)
+      ).to.be.revertedWithCustomError(vault, "AddressNotInWhitelist");
     });
   });
 });

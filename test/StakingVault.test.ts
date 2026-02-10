@@ -645,4 +645,111 @@ describe("StakingVault", function () {
       ).to.be.revertedWithCustomError(stakingVault, "EnforcedPause");
     });
   });
+
+  // ============ Error Condition Coverage Tests ============
+  describe("Error Condition Coverage", function () {
+    it("Should revert initialize with zero admin address", async function () {
+      const [, user1] = await ethers.getSigners();
+      
+      const MockUSDC = await ethers.getContractFactory("MockUSDC");
+      const usdc = await MockUSDC.deploy();
+      
+      const YieldVault = await ethers.getContractFactory("YieldVault");
+      const yieldVault = await upgrades.deployProxy(YieldVault, [
+        await usdc.getAddress(),
+        "wYLDS",
+        "wYLDS",
+        user1.address,
+        user1.address,
+        ethers.ZeroAddress
+      ], { kind: 'uups' });
+      
+      const StakingVault = await ethers.getContractFactory("StakingVault");
+      
+      await expect(
+        upgrades.deployProxy(StakingVault, [
+          await yieldVault.getAddress(),
+          "PRIME",
+          "PRIME",
+          ethers.ZeroAddress, // Invalid admin
+          await yieldVault.getAddress()
+        ], { kind: 'uups' })
+      ).to.be.revertedWithCustomError(StakingVault, "InvalidAddress");
+    });
+
+    it("Should revert initialize with zero yieldVault address", async function () {
+      const [owner, user1] = await ethers.getSigners();
+      
+      const MockUSDC = await ethers.getContractFactory("MockUSDC");
+      const usdc = await MockUSDC.deploy();
+      
+      const YieldVault = await ethers.getContractFactory("YieldVault");
+      const yieldVault = await upgrades.deployProxy(YieldVault, [
+        await usdc.getAddress(),
+        "wYLDS",
+        "wYLDS",
+        user1.address,
+        user1.address,
+        ethers.ZeroAddress
+      ], { kind: 'uups' });
+      
+      const StakingVault = await ethers.getContractFactory("StakingVault");
+      
+      await expect(
+        upgrades.deployProxy(StakingVault, [
+          await yieldVault.getAddress(),
+          "PRIME",
+          "PRIME",
+          owner.address,
+          ethers.ZeroAddress // Invalid yieldVault
+        ], { kind: 'uups' })
+      ).to.be.revertedWithCustomError(StakingVault, "InvalidAddress");
+    });
+
+    it("Should revert distributeRewards with zero amount", async function () {
+      const { stakingVault, rewardsAdmin } = await loadFixture(deployStakingVaultFixture);
+      
+      await expect(
+        stakingVault.connect(rewardsAdmin).distributeRewards(0)
+      ).to.be.revertedWithCustomError(stakingVault, "InvalidAmount");
+    });
+
+    it("Should revert freezeAccount if already frozen", async function () {
+      const { stakingVault, freezeAdmin, user1 } = await loadFixture(deployStakingVaultFixture);
+      
+      // Freeze once
+      await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
+      
+      // Try to freeze again
+      await expect(
+        stakingVault.connect(freezeAdmin).freezeAccount(user1.address)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
+    it("Should revert thawAccount if not frozen", async function () {
+      const { stakingVault, freezeAdmin, user1 } = await loadFixture(deployStakingVaultFixture);
+      
+      // Try to thaw account that was never frozen
+      await expect(
+        stakingVault.connect(freezeAdmin).thawAccount(user1.address)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountNotFrozen");
+    });
+
+    it("Should revert transfer to frozen account", async function () {
+      const { stakingVault, freezeAdmin, user1, user2, yieldVault } = await loadFixture(deployStakingVaultFixture);
+      
+      // Deposit to get PRIME tokens
+      const depositAmount = ethers.parseUnits("1000", 6);
+      await yieldVault.connect(user1).deposit(depositAmount, user1.address);
+      await stakingVault.connect(user1).deposit(depositAmount, user1.address);
+      
+      // Freeze user2
+      await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
+      
+      // Try to transfer to frozen account
+      await expect(
+        stakingVault.connect(user1).transfer(user2.address, ethers.parseUnits("100", 6))
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+  });
 });
