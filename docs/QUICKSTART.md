@@ -4,8 +4,8 @@ Get started with the Hastra Ethereum Vault Protocol in under 10 minutes.
 
 ## Prerequisites
 
-- Node.js >= 20
-- npm or yarn
+- Node.js >= 20 (LTS recommended)
+- Yarn or npm (this project uses Yarn - see `packageManager` in package.json)
 - Git
 
 ## 1. Installation & Setup
@@ -15,8 +15,8 @@ Get started with the Hastra Ethereum Vault Protocol in under 10 minutes.
 git clone https://github.com/provenance-io/hastra-eth-vault
 cd hastra-eth-vault
 
-# Install dependencies
-npm install
+# Install dependencies (use Yarn)
+yarn install
 
 # Copy environment template
 cp .env.example .env
@@ -54,6 +54,13 @@ For local development, the defaults are fine - no need to configure anything!
 ## 2. Compile Contracts
 
 ```bash
+# Using Yarn
+yarn compile
+
+# Or using npm
+npm run compile
+
+# Or directly with npx
 npx hardhat compile
 ```
 
@@ -65,13 +72,16 @@ This generates:
 
 ```bash
 # Run all tests
-npm test
+yarn test
+# Or: npm test
 
 # Run with coverage
-npm run test:coverage
+yarn test:coverage
+# Or: npm run test:coverage
 
 # Run with gas reporting
-REPORT_GAS=true npm test
+REPORT_GAS=true yarn test
+# Or: REPORT_GAS=true npm test
 
 # Run specific test file
 npx hardhat test test/YieldVault.test.ts

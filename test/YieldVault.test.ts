@@ -112,6 +112,25 @@ describe("YieldVault", function () {
       const DEFAULT_ADMIN_ROLE = await vault.DEFAULT_ADMIN_ROLE();
       expect(await vault.hasRole(DEFAULT_ADMIN_ROLE, owner.address)).to.be.true;
     });
+
+    it("Should revert if redeemVault is zero address", async function () {
+      const [owner] = await ethers.getSigners();
+      const MockUSDC = await ethers.getContractFactory("MockUSDC");
+      const usdc = await MockUSDC.deploy() as unknown as MockUSDC;
+      
+      const YieldVault = await ethers.getContractFactory("YieldVault");
+      
+      await expect(
+        upgrades.deployProxy(YieldVault, [
+          await usdc.getAddress(),
+          "Wrapped YLDS",
+          "wYLDS",
+          owner.address,
+          ethers.ZeroAddress, // Invalid redeemVault
+          ethers.ZeroAddress
+        ], { kind: 'uups' })
+      ).to.be.revertedWithCustomError(YieldVault, "InvalidAddress");
+    });
   });
 
   // ============ Deposit Tests ============
