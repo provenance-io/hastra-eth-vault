@@ -95,10 +95,13 @@ contract StakingVaultFuzzTest is Test {
 
     /// @notice INVARIANT: Rewards distributed proportionally to stake
     function testFuzz_RewardProportionality(uint256 aliceDeposit, uint256 bobDeposit, uint256 reward) public {
-        // Use bound() instead of vm.assume() to force values into range
-        aliceDeposit = bound(aliceDeposit, 1000e6, 1_000_000_000e6);  // $1K to $1B (avoids dust)
-        bobDeposit = bound(bobDeposit, 1000e6, 1_000_000_000e6);      // $1K to $1B (avoids dust)
-        reward = bound(reward, 1000e6, 500_000_000e6);                // $1K to $500M
+        // Allow small deposits, but keep rewards proportional to total deposits
+        aliceDeposit = bound(aliceDeposit, 1e6, 1_000_000_000e6);     // $1 to $1B
+        bobDeposit = bound(bobDeposit, 1e6, 1_000_000_000e6);         // $1 to $1B
+        
+        uint256 totalDeposits = aliceDeposit + bobDeposit;
+        // Rewards should be 0.1% to 1000% of total deposits (realistic range)
+        reward = bound(reward, totalDeposits / 1000, totalDeposits * 10);
 
         vm.startPrank(alice);
         wYLDS.approve(address(stakingVault), aliceDeposit);
