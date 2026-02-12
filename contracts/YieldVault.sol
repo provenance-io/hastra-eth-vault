@@ -390,6 +390,22 @@ contract YieldVault is
         emit AddressRemovedFromWhitelist(account);
     }
     
+    /// @notice Withdraw USDC to whitelisted addresses for treasury management
+    /// @dev Normal operational function for moving funds to cold storage, redeemVault, etc.
+    ///      
+    ///      Security design (safe without CEI pattern):
+    ///      - nonReentrant: Prevents reentrancy attacks
+    ///      - onlyRole(WITHDRAWAL_ADMIN_ROLE): Trusted admin only
+    ///      - whitelistedAddresses[to]: Cannot transfer to arbitrary addresses
+    ///      - SafeERC20: USDC has no transfer hooks, prevents malicious tokens
+    ///      - No state update needed: ERC4626's totalAssets() reads balanceOf() directly,
+    ///        so vault accounting automatically reflects the transfer
+    ///      
+    ///      Impact on vault: Reduces totalAssets temporarily while USDC is in cold storage.
+    ///      The withdrawn USDC still backs existing shares and must be returned when users redeem.
+    ///      This is normal treasury management for security, not a reduction in user value.
+    /// @param to Whitelisted address to receive USDC (e.g., cold storage, redeemVault)
+    /// @param amount Amount of USDC to withdraw
     function withdrawUSDC(address to, uint256 amount)
         external
         onlyRole(WITHDRAWAL_ADMIN_ROLE)

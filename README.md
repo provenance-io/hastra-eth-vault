@@ -194,20 +194,32 @@ await vault.claimRewards(
 
 ## Testing
 
+The project includes comprehensive test coverage:
+
 ```bash
-# Run all tests
-npm test
+# Run all Hardhat tests (unit + integration)
+yarn test
 
-# Run specific test suite
-npx hardhat test test/YieldVault.test.ts
+# Run with coverage report
+yarn test:coverage
 
-# Coverage report
-npm run test:coverage
+# Run property-based fuzz tests
+yarn test:fuzz
+
+# Run all tests (Hardhat + Foundry)
+yarn test:all
 ```
 
-**Test Coverage:**
-```
-113 passing (2s)
+### Test Suites
+
+- **Unit Tests** (`test/*.test.ts`) - 203 tests covering all functions
+- **Fuzz Tests** (`test/foundry/*.t.sol`) - Property-based testing with Foundry
+  - Tests deposits from $1 to $1 BILLION (whale-sized)
+  - 8,000+ scenarios validated across 1000 runs per test
+- **Integration Tests** - Full system flow testing
+- **Security Tests** - Reentrancy, inflation attacks, access control
+
+See [FUZZ_TESTING.md](docs/FUZZ_TESTING.md) for fuzz testing guide.
 
 Coverage:
 - Statements: 99.25%

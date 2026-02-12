@@ -66,3 +66,9 @@ local_scripts/
 
 # Ignore local docs
 local_docs/
+# Foundry
+forge-out/
+forge-cache/
+
+# Foundry libs
+lib/
