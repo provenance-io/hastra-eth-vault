@@ -292,7 +292,7 @@ try {
 ### Implementation Address Check
 
 ```javascript
-const proxyAddress = "0xBf000e0362d967B3583fdE2451BeA11b3723b81C";
+const proxyAddress = "0x1355eBe3669FA92c1eD94c434aCF9d06E2BF7CC8";
 
 // Get current implementation
 const implAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
@@ -312,7 +312,7 @@ const implementation = "0x" + rawValue.slice(-40);
 ```javascript
 // Before upgrade (V1)
 const vault = new ethers.Contract(
-  "0xBf000e0362d967B3583fdE2451BeA11b3723b81C",  // Proxy
+  "0x1355eBe3669FA92c1eD94c434aCF9d06E2BF7CC8",  // Proxy
   YieldVaultABI,
   provider
 );

@@ -5,7 +5,7 @@ async function main() {
   console.log("\n🔧 CALLING initializeV2() ON STAKINGVAULT");
   console.log("=" + "=".repeat(60));
   
-  const stakingVaultAddress = "0x14D815D29F9b39859a55F1392cff217ED642a8Ea";
+  const stakingVaultAddress = "0x45c3Ce1a86d25a25F7241f1973f12ff1D3D218f3";
   const stakingVault = await ethers.getContractAt("StakingVaultV2", stakingVaultAddress);
   
   const [deployer] = await ethers.getSigners();

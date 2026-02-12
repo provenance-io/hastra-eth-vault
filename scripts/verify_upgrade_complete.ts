@@ -4,8 +4,8 @@ async function main() {
   console.log("\n📊 COMPREHENSIVE VERIFICATION SCRIPT");
   console.log("=" + "=".repeat(60));
   
-  const stakingVaultAddress = "0x14D815D29F9b39859a55F1392cff217ED642a8Ea";
-  const yieldVaultAddress = "0xBf000e0362d967B3583fdE2451BeA11b3723b81C";
+  const stakingVaultAddress = "0x45c3Ce1a86d25a25F7241f1973f12ff1D3D218f3";
+  const yieldVaultAddress = "0x1355eBe3669FA92c1eD94c434aCF9d06E2BF7CC8";
   
   const stakingVault = await ethers.getContractAt("StakingVaultV2", stakingVaultAddress);
   const yieldVault = await ethers.getContractAt("YieldVaultV2", yieldVaultAddress);

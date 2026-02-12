@@ -51,8 +51,8 @@ View deployment info: [`deployment_testnet.json`](./deployment_testnet.json)
 
 | Contract | Address | Explorer |
 |----------|---------|----------|
-| YieldVault (Proxy) | `0xBf000e0362d967B3583fdE2451BeA11b3723b81C` | [View →](https://hoodi.etherscan.io/address/0xBf000e0362d967B3583fdE2451BeA11b3723b81C) |
-| StakingVault (Proxy) | `0x14D815D29F9b39859a55F1392cff217ED642a8Ea` | [View →](https://hoodi.etherscan.io/address/0x14D815D29F9b39859a55F1392cff217ED642a8Ea) |
+| YieldVault (Proxy) | `0x1355eBe3669FA92c1eD94c434aCF9d06E2BF7CC8` | [View →](https://hoodi.etherscan.io/address/0x1355eBe3669FA92c1eD94c434aCF9d06E2BF7CC8) |
+| StakingVault (Proxy) | `0x45c3Ce1a86d25a25F7241f1973f12ff1D3D218f3` | [View →](https://hoodi.etherscan.io/address/0x45c3Ce1a86d25a25F7241f1973f12ff1D3D218f3) |
 | USDC (Test) | `0xBa16F5b2fDF7D5686D55c2917F323feCbFef76e6` | [View →](https://hoodi.etherscan.io/address/0xBa16F5b2fDF7D5686D55c2917F323feCbFef76e6) |
 
 **Network:** Hoodi Testnet (Chain ID: 560048)

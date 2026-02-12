@@ -19,11 +19,11 @@ npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
 **Version**: V1 (upgradeable to V2)
 
 #### Key Contracts (Proxy Addresses)
-- **YieldVault**: `0xBf000e0362d967B3583fdE2451BeA11b3723b81C`
-- **StakingVault**: `0x14D815D29F9b39859a55F1392cff217ED642a8Ea`
+- **YieldVault**: `0x1355eBe3669FA92c1eD94c434aCF9d06E2BF7CC8`
+- **StakingVault**: `0x45c3Ce1a86d25a25F7241f1973f12ff1D3D218f3`
 - **USDC (Test)**: `0xBa16F5b2fDF7D5686D55c2917F323feCbFef76e6`
 
-[View on Hoodi Explorer](https://hoodi.etherscan.io/address/0xBf000e0362d967B3583fdE2451BeA11b3723b81C)
+[View on Hoodi Explorer](https://hoodi.etherscan.io/address/0x1355eBe3669FA92c1eD94c434aCF9d06E2BF7CC8)
 
 ---
 
@@ -45,7 +45,7 @@ npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         YIELDVAULT (wYLDS)                               │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │ Proxy: 0xBf00...b81C (NEVER changes)                             │  │
+│  │ Proxy: 0x1355...7CC8 (NEVER changes)                             │  │
 │  │ Implementation: 0xE724...3ed5 (upgradeable)                       │  │
 │  ├───────────────────────────────────────────────────────────────────┤  │
 │  │ Token: wYLDS (Wrapped YLDS)                                       │  │
@@ -64,7 +64,7 @@ npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       STAKINGVAULT (PRIME)                               │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │ Proxy: 0x14D8...a8Ea (NEVER changes)                              │  │
+│  │ Proxy: 0x45c3...8f3 (NEVER changes)                              │  │
 │  │ Implementation: 0xc3C7...3A7 (upgradeable)                        │  │
 │  ├───────────────────────────────────────────────────────────────────┤  │
 │  │ Token: PRIME (Prime Staked YLDS)                                  │  │
