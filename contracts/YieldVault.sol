@@ -106,6 +106,9 @@ contract YieldVault is
     
     /**
      * @notice Initializes the YieldVault
+     * @dev Grants only essential roles (DEFAULT_ADMIN, PAUSER, UPGRADER) to admin_.
+     *      Additional roles (REWARDS_ADMIN, FREEZE_ADMIN, WHITELIST_ADMIN, WITHDRAWAL_ADMIN)
+     *      should be granted to appropriate addresses post-deployment for role separation.
      */
     function initialize(
         IERC20 asset_,
@@ -130,6 +133,16 @@ contract YieldVault is
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(PAUSER_ROLE, admin_);
         _grantRole(UPGRADER_ROLE, admin_);
+        
+        // Note: Additional roles (REWARDS_ADMIN, FREEZE_ADMIN, WHITELIST_ADMIN, WITHDRAWAL_ADMIN)
+        // are intentionally NOT granted here to support role separation in production.
+        // The deployment script (deploy.ts) grants these roles to separate addresses for
+        // security best practices (principle of least privilege). This allows different
+        // entities to control different aspects of the vault:
+        //   - FREEZE_ADMIN can freeze/thaw accounts
+        //   - REWARDS_ADMIN can distribute rewards and complete redemptions
+        //   - WHITELIST_ADMIN can manage withdrawal whitelist
+        //   - WITHDRAWAL_ADMIN can withdraw USDC to whitelisted addresses
         
         redeemVault = redeemVault_;
 

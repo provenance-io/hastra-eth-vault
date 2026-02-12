@@ -138,6 +138,12 @@ async function main() {
   }
 
   // ============ Setup Roles for YieldVault ============
+  
+  // Note: While initialize() auto-grants all roles to the admin for convenience,
+  // we explicitly grant roles here to support role separation in production.
+  // This allows different addresses to hold different roles (e.g., separate
+  // FREEZE_ADMIN, REWARDS_ADMIN, WHITELIST_ADMIN, WITHDRAWAL_ADMIN).
+  // The admin can then revoke their own roles if desired for security.
 
   console.log("\nSetting up YieldVault roles...");
 
@@ -179,6 +185,9 @@ async function main() {
   }
 
   // ============ Setup Roles for StakingVault ============
+  
+  // Note: Same as YieldVault - we manually grant roles here to allow
+  // separation of duties in production deployments.
   
   console.log("\nSetting up StakingVault roles...");
   

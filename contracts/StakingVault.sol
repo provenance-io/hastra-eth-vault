@@ -87,6 +87,9 @@ contract StakingVault is
      * @param symbol_ Symbol of the stake token (e.g., "PRIME")
      * @param admin_ Address of the default admin
      * @param yieldVault_ Address of the YieldVault contract for minting rewards
+     * @dev Grants only essential roles (DEFAULT_ADMIN, PAUSER, UPGRADER) to admin_.
+     *      Additional roles (REWARDS_ADMIN, FREEZE_ADMIN) should be granted to
+     *      appropriate addresses post-deployment for role separation.
      */
     function initialize(
         IERC20 asset_,
@@ -108,20 +111,15 @@ contract StakingVault is
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(PAUSER_ROLE, admin_);
-        _grantRole(UPGRADER_ROLE, admin_); // Admin can upgrade
+        _grantRole(UPGRADER_ROLE, admin_);
+        
+        // Note: Additional roles (REWARDS_ADMIN, FREEZE_ADMIN) are intentionally NOT granted
+        // here to support role separation in production. The deployment script (deploy.ts)
+        // grants these roles to separate addresses for security best practices:
+        //   - FREEZE_ADMIN can freeze/thaw staker accounts
+        //   - REWARDS_ADMIN can distribute wYLDS rewards to stakers
         
         yieldVault = yieldVault_;
-    }
-
-    /**
-     * @notice Reinitializer for migration to version with _totalManagedAssets tracking
-     * @dev Should be called when upgrading from a previous version to sync _totalManagedAssets
-     *      with the actual asset balance. This is critical for existing vaults with deposits.
-     *      This is a data migration only - no parent initializers needed.
-     *      Only callable by UPGRADER_ROLE to prevent unauthorized reinitialization.
-     */
-    function initializeV2() public reinitializer(2) onlyRole(UPGRADER_ROLE) {
-        _totalManagedAssets = IERC20(asset()).balanceOf(address(this));
     }
     
     // ============ UUPS Required Override ============
