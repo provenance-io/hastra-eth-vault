@@ -83,7 +83,7 @@ contract YieldVaultFuzzTest is Test {
     }
 
     function testFuzz_NoUnauthorizedMinting(address attacker, uint128 amount) public {
-        vm.assume(attacker != address(vault) && attacker != admin);
+        vm.assume(attacker != address(0) && attacker != address(vault) && attacker != admin);
         amount = uint128(bound(amount, 1e6, type(uint128).max));
 
         uint256 supplyBefore = vault.totalSupply();

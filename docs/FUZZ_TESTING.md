@@ -128,7 +128,3 @@ function testFuzz_YourProperty(uint256 amount) public {
 
 🟢 **8/8 tests passing (100%)** - All critical security invariants validated across 8,000+ scenarios!
 
-**Key Learnings:**
-- Use `bound(value, min, max)` instead of `vm.assume()` for constrained inputs
-- With narrow ranges on large integer types, `vm.assume()` rejection probability becomes astronomical
-- `bound()` forces values into range without rejections, enabling comprehensive fuzzing

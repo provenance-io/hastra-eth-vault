@@ -50,8 +50,8 @@ contract StakingVaultFuzzTest is Test {
     }
 
     function testFuzz_SharePriceMonotonic(uint96 deposit, uint96 reward) public {
-        vm.assume(deposit >= 1e6 && deposit <= 1_000_000_000e6); // 1 USDC to 1B USDC
-        vm.assume(reward >= 1e6 && reward <= 500_000_000e6);     // 1 USDC to 500M USDC
+        deposit = uint96(bound(deposit, 1e6, 1_000_000_000e6)); // 1 USDC to 1B USDC
+        reward = uint96(bound(reward, 1e6, 500_000_000e6));     // 1 USDC to 500M USDC
 
         vm.startPrank(alice);
         wYLDS.approve(address(stakingVault), deposit);
@@ -134,8 +134,8 @@ contract StakingVaultFuzzTest is Test {
     }
 
     function testFuzz_NoUnauthorizedGains(uint96 deposit, uint96 reward) public {
-        vm.assume(deposit >= 1e6 && deposit <= 1_000_000_000e6); // 1 USDC to 1B USDC
-        vm.assume(reward >= 1e6 && reward <= 500_000_000e6);     // 1 USDC to 500M USDC
+        deposit = uint96(bound(deposit, 1e6, 1_000_000_000e6)); // 1 USDC to 1B USDC
+        reward = uint96(bound(reward, 1e6, 500_000_000e6));     // 1 USDC to 500M USDC
 
         uint256 bobSharesBefore = stakingVault.balanceOf(bob);
 
