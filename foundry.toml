@@ -24,10 +24,12 @@ call_override = false    # Don't override calls
 # Gas reporting
 gas_reports = ["YieldVault", "StakingVault"]
 
-# Remappings for OpenZeppelin and Forge
+# Remappings for OpenZeppelin, Chainlink and Forge
+# Note: Single OpenZeppelin version (v5.4.0) after migrating away from dual-version setup
 remappings = [
     "@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/",
     "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+    "@chainlink/contracts/=node_modules/@chainlink/contracts/",
     "forge-std/=lib/forge-std/src/"
 ]
 

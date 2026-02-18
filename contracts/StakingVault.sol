@@ -11,6 +11,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "./chainlink/ChainlinkNavManager.sol";
 
 /**
  * @notice Interface for YieldVault to mint reward tokens
@@ -22,7 +23,9 @@ interface IYieldVault {
 /**
  * @title StakingVault
  * @author Hastra
- * @notice Upgradeable ERC-4626 staking vault
+ * @notice Upgradeable ERC-4626 staking vault with Chainlink NAV integration
+ * @dev Integrates ChainlinkNavManager for verifying and storing NAV updates from Chainlink Data Streams
+ * @custom:oz-upgrades-unsafe-allow-inherited ChainlinkNavManager
  */
 contract StakingVault is 
     Initializable, 
@@ -31,7 +34,8 @@ contract StakingVault is
     AccessControlUpgradeable, 
     PausableUpgradeable, 
     ReentrancyGuardUpgradeable,
-    UUPSUpgradeable 
+    UUPSUpgradeable,
+    ChainlinkNavManager
 {
     using Math for uint256;
     
@@ -41,6 +45,7 @@ contract StakingVault is
     bytes32 public constant REWARDS_ADMIN_ROLE = keccak256("REWARDS_ADMIN");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+    bytes32 public constant NAV_ADMIN_ROLE = keccak256("NAV_ADMIN");
     
     // ============ State Variables ============
 
@@ -90,6 +95,7 @@ contract StakingVault is
      * @dev Grants only essential roles (DEFAULT_ADMIN, PAUSER, UPGRADER) to admin_.
      *      Additional roles (REWARDS_ADMIN, FREEZE_ADMIN) should be granted to
      *      appropriate addresses post-deployment for role separation.
+     *      ChainlinkNavManager initialization is done separately via initializeChainlinkNav().
      */
     function initialize(
         IERC20 asset_,
@@ -107,7 +113,10 @@ contract StakingVault is
         __AccessControl_init();
         __Pausable_init();
         __ReentrancyGuard_init();
+        __ChainlinkNavManager_init(); // Empty init to satisfy upgrade safety checks  
         __UUPSUpgradeable_init();
+        // Note: ChainlinkNavManager params are initialized separately via initializeChainlinkNav()
+        // This is intentional to allow deployment without Chainlink integration first
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(PAUSER_ROLE, admin_);
@@ -120,6 +129,98 @@ contract StakingVault is
         //   - REWARDS_ADMIN can distribute wYLDS rewards to stakers
         
         yieldVault = yieldVault_;
+    }
+
+    /**
+     * @notice Initialize Chainlink NAV integration (call after main initialize)
+     * @param verifierProxy_ Address of the Chainlink Verifier Proxy
+     * @param feedId_ The Chainlink feed ID to track
+     * @param updater_ Address authorized to submit reports (bot)
+     * @param minRate_ Minimum acceptable exchange rate (18 decimals)
+     * @param maxRate_ Maximum acceptable exchange rate (18 decimals)
+     * @param maxDifferencePercent_ Maximum rate change per update (18 decimals)
+     * @dev This is a separate function to allow initializing the Chainlink integration
+     *      after the main vault initialization. Can only be called once.
+     */
+    function initializeChainlinkNav(
+        address verifierProxy_,
+        bytes32 feedId_,
+        address updater_,
+        uint256 minRate_,
+        uint256 maxRate_,
+        uint256 maxDifferencePercent_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) reinitializer(2) {
+        __ChainlinkNavManager_init_with_params(
+            verifierProxy_,
+            feedId_,
+            updater_,
+            minRate_,
+            maxRate_,
+            maxDifferencePercent_
+        );
+        
+        _grantRole(NAV_ADMIN_ROLE, msg.sender);
+    }
+    
+    // ============ Chainlink NAV Admin Functions ============
+    
+    /**
+     * @notice Set the updater address (bot that submits reports)
+     * @param updater New updater address
+     */
+    function setNavUpdater(address updater) external onlyRole(NAV_ADMIN_ROLE) {
+        _setUpdater(updater);
+    }
+    
+    /**
+     * @notice Set minimum acceptable exchange rate
+     * @param minRate New minimum rate
+     */
+    function setMinRate(uint256 minRate) external onlyRole(NAV_ADMIN_ROLE) {
+        _setMinRate(minRate);
+    }
+    
+    /**
+     * @notice Set maximum acceptable exchange rate
+     * @param maxRate New maximum rate
+     */
+    function setMaxRate(uint256 maxRate) external onlyRole(NAV_ADMIN_ROLE) {
+        _setMaxRate(maxRate);
+    }
+    
+    /**
+     * @notice Set maximum rate change percentage
+     * @param maxDifferencePercent New max difference percent
+     */
+    function setMaxDifferencePercent(uint256 maxDifferencePercent) external onlyRole(NAV_ADMIN_ROLE) {
+        _setMaxDifferencePercent(maxDifferencePercent);
+    }
+    
+    /**
+     * @notice Set Chainlink verifier proxy address
+     * @param verifierProxy New verifier proxy address
+     */
+    function setVerifierProxy(address verifierProxy) external onlyRole(NAV_ADMIN_ROLE) {
+        _setVerifierProxy(verifierProxy);
+    }
+    
+    /**
+     * @notice Set the Chainlink feed ID
+     * @param feedId New feed ID
+     */
+    function setFeedId(bytes32 feedId) external onlyRole(NAV_ADMIN_ROLE) {
+        _setFeedId(feedId);
+    }
+    
+    // ============ ChainlinkNavManager Required Override ============
+    
+    /**
+     * @notice Check if the contract is paused
+     * @dev Implements the abstract function from ChainlinkNavManager
+     * @return true if paused, false otherwise
+     */
+    function _isPaused() internal view override returns (bool) {
+        return paused();
     }
     
     // ============ UUPS Required Override ============
