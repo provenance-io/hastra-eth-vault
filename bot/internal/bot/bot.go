@@ -124,6 +124,8 @@ func (b *NavBot) updateRate(ctx context.Context) error {
 	}
 
 	// Call updateRate
+	//totalSupply = Total pTokens (Prime tokens) issued
+	// totalAssets = Total wYLDS held = Total USDC value (since 1:1)
 	tx, err := b.navEngine.UpdateRate(auth, totalSupply, totalTVL)
 	if err != nil {
 		return fmt.Errorf("failed to send transaction: %w", err)

@@ -66,6 +66,17 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
         _setMaxRate(maxRate_);
     }
 
+    /**
+     * @notice Updates the NAV exchange rate based on vault state
+     * @dev Can only be called by the updater role when not paused.
+     *      Calculates rate as: (totalTVL * 1e18) / totalSupply
+     *      Rate represents wYLDS per pToken (equivalent to USDC per pToken due to 1:1 ratio)
+     * @param totalSupply_ Total pTokens (Prime tokens) issued by the vault
+     * @param totalTVL_ Total wYLDS held by vault (equals USDC value since wYLDS:USDC is 1:1)
+     * @return The calculated exchange rate as int192, scaled by 1e18 (e.g., 1.5e18 = 1.5 wYLDS per pToken)
+     */
+    // totalSupply = Total pTokens (Prime tokens) issued
+    // totalAssets = Total wYLDS held = Total USDC value (since 1:1)
     function updateRate(uint256 totalSupply_, uint256 totalTVL_) external onlyUpdater whenNotPaused returns (int192) {
         require(totalSupply_ > 0, "Total supply is zero");
         NavEngineStorage storage $ = _getStorage();
