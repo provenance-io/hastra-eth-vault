@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
-import { HastraNavEngine } from "../typechain-types";
+import { HastraNavEngine } from "../../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("HastraNavEngine", function () {
@@ -69,6 +69,41 @@ describe("HastraNavEngine", function () {
       // Verify it's int192 by checking it's in valid range
       expect(rate).to.be.gte(MIN_RATE);
       expect(rate).to.be.lte(MAX_RATE);
+    });
+
+
+
+    it("Should properly convert uint256 to int192", async function () {
+      // Test boundary conversion
+      const supply = ethers.parseEther("1");
+      
+      // Rate that should work (well within int192 range)
+      const safeTVL = ethers.parseEther("2.5");
+      await navEngine.connect(updater).updateRate(supply, safeTVL);
+      const safeRate = await navEngine.getRate();
+      
+      // Verify it's positive and correct
+      expect(safeRate).to.be.gt(0);
+      expect(safeRate).to.equal(ethers.parseEther("2.5"));
+      
+      // Verify it's within int192 range
+      // int192 max = 2^191 - 1
+      const int192Max = BigInt(2) ** BigInt(191) - BigInt(1);
+      expect(safeRate).to.be.lt(int192Max);
+    });
+
+    it("Should alert if calculated rate exceeds bounds (int192 safety)", async function () {
+      // Try to create a rate that exceeds MAX_RATE
+      const supply = ethers.parseEther("1");
+      const excessiveTVL = ethers.parseEther("5"); // Would give rate of 5.0 (> MAX_RATE of 3.0)
+      
+      // Should emit alert and keep old rate
+      await expect(navEngine.connect(updater).updateRate(supply, excessiveTVL))
+        .to.emit(navEngine, "AlertInvalidRate");
+      
+      // Rate should not have changed
+      const rate = await navEngine.getRate();
+      expect(rate).to.not.equal(ethers.parseEther("5"));
     });
 
     it("Should revert if not updater", async function () {

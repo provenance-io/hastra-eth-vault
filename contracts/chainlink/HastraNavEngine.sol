@@ -72,7 +72,7 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
      *      Calculates rate as: (totalTVL * 1e18) / totalSupply
      *      Rate represents wYLDS per pToken (equivalent to USDC per pToken due to 1:1 ratio)
      * @param totalSupply_ Total pTokens (Prime tokens) issued by the vault
-     * @param totalTVL_ Total wYLDS held by vault (equals USDC value since wYLDS:USDC is 1:1)
+     * @param totalTVL_ Total wYLDS backing by vault
      * @return The calculated exchange rate as int192, scaled by 1e18 (e.g., 1.5e18 = 1.5 wYLDS per pToken)
      */
     // totalSupply = Total pTokens (Prime tokens) issued
