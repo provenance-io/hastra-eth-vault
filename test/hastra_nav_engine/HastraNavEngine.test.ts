@@ -44,6 +44,19 @@ describe("HastraNavEngine", function () {
     it("Should set correct max difference percent", async function () {
       expect(await navEngine.getMaxDifferencePercent()).to.equal(MAX_DIFFERENCE_PERCENT);
     });
+
+    it("Should prevent re-initialization", async function () {
+      // Try to initialize again - should revert
+      await expect(
+        navEngine.initialize(
+          owner.address,
+          updater.address,
+          MAX_DIFFERENCE_PERCENT,
+          MIN_RATE,
+          MAX_RATE
+        )
+      ).to.be.revertedWithCustomError(navEngine, "InvalidInitialization");
+    });
   });
 
   describe("Update Rate", function () {
@@ -192,6 +205,12 @@ describe("HastraNavEngine", function () {
       ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
     });
 
+    it("Should revert when setting updater to zero address", async function () {
+      await expect(
+        navEngine.connect(owner).setUpdater(ethers.ZeroAddress)
+      ).to.be.revertedWith("Invalid updater");
+    });
+
     it("Should allow owner to update bounds", async function () {
       const newMin = BigInt("600000000000000000"); // 0.6
       const newMax = BigInt("2500000000000000000"); // 2.5
@@ -215,6 +234,99 @@ describe("HastraNavEngine", function () {
       await expect(
         navEngine.connect(updater).updateRate(ethers.parseEther("1000"), ethers.parseEther("1500"))
       ).to.not.be.reverted;
+    });
+  });
+
+  describe("Access Control - Negative Tests", function () {
+    let nonOwner: SignerWithAddress;
+    let nonUpdater: SignerWithAddress;
+
+    beforeEach(async function () {
+      const signers = await ethers.getSigners();
+      nonOwner = signers[3];
+      nonUpdater = signers[4];
+    });
+
+    describe("onlyUpdater Functions", function () {
+      it("Should revert when non-updater calls updateRate", async function () {
+        await expect(
+          navEngine.connect(nonUpdater).updateRate(
+            ethers.parseEther("1000"),
+            ethers.parseEther("1500")
+          )
+        ).to.be.revertedWith("Not updater");
+      });
+
+      it("Should revert when owner (not updater) calls updateRate", async function () {
+        // Owner is different from updater in our setup
+        await expect(
+          navEngine.connect(owner).updateRate(
+            ethers.parseEther("1000"),
+            ethers.parseEther("1500")
+          )
+        ).to.be.revertedWith("Not updater");
+      });
+    });
+
+    describe("onlyOwner Functions", function () {
+      it("Should revert when non-owner calls setUpdater", async function () {
+        await expect(
+          navEngine.connect(nonOwner).setUpdater(nonOwner.address)
+        ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+      });
+
+      it("Should revert when non-owner calls setMinRate", async function () {
+        await expect(
+          navEngine.connect(nonOwner).setMinRate(ethers.parseEther("0.6"))
+        ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+      });
+
+      it("Should revert when non-owner calls setMaxRate", async function () {
+        await expect(
+          navEngine.connect(nonOwner).setMaxRate(ethers.parseEther("2.5"))
+        ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+      });
+
+      it("Should revert when non-owner calls setMaxDifferencePercent", async function () {
+        await expect(
+          navEngine.connect(nonOwner).setMaxDifferencePercent(ethers.parseEther("0.2"))
+        ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+      });
+
+      it("Should revert when non-owner calls pause", async function () {
+        await expect(
+          navEngine.connect(nonOwner).pause()
+        ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+      });
+
+      it("Should revert when non-owner calls unpause", async function () {
+        // First pause with owner
+        await navEngine.connect(owner).pause();
+        
+        // Try to unpause with non-owner
+        await expect(
+          navEngine.connect(nonOwner).unpause()
+        ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+      });
+
+      it("Should revert when updater (not owner) calls pause", async function () {
+        await expect(
+          navEngine.connect(updater).pause()
+        ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+      });
+
+      it("Should revert when updater calls setMinRate", async function () {
+        await expect(
+          navEngine.connect(updater).setMinRate(ethers.parseEther("0.6"))
+        ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+      });
+
+      it("Should revert when non-owner tries to upgrade", async function () {
+        const HastraNavEngineV2 = await ethers.getContractFactory("HastraNavEngine");
+        await expect(
+          upgrades.upgradeProxy(await navEngine.getAddress(), HastraNavEngineV2.connect(nonOwner))
+        ).to.be.reverted;
+      });
     });
   });
 
