@@ -1,0 +1,224 @@
+import { expect } from "chai";
+import { ethers, upgrades } from "hardhat";
+import { HastraNavEngine } from "../typechain-types";
+import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+
+describe("HastraNavEngine", function () {
+  let navEngine: HastraNavEngine;
+  let owner: SignerWithAddress;
+  let updater: SignerWithAddress;
+  let user: SignerWithAddress;
+
+  const MAX_DIFFERENCE_PERCENT = ethers.parseEther("0.1"); // 10%
+  const MIN_RATE = BigInt("500000000000000000"); // 0.5 as int192
+  const MAX_RATE = BigInt("3000000000000000000"); // 3.0 as int192
+  const RATE_PRECISION = ethers.parseEther("1");
+
+  beforeEach(async function () {
+    [owner, updater, user] = await ethers.getSigners();
+
+    const HastraNavEngine = await ethers.getContractFactory("HastraNavEngine");
+    navEngine = await upgrades.deployProxy(
+      HastraNavEngine,
+      [owner.address, updater.address, MAX_DIFFERENCE_PERCENT, MIN_RATE, MAX_RATE],
+      { initializer: "initialize", kind: "uups" }
+    ) as unknown as HastraNavEngine;
+
+    await navEngine.waitForDeployment();
+  });
+
+  describe("Initialization", function () {
+    it("Should set correct owner", async function () {
+      expect(await navEngine.owner()).to.equal(owner.address);
+    });
+
+    it("Should set correct updater", async function () {
+      expect(await navEngine.getUpdater()).to.equal(updater.address);
+    });
+
+    it("Should set correct bounds", async function () {
+      expect(await navEngine.getMinRate()).to.equal(MIN_RATE);
+      expect(await navEngine.getMaxRate()).to.equal(MAX_RATE);
+    });
+
+    it("Should set correct max difference percent", async function () {
+      expect(await navEngine.getMaxDifferencePercent()).to.equal(MAX_DIFFERENCE_PERCENT);
+    });
+  });
+
+  describe("Update Rate", function () {
+    const totalSupply = ethers.parseEther("1000"); // 1000 shares
+    const totalTVL = ethers.parseEther("1500"); // 1500 ETH
+    const expectedRate = BigInt("1500000000000000000"); // 1.5
+
+    it("Should update rate successfully", async function () {
+      const tx = await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
+      await expect(tx)
+        .to.emit(navEngine, "RateUpdated")
+        .withArgs(expectedRate, totalSupply, totalTVL, await ethers.provider.getBlock("latest").then(b => b?.timestamp));
+
+      expect(await navEngine.getRate()).to.equal(expectedRate);
+      expect(await navEngine.getLatestTotalSupply()).to.equal(totalSupply);
+      expect(await navEngine.getLatestTVL()).to.equal(totalTVL);
+    });
+
+    it("Should return int192 type (Schema v7 compliant)", async function () {
+      await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
+      const rate = await navEngine.getRate();
+      
+      // Verify it's int192 by checking it's in valid range
+      expect(rate).to.be.gte(MIN_RATE);
+      expect(rate).to.be.lte(MAX_RATE);
+    });
+
+    it("Should revert if not updater", async function () {
+      await expect(
+        navEngine.connect(user).updateRate(totalSupply, totalTVL)
+      ).to.be.revertedWith("Not updater");
+    });
+
+    it("Should revert if total supply is zero", async function () {
+      await expect(
+        navEngine.connect(updater).updateRate(0, totalTVL)
+      ).to.be.revertedWith("Total supply is zero");
+    });
+
+    it("Should emit alert and return last rate if TVL is zero", async function () {
+      // First update with valid data
+      await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
+      const firstRate = await navEngine.getRate();
+
+      // Try to update with zero TVL
+      const tx = await navEngine.connect(updater).updateRate(totalSupply, 0);
+      await expect(tx).to.emit(navEngine, "AlertInvalidTVL");
+
+      // Should return last good rate
+      expect(await navEngine.getRate()).to.equal(firstRate);
+    });
+
+    it("Should emit alert if rate below minRate", async function () {
+      const lowTVL = ethers.parseEther("400"); // Will give rate = 0.4
+      const tx = await navEngine.connect(updater).updateRate(totalSupply, lowTVL);
+      
+      await expect(tx).to.emit(navEngine, "AlertInvalidRate");
+      
+      // Rate should remain 0 (initial value)
+      expect(await navEngine.getRate()).to.equal(0);
+    });
+
+    it("Should emit alert if rate above maxRate", async function () {
+      const highTVL = ethers.parseEther("3500"); // Will give rate = 3.5
+      const tx = await navEngine.connect(updater).updateRate(totalSupply, highTVL);
+      
+      await expect(tx).to.emit(navEngine, "AlertInvalidRate");
+      
+      // Rate should remain 0 (initial value)
+      expect(await navEngine.getRate()).to.equal(0);
+    });
+
+    it("Should emit alert if TVL changes too much", async function () {
+      // First update
+      await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
+      const firstRate = await navEngine.getRate();
+
+      // Second update with >10% TVL change
+      const newTVL = ethers.parseEther("1700"); // ~13% increase
+      const tx = await navEngine.connect(updater).updateRate(totalSupply, newTVL);
+      
+      await expect(tx).to.emit(navEngine, "AlertInvalidTVLDifference");
+      
+      // Rate should remain unchanged
+      expect(await navEngine.getRate()).to.equal(firstRate);
+    });
+
+    it("Should allow TVL change within threshold", async function () {
+      // First update
+      await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
+
+      // Second update with <10% TVL change
+      const newTVL = ethers.parseEther("1620"); // ~8% increase
+      const expectedNewRate = BigInt("1620000000000000000"); // 1.62
+      
+      await navEngine.connect(updater).updateRate(totalSupply, newTVL);
+      
+      expect(await navEngine.getRate()).to.equal(expectedNewRate);
+    });
+  });
+
+  describe("Admin Functions", function () {
+    it("Should allow owner to set new updater", async function () {
+      await navEngine.connect(owner).setUpdater(user.address);
+      expect(await navEngine.getUpdater()).to.equal(user.address);
+    });
+
+    it("Should not allow non-owner to set updater", async function () {
+      await expect(
+        navEngine.connect(user).setUpdater(user.address)
+      ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
+    });
+
+    it("Should allow owner to update bounds", async function () {
+      const newMin = BigInt("600000000000000000"); // 0.6
+      const newMax = BigInt("2500000000000000000"); // 2.5
+
+      await navEngine.connect(owner).setMinRate(newMin);
+      await navEngine.connect(owner).setMaxRate(newMax);
+
+      expect(await navEngine.getMinRate()).to.equal(newMin);
+      expect(await navEngine.getMaxRate()).to.equal(newMax);
+    });
+
+    it("Should allow owner to pause and unpause", async function () {
+      await navEngine.connect(owner).pause();
+      
+      await expect(
+        navEngine.connect(updater).updateRate(ethers.parseEther("1000"), ethers.parseEther("1500"))
+      ).to.be.revertedWithCustomError(navEngine, "EnforcedPause");
+
+      await navEngine.connect(owner).unpause();
+      
+      await expect(
+        navEngine.connect(updater).updateRate(ethers.parseEther("1000"), ethers.parseEther("1500"))
+      ).to.not.be.reverted;
+    });
+  });
+
+  describe("View Functions", function () {
+    it("Should return zero rate initially", async function () {
+      expect(await navEngine.getRate()).to.equal(0);
+    });
+
+    it("Should return correct update time", async function () {
+      const totalSupply = ethers.parseEther("1000");
+      const totalTVL = ethers.parseEther("1500");
+
+      await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
+      
+      const latestBlock = await ethers.provider.getBlock("latest");
+      expect(await navEngine.getLatestUpdateTime()).to.equal(latestBlock?.timestamp);
+    });
+  });
+
+  describe("Upgradeability", function () {
+    it("Should be upgradeable by owner", async function () {
+      const HastraNavEngineV2 = await ethers.getContractFactory("HastraNavEngine");
+      const upgraded = await upgrades.upgradeProxy(await navEngine.getAddress(), HastraNavEngineV2);
+      
+      expect(await upgraded.getAddress()).to.equal(await navEngine.getAddress());
+    });
+
+    it("Should preserve state after upgrade", async function () {
+      const totalSupply = ethers.parseEther("1000");
+      const totalTVL = ethers.parseEther("1500");
+      
+      await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
+      const rateBefore = await navEngine.getRate();
+
+      const HastraNavEngineV2 = await ethers.getContractFactory("HastraNavEngine");
+      const upgraded = await upgrades.upgradeProxy(await navEngine.getAddress(), HastraNavEngineV2) as unknown as HastraNavEngine;
+      
+      expect(await upgraded.getRate()).to.equal(rateBefore);
+      expect(await upgraded.getUpdater()).to.equal(updater.address);
+    });
+  });
+});

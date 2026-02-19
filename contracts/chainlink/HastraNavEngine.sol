@@ -1,0 +1,161 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
+/**
+ * @title HastraNavEngine  
+ * @notice On-chain NAV calculation engine that Chainlink DON reads from
+ * @dev ✅ Conforms to Chainlink Schema v7 (Redemption Rates) - returns int192 exchange rate
+ */
+contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, PausableUpgradeable {
+    
+    struct NavEngineStorage {
+        address updater;
+        uint256 maxDifferencePercent;
+        int192 minRate;    // Schema v7 int192
+        int192 maxRate;    // Schema v7 int192
+        uint256 latestUpdateTime;
+        uint256 latestTotalSupply;
+        uint256 latestTVL;
+        int192 latestRate; // Schema v7 int192
+    }
+
+    bytes32 private constant NAV_ENGINE_STORAGE_SLOT =
+        0x8f3c1e5d7c0e9c5c9d8e7f6b5a4d3c2b1a0f9e8d7c6b5a4d3c2b1a0f9e8d7c00;
+
+    uint256 public constant RATE_PRECISION = 1e18;
+
+    event UpdaterSet(address indexed updater);
+    event MinRateSet(int192 minRate);
+    event MaxRateSet(int192 maxRate);
+    event MaxDifferencePercentSet(uint256 maxDifferencePercent);
+    event AlertInvalidTVL(uint256 indexed tvl, uint256 indexed timestamp);
+    event AlertInvalidTVLDifference(uint256 indexed previousTVL, uint256 indexed newTVL, uint256 indexed timestamp);
+    event AlertInvalidRate(int192 indexed rate, uint256 indexed timestamp);
+    event RateUpdated(int192 indexed rate, uint256 totalSupply, uint256 totalTVL, uint256 indexed timestamp);
+
+    modifier onlyUpdater() {
+        require(msg.sender == _getStorage().updater, "Not updater");
+        _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address owner_,
+        address updater_,
+        uint256 maxDifferencePercent_,
+        int192 minRate_,
+        int192 maxRate_
+    ) public initializer {
+        __Ownable_init(owner_);
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+        __Pausable_init();
+        _setUpdater(updater_);
+        _setMaxDifferencePercent(maxDifferencePercent_);
+        _setMinRate(minRate_);
+        _setMaxRate(maxRate_);
+    }
+
+    function updateRate(uint256 totalSupply_, uint256 totalTVL_) external onlyUpdater whenNotPaused returns (int192) {
+        require(totalSupply_ > 0, "Total supply is zero");
+        NavEngineStorage storage $ = _getStorage();
+
+        if (totalTVL_ == 0) {
+            emit AlertInvalidTVL(totalTVL_, block.timestamp);
+            return $.latestRate;
+        }
+
+        if ($.latestUpdateTime != 0) {
+            uint256 difference;
+            if ($.latestTVL > totalTVL_) {
+                difference = Math.mulDiv($.latestTVL - totalTVL_, RATE_PRECISION, $.latestTVL);
+            } else {
+                difference = Math.mulDiv(totalTVL_ - $.latestTVL, RATE_PRECISION, totalTVL_);
+            }
+            if (difference > $.maxDifferencePercent) {
+                emit AlertInvalidTVLDifference($.latestTVL, totalTVL_, block.timestamp);
+                return $.latestRate;
+            }
+        }
+
+        uint256 calculatedRate = Math.mulDiv(totalTVL_, RATE_PRECISION, totalSupply_);
+        require(calculatedRate <= uint192(type(int192).max), "Rate overflow");
+        int192 newRate = int192(int256(calculatedRate));
+
+        if (newRate < $.minRate || newRate > $.maxRate) {
+            emit AlertInvalidRate(newRate, block.timestamp);
+            return $.latestRate;
+        }
+
+        $.latestTVL = totalTVL_;
+        $.latestTotalSupply = totalSupply_;
+        $.latestUpdateTime = block.timestamp;
+        $.latestRate = newRate;
+
+        emit RateUpdated(newRate, totalSupply_, totalTVL_, block.timestamp);
+        return newRate;
+    }
+
+    function getRate() external view returns (int192) {
+        return _getStorage().latestRate;
+    }
+
+    function getUpdater() external view returns (address) { return _getStorage().updater; }
+    function getMaxDifferencePercent() external view returns (uint256) { return _getStorage().maxDifferencePercent; }
+    function getMinRate() external view returns (int192) { return _getStorage().minRate; }
+    function getMaxRate() external view returns (int192) { return _getStorage().maxRate; }
+    function getLatestTotalSupply() external view returns (uint256) { return _getStorage().latestTotalSupply; }
+    function getLatestTVL() external view returns (uint256) { return _getStorage().latestTVL; }
+    function getLatestUpdateTime() external view returns (uint256) { return _getStorage().latestUpdateTime; }
+
+    function setUpdater(address updater_) external onlyOwner { _setUpdater(updater_); }
+    function setMaxDifferencePercent(uint256 maxDifferencePercent_) external onlyOwner { _setMaxDifferencePercent(maxDifferencePercent_); }
+    function setMinRate(int192 minRate_) external onlyOwner { _setMinRate(minRate_); }
+    function setMaxRate(int192 maxRate_) external onlyOwner { _setMaxRate(maxRate_); }
+    function pause() external onlyOwner { _pause(); }
+    function unpause() external onlyOwner { _unpause(); }
+
+    function _getStorage() private pure returns (NavEngineStorage storage $) {
+        assembly { $.slot := NAV_ENGINE_STORAGE_SLOT }
+    }
+
+    function _setUpdater(address updater_) internal {
+        require(updater_ != address(0), "Invalid updater");
+        _getStorage().updater = updater_;
+        emit UpdaterSet(updater_);
+    }
+
+    function _setMinRate(int192 minRate_) internal {
+        require(minRate_ > 0, "Invalid min rate");
+        NavEngineStorage storage $ = _getStorage();
+        if ($.maxRate != 0) require(minRate_ <= $.maxRate, "minRate > maxRate");
+        $.minRate = minRate_;
+        emit MinRateSet(minRate_);
+    }
+
+    function _setMaxRate(int192 maxRate_) internal {
+        require(maxRate_ > 0, "Invalid max rate");
+        NavEngineStorage storage $ = _getStorage();
+        if ($.minRate != 0) require(maxRate_ >= $.minRate, "maxRate < minRate");
+        $.maxRate = maxRate_;
+        emit MaxRateSet(maxRate_);
+    }
+
+    function _setMaxDifferencePercent(uint256 maxDifferencePercent_) internal {
+        require(maxDifferencePercent_ > 0 && maxDifferencePercent_ <= RATE_PRECISION, "Invalid max difference percent");
+        _getStorage().maxDifferencePercent = maxDifferencePercent_;
+        emit MaxDifferencePercentSet(maxDifferencePercent_);
+    }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+}
