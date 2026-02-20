@@ -1,7 +1,7 @@
 import {expect} from "chai";
 import pkg from "hardhat";
 const { ethers, upgrades } = pkg;
-import type { MockUSDC, YieldVault, StakingVault } from "../typechain-types";
+import type { MockUSDC, YieldVault, StakingVault } from "../../typechain-types";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("StakingVault Ratio Repro", function () {
