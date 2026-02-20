@@ -1,7 +1,7 @@
 import {expect} from "chai";
 import { ethers, upgrades } from "hardhat";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
-import type { MockUSDC, YieldVault } from "../typechain-types";
+import type { MockUSDC, YieldVault } from "../../typechain-types";
 import { MerkleTree } from "merkletreejs";
 
 describe("YieldVault", function () {

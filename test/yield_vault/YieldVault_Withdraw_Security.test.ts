@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
-import type { MockUSDC, YieldVault } from "../typechain-types";
+import type { MockUSDC, YieldVault } from "../../typechain-types";
 
 describe("YieldVault - withdrawUSDC Security", function () {
   it("Should revert when withdrawing to non-whitelisted address", async function () {

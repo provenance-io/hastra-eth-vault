@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
-import type { MockUSDC, YieldVault, StakingVault } from "../typechain-types";
+import type { MockUSDC, YieldVault, StakingVault } from "../../typechain-types";
 
 describe("StakingVault", function () {
   // ============ Fixtures ============

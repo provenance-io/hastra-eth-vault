@@ -1,7 +1,7 @@
 import {expect} from "chai";
 import pkg from "hardhat";
 const { ethers, upgrades } = pkg;
-import type { MockUSDC, YieldVault } from "../typechain-types";
+import type { MockUSDC, YieldVault } from "../../typechain-types";
 import {loadFixture} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("YieldVault Compliance (Freeze/Thaw)", function () {
