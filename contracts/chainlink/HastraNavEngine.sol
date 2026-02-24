@@ -25,8 +25,12 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
         int192 latestRate; // Schema v7 int192
     }
 
+    // ERC-7201: keccak256(abi.encode(uint256(keccak256("hastra.storage.NavEngine")) - 1)) & ~bytes32(uint256(0xff))
+    // NOTE: Testnet deployments (Hoodi, Sepolia) use legacy slot 0x8f3c1e5d7c0e9c5c9d8e7f6b5a4d3c2b1a0f9e8d7c6b5a4d3c2b1a0f9e8d7c00
+    //       Changing slot on existing deployments would brick the contract (state lives at old slot).
+    //       This ERC-7201 slot is for mainnet fresh deploy only.
     bytes32 private constant NAV_ENGINE_STORAGE_SLOT =
-        0x8f3c1e5d7c0e9c5c9d8e7f6b5a4d3c2b1a0f9e8d7c6b5a4d3c2b1a0f9e8d7c00;
+        0x993f277ac229bbe15da412d652fbea5e3a685c7d321444df0ee913d0c6efbc00;
 
     uint256 public constant RATE_PRECISION = 1e18;
 
