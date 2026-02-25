@@ -53,11 +53,17 @@ const config: HardhatUserConfig = {
     noColors: true,
   },
   etherscan: {
-    apiKey: {
-      mainnet: process.env.ETHERSCAN_API_KEY || "",
-      hoodi: process.env.HOODI_EXPLORER_API_KEY || "",
-      sepolia: process.env.ETHERSCAN_API_KEY || "",
-    },
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
+    customChains: [
+      {
+        network: "hoodi",
+        chainId: 560048,
+        urls: {
+          apiURL: "https://hoodi.etherscan.io/api",
+          browserURL: "https://hoodi.etherscan.io"
+        }
+      }
+    ]
   },
   paths: {
     sources: "./contracts",

@@ -1,0 +1,21 @@
+{
+  "network": "hoodi",
+  "chainId": "560048",
+  "timestamp": "2026-02-25T18:13:27.150Z",
+  "contracts": {
+    "navEngine": "0x56Ced53933D8075f20dB2E2917e33744DfED6d3a",
+    "navEngineImplementation": "0x26a3a77f3A217FeE9c6B71dd65e814c4898a38D6"
+  },
+  "transactions": {
+    "navEngine": "0xb0d6659b6613ad965d5860ee5749f9c42778a4d42ce66c8eb54ddf295c75239e"
+  },
+  "roles": {
+    "owner": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "updater": "0x3778F66336F79B2B0D86E759499D191EA030a4c6"
+  },
+  "config": {
+    "maxDifferencePercent": "100000000000000000",
+    "minRate": "500000000000000000",
+    "maxRate": "3000000000000000000"
+  }
+}

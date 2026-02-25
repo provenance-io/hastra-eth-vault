@@ -72,3 +72,7 @@ forge-cache/
 
 # Foundry libs
 lib/
+bot/
+
+AGENTS.md
+.env.bak
