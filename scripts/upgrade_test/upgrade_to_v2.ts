@@ -1,160 +1,108 @@
 // @ts-ignore
 import { ethers, upgrades } from "hardhat";
 
+// Flags: set env vars to control which contracts to upgrade
+// UPGRADE_STAKING=true  → upgrades StakingVault to V3
+// UPGRADE_YIELD=true    → upgrades YieldVault to V2
+// Default: both
+const UPGRADE_STAKING = process.env.UPGRADE_STAKING !== "false";
+const UPGRADE_YIELD   = process.env.UPGRADE_YIELD   !== "false";
+
 async function main() {
-  console.log("\n🚀 UPGRADE TEST SCRIPT");
+  console.log("\n🚀 UPGRADE SCRIPT");
   console.log("=" + "=".repeat(60));
+  console.log("Upgrading StakingVault:", UPGRADE_STAKING ? "YES" : "NO");
+  console.log("Upgrading YieldVault:  ", UPGRADE_YIELD   ? "YES" : "NO");
   
   const [deployer] = await ethers.getSigners();
   console.log("Upgrading with account:", deployer.address);
 
-  // Load existing deployment
   const deployment = require("../../deployment_testnet.json");
-  const yieldVaultProxy = deployment.contracts.yieldVault;
+  const yieldVaultProxy   = deployment.contracts.yieldVault;
   const stakingVaultProxy = deployment.contracts.stakingVault;
 
-  console.log("\n📍 CURRENT DEPLOYMENT (V1):");
-  console.log("YieldVault Proxy:  ", yieldVaultProxy);
-  console.log("StakingVault Proxy:", stakingVaultProxy);
+  // ── YIELD VAULT ──────────────────────────────────────────────
+  let yieldVaultV2: any = null;
+  let yieldTotalSupply: bigint = 0n;
+  let yieldV1Impl = "";
 
-  // Get current implementation addresses
-  const yieldV1Impl = await upgrades.erc1967.getImplementationAddress(yieldVaultProxy);
-  const stakingV1Impl = await upgrades.erc1967.getImplementationAddress(stakingVaultProxy);
-  
-  console.log("\n📦 V1 IMPLEMENTATION ADDRESSES:");
-  console.log("YieldVault V1:  ", yieldV1Impl);
-  console.log("StakingVault V1:", stakingV1Impl);
+  if (UPGRADE_YIELD) {
+    yieldV1Impl = await upgrades.erc1967.getImplementationAddress(yieldVaultProxy);
+    const yieldVaultV1 = await ethers.getContractAt("YieldVault", yieldVaultProxy);
+    yieldTotalSupply = await yieldVaultV1.totalSupply();
+    console.log("\n📍 YieldVault proxy:  ", yieldVaultProxy);
+    console.log("   impl (before):    ", yieldV1Impl);
+    console.log("   totalSupply:      ", ethers.formatUnits(yieldTotalSupply, 6), "wYLDS");
 
-  // Read state BEFORE upgrade
-  console.log("\n📊 STATE BEFORE UPGRADE:");
-  const yieldVaultV1 = await ethers.getContractAt("YieldVault", yieldVaultProxy);
-  const stakingVaultV1 = await ethers.getContractAt("StakingVault", stakingVaultProxy);
-  
-  const yieldTotalSupply = await yieldVaultV1.totalSupply();
-  const stakingTotalSupply = await stakingVaultV1.totalSupply();
-  const yieldAsset = await yieldVaultV1.asset();
-  const stakingAsset = await stakingVaultV1.asset();
-  
-  console.log("YieldVault:");
-  console.log("  - Total Supply:", ethers.formatUnits(yieldTotalSupply, 6), "wYLDS");
-  console.log("  - Asset:", yieldAsset);
-  
-  console.log("StakingVault:");
-  console.log("  - Total Supply:", ethers.formatUnits(stakingTotalSupply, 6), "PRIME");
-  console.log("  - Asset:", stakingAsset);
-
-  // Perform upgrades with retry logic
-  console.log("\n🔄 UPGRADING TO V2...");
-  console.log("⏳ This may take a minute on testnet...");
-  
-  const YieldVaultV2 = await ethers.getContractFactory("YieldVaultV2");
-  const StakingVaultV2 = await ethers.getContractFactory("StakingVaultV2");
-
-  console.log("Upgrading YieldVault...");
-  let yieldVaultV2;
-  try {
-    yieldVaultV2 = await upgrades.upgradeProxy(yieldVaultProxy, YieldVaultV2, {
-      timeout: 120000, // 2 minutes timeout
-      pollingInterval: 2000, // Check every 2 seconds
-    });
-    await yieldVaultV2.waitForDeployment();
-    console.log("✅ YieldVault upgraded successfully");
-  } catch (error: any) {
-    if (error.message.includes("underpriced")) {
-      console.log("⚠️  Gas price too low, retrying with higher gas...");
-      // Wait a bit for nonce to clear
-      await new Promise(resolve => setTimeout(resolve, 10000));
+    console.log("\n🔄 Upgrading YieldVault to V2...");
+    const YieldVaultV2 = await ethers.getContractFactory("YieldVaultV2");
+    try {
       yieldVaultV2 = await upgrades.upgradeProxy(yieldVaultProxy, YieldVaultV2, {
-        timeout: 120000,
-        pollingInterval: 2000,
+        timeout: 120000, pollingInterval: 2000,
       });
       await yieldVaultV2.waitForDeployment();
-      console.log("✅ YieldVault upgraded successfully (retry)");
-    } else {
-      throw error;
-    }
-  }
-  
-  console.log("Upgrading StakingVault...");
-  let stakingVaultV2;
-  try {
-    stakingVaultV2 = await upgrades.upgradeProxy(stakingVaultProxy, StakingVaultV2, {
-      timeout: 120000,
-      pollingInterval: 2000,
-    });
-    await stakingVaultV2.waitForDeployment();
-    console.log("✅ StakingVault upgraded successfully");
-  } catch (error: any) {
-    if (error.message.includes("underpriced")) {
-      console.log("⚠️  Gas price too low, retrying with higher gas...");
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      stakingVaultV2 = await upgrades.upgradeProxy(stakingVaultProxy, StakingVaultV2, {
-        timeout: 120000,
-        pollingInterval: 2000,
+    } catch (error: any) {
+      if (!error.message.includes("underpriced")) throw error;
+      console.log("⚠️  Gas underpriced, retrying...");
+      await new Promise(r => setTimeout(r, 10000));
+      yieldVaultV2 = await upgrades.upgradeProxy(yieldVaultProxy, YieldVaultV2, {
+        timeout: 120000, pollingInterval: 2000,
       });
-      await stakingVaultV2.waitForDeployment();
-      console.log("✅ StakingVault upgraded successfully (retry)");
-    } else {
-      throw error;
+      await yieldVaultV2.waitForDeployment();
     }
+    const yieldV2Impl = await upgrades.erc1967.getImplementationAddress(yieldVaultProxy);
+    const yieldAfter = await yieldVaultV2.totalSupply();
+    console.log("✅ YieldVault upgraded");
+    console.log("   impl (after):     ", yieldV2Impl);
+    console.log("   version:          ", await yieldVaultV2.version());
+    console.log("   state preserved:  ", yieldTotalSupply === yieldAfter ? "✅" : "❌");
   }
 
-  // Initialize V2 - Critical for syncing _totalManagedAssets with actual balance
-  console.log("\n🔧 Initializing StakingVault V2...");
-  const initTx = await stakingVaultV2.initializeV2();
-  await initTx.wait();
-  console.log("✅ StakingVault V2 initialized - _totalManagedAssets synced with balance");
+  // ── STAKING VAULT ─────────────────────────────────────────────
+  let stakingVaultV3: any = null;
+  let stakingTotalSupply: bigint = 0n;
+  let stakingV1Impl = "";
 
-  // Get new implementation addresses
-  const yieldV2Impl = await upgrades.erc1967.getImplementationAddress(yieldVaultProxy);
-  const stakingV2Impl = await upgrades.erc1967.getImplementationAddress(stakingVaultProxy);
-  
-  console.log("\n✅ UPGRADE COMPLETE!");
-  console.log("\n📦 V2 IMPLEMENTATION ADDRESSES:");
-  console.log("YieldVault V2:  ", yieldV2Impl);
-  console.log("StakingVault V2:", stakingV2Impl);
+  if (UPGRADE_STAKING) {
+    stakingV1Impl = await upgrades.erc1967.getImplementationAddress(stakingVaultProxy);
+    const stakingVaultV1 = await ethers.getContractAt("StakingVault", stakingVaultProxy);
+    stakingTotalSupply = await stakingVaultV1.totalSupply();
+    console.log("\n📍 StakingVault proxy:", stakingVaultProxy);
+    console.log("   impl (before):    ", stakingV1Impl);
+    console.log("   totalSupply:      ", ethers.formatUnits(stakingTotalSupply, 6), "PRIME");
 
-  // Verify state AFTER upgrade
-  console.log("\n📊 STATE AFTER UPGRADE:");
-  const yieldTotalSupplyAfter = await yieldVaultV2.totalSupply();
-  const stakingTotalSupplyAfter = await stakingVaultV2.totalSupply();
-  const yieldAssetAfter = await yieldVaultV2.asset();
-  const stakingAssetAfter = await stakingVaultV2.asset();
-  
-  console.log("YieldVault:");
-  console.log("  - Total Supply:", ethers.formatUnits(yieldTotalSupplyAfter, 6), "wYLDS");
-  console.log("  - Asset:", yieldAssetAfter);
-  console.log("  - Version:", await yieldVaultV2.version());
-  
-  console.log("StakingVault:");
-  console.log("  - Total Supply:", ethers.formatUnits(stakingTotalSupplyAfter, 6), "PRIME");
-  console.log("  - Asset:", stakingAssetAfter);
-  try {
-    const stakingVersion = await stakingVaultV2.version();
-    console.log("  - Version:", stakingVersion.toString(), "(Contract version)");
-  } catch {
-    console.log("  - Version: Unable to read version() function");
+    console.log("\n🔄 Upgrading StakingVault to V3...");
+    const StakingVaultV3 = await ethers.getContractFactory("StakingVaultV3");
+    try {
+      stakingVaultV3 = await upgrades.upgradeProxy(stakingVaultProxy, StakingVaultV3, {
+        timeout: 120000, pollingInterval: 2000,
+      });
+      await stakingVaultV3.waitForDeployment();
+    } catch (error: any) {
+      if (!error.message.includes("underpriced")) throw error;
+      console.log("⚠️  Gas underpriced, retrying...");
+      await new Promise(r => setTimeout(r, 10000));
+      stakingVaultV3 = await upgrades.upgradeProxy(stakingVaultProxy, StakingVaultV3, {
+        timeout: 120000, pollingInterval: 2000,
+      });
+      await stakingVaultV3.waitForDeployment();
+    }
+
+    // Sets maxRewardPercent = 20% on existing proxy
+    console.log("🔧 Calling initializeV3...");
+    const initTx = await stakingVaultV3.initializeV3();
+    await initTx.wait();
+
+    const stakingV3Impl = await upgrades.erc1967.getImplementationAddress(stakingVaultProxy);
+    const stakingAfter = await stakingVaultV3.totalSupply();
+    console.log("✅ StakingVault upgraded");
+    console.log("   impl (after):     ", stakingV3Impl);
+    console.log("   version:          ", (await stakingVaultV3.version()).toString());
+    console.log("   maxRewardPercent: ", (await stakingVaultV3.maxRewardPercent()).toString(), "(20% = 200000000000000000)");
+    console.log("   state preserved:  ", stakingTotalSupply === stakingAfter ? "✅" : "❌");
   }
 
-  // Verify state preservation
-  console.log("\n🔍 VERIFICATION:");
-  const yieldMatch = yieldTotalSupply === yieldTotalSupplyAfter;
-  const stakingMatch = stakingTotalSupply === stakingTotalSupplyAfter;
-  
-  console.log("YieldVault state preserved:  ", yieldMatch ? "✅" : "❌");
-  console.log("StakingVault state preserved:", stakingMatch ? "✅" : "❌");
-  
-  if (yieldMatch && stakingMatch) {
-    console.log("\n🎉 UPGRADE SUCCESSFUL - ALL STATE PRESERVED!");
-  } else {
-    console.log("\n❌ WARNING: State mismatch detected!");
-  }
-
-  console.log("\n📝 SUMMARY:");
-  console.log("Proxy addresses (unchanged):", yieldVaultProxy, stakingVaultProxy);
-  console.log("Implementation changed:       V1 → V2");
-  console.log("State preserved:              ✅");
-  console.log("\n💡 You can now run run_demo_interactions.sh again to test V2 functionality!");
+  console.log("\n✅ DONE");
 }
 
 main().catch((error) => {

@@ -607,7 +607,7 @@ describe("StakingVault", function () {
       const depositAmount = ethers.parseUnits("1000", 6);
       await stakingVault.connect(user1).deposit(depositAmount, user1.address);
       
-      const rewardAmount = ethers.parseUnits("500", 6);
+      const rewardAmount = ethers.parseUnits("100", 6); // 10% of deposit, within 20% delta
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
       
       const totalAssets = await stakingVault.totalAssets();
