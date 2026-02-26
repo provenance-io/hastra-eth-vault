@@ -54,9 +54,12 @@ contract StakingVault is
     /// @dev Tracks only legitimate deposits, ignoring direct transfers to contract
     uint256 private _totalManagedAssets;
 
-    /// @dev Storage gap for future upgrades (reserves 49 storage slots)
-    /// @notice Allows adding up to 49 new state variables in future versions without storage collision
-    uint256[49] private __gap;
+    /// @notice Maximum reward increase as a percent of current totalAssets, in 1e18 units
+    /// @dev 20% = 0.2e18 = 200000000000000000. Prevents fat-finger or malicious reward calls.
+    uint256 public maxRewardPercent;
+
+    /// @dev Storage gap for future upgrades (reserves 48 storage slots)
+    uint256[48] private __gap;
     
     // ============ Events ============
     
@@ -64,6 +67,7 @@ contract StakingVault is
     event AccountFrozen(address indexed account);
     event AccountThawed(address indexed account);
     event YieldVaultUpdated(address oldVault, address newVault);
+    event MaxRewardPercentUpdated(uint256 oldValue, uint256 newValue);
     
     // ============ Errors ============
 
@@ -72,6 +76,7 @@ contract StakingVault is
     error InvalidAmount();
     error InvalidAddress();
     error ZeroAmount();
+    error RewardExceedsMaxDelta(uint256 amount, uint256 maxAllowed);
     
     // ============ Constructor ============
     
@@ -120,6 +125,7 @@ contract StakingVault is
         //   - REWARDS_ADMIN can distribute wYLDS rewards to stakers
         
         yieldVault = yieldVault_;
+        maxRewardPercent = 0.2e18; // 20%
     }
     
     // ============ UUPS Required Override ============
@@ -224,6 +230,7 @@ contract StakingVault is
     /**
      * @dev Track rewards when distributed
      * @notice Follows checks-effects-interactions pattern
+     * @dev Reverts if amount would increase totalAssets by more than maxRewardPercent
      */
     function distributeRewards(uint256 amount)
         external
@@ -231,14 +238,32 @@ contract StakingVault is
         nonReentrant
     {
         if (amount == 0) revert InvalidAmount();
-        
+
+        // Skip delta check when vault is empty (no existing NAV to protect)
+        uint256 currentAssets = _totalManagedAssets;
+        if (currentAssets > 0 && totalSupply() > 0) {
+            uint256 maxAllowed = currentAssets.mulDiv(maxRewardPercent, 1e18);
+            if (amount > maxAllowed) revert RewardExceedsMaxDelta(amount, maxAllowed);
+        }
+
         // Effects: Track the new assets internally BEFORE external call
         _totalManagedAssets += amount;
-        
+
         // Interactions: Mint wYLDS rewards to this vault
         IYieldVault(yieldVault).mintRewards(address(this), amount);
-        
+
         emit RewardsDistributed(amount, block.timestamp);
+    }
+
+    /**
+     * @notice Update the maximum reward percent allowed in a single distributeRewards call
+     * @param newPercent New maximum in 1e18 units (e.g. 0.2e18 = 20%). Must be > 0 and <= 1e18.
+     */
+    function setMaxRewardPercent(uint256 newPercent) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newPercent == 0 || newPercent > 1e18) revert InvalidAmount();
+        uint256 oldPercent = maxRewardPercent;
+        maxRewardPercent = newPercent;
+        emit MaxRewardPercentUpdated(oldPercent, newPercent);
     }
     
     // ============ Freeze Functionality ============
