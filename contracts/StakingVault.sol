@@ -261,8 +261,9 @@ contract StakingVault is
      */
     function setMaxRewardPercent(uint256 newPercent) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newPercent == 0 || newPercent > 1e18) revert InvalidAmount();
-        emit MaxRewardPercentUpdated(maxRewardPercent, newPercent);
+        uint256 oldPercent = maxRewardPercent;
         maxRewardPercent = newPercent;
+        emit MaxRewardPercentUpdated(oldPercent, newPercent);
     }
     
     // ============ Freeze Functionality ============
