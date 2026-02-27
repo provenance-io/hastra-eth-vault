@@ -15,14 +15,23 @@ NC='\033[0m' # No Color
 
 # Step 1: Initial deployment check
 echo -e "${BLUE}Step 1: Checking existing deployment...${NC}"
-if [ ! -f "deployment_testnet.json" ]; then
+# Resolve network-specific deployment file
+NETWORK=${NETWORK:-hoodi}
+if [ -z "$DEPLOYMENT_FILE" ] || [ ! -f "$DEPLOYMENT_FILE" ]; then
+  DEPLOYMENT_FILE="deployment_testnet_${NETWORK}.json"
+fi
+# backward compat fallback
+if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment_testnet.json" ]; then
+  DEPLOYMENT_FILE="deployment_testnet.json"
+fi
+if [ ! -f "$DEPLOYMENT_FILE" ]; then
     echo "❌ No deployment found. Please deploy first:"
     echo "   npx hardhat run scripts/deploy.ts --network hoodi"
     exit 1
 fi
 
-YIELD_VAULT=$(grep -A 5 '"contracts":' deployment_testnet.json | grep '"yieldVault":' | cut -d '"' -f 4)
-STAKING_VAULT=$(grep -A 5 '"contracts":' deployment_testnet.json | grep '"stakingVault":' | cut -d '"' -f 4)
+YIELD_VAULT=$(grep -A 5 '"contracts":' "$DEPLOYMENT_FILE" | grep '"yieldVault":' | cut -d '"' -f 4)
+STAKING_VAULT=$(grep -A 5 '"contracts":' "$DEPLOYMENT_FILE" | grep '"stakingVault":' | cut -d '"' -f 4)
 
 echo "✅ Found deployment:"
 echo "   YieldVault:   $YIELD_VAULT"
@@ -58,11 +67,13 @@ echo ""
 echo -e "${BLUE}Step 6: Testing V2 new functions...${NC}"
 echo "Creating test script for V2 features..."
 
-cat > /tmp/test_v2_features.ts << 'EOF'
+cat > /tmp/test_v2_features.ts << EOF
 import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 async function main() {
-  const deployment = require("../deployment_testnet.json");
+  const deployment = JSON.parse(fs.readFileSync(path.join(process.cwd(), "${DEPLOYMENT_FILE}"), "utf8"));
   const yieldVaultProxy = deployment.contracts.yieldVault;
   const stakingVaultProxy = deployment.contracts.stakingVault;
 

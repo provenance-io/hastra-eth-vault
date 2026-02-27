@@ -2,6 +2,7 @@
 import { ethers, upgrades } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
+import { getDeploymentFile } from "./utils/getDeploymentFile";
 
 async function main() {
   console.log("\n🚀 UPGRADING STAKING VAULT - INFLATION ATTACK FIX");
@@ -12,8 +13,7 @@ async function main() {
 
   // Determine network and load correct deployment file
   const network = await ethers.provider.getNetwork();
-  const isTestnet = network.chainId === 560048n; // Hoodi testnet
-  const deploymentFile = isTestnet ? "deployment_testnet.json" : "deployment.json";
+  const deploymentFile = getDeploymentFile(network.name);
   
   console.log("Network:", network.name, "(Chain ID:", network.chainId.toString() + ")");
   console.log("Using deployment file:", deploymentFile);

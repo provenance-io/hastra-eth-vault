@@ -1,0 +1,24 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "timestamp": "2026-02-27T00:39:37.615Z",
+  "contracts": {
+    "usdc": "0xBA88e76F1F98037dd9fDFd6837bDda0225d92dcB",
+    "yieldVault": "0x0258787Eb97DD01436B562943D8ca85B772D7b98",
+    "stakingVault": "0xFf22361Ca2590761A2429D4127b7FF25E79fdC04"
+  },
+  "transactions": {
+    "usdc": "existing",
+    "yieldVault": "0x6632b914ac72a003cf384903afa1d8ae39ad9ca617ea0d8e27bf8efa03a88e1b",
+    "stakingVault": "0x87b629660c27b7ef08d75e5b343f1205e12f00e3803e081d89e25730cbb780c6"
+  },
+  "roles": {
+    "admin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "redeemVault": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "freezeAdmin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "rewardsAdmin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "whitelistAdmin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "withdrawalAdmin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6"
+  },
+  "config": {}
+}

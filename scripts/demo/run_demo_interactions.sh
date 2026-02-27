@@ -6,10 +6,14 @@ cd "$(dirname "$0")/../.."
 
 echo "Starting Hastra Vault Protocol Interaction Flow (No Deployment)..."
 
-# Determine deployment file
-DEPLOYMENT_FILE=${DEPLOYMENT_FILE:-"deployment.json"}
+# Resolve network-specific deployment file
+NETWORK=${NETWORK:-hoodi}
+if [ -z "$DEPLOYMENT_FILE" ] || [ ! -f "$DEPLOYMENT_FILE" ]; then
+  DEPLOYMENT_FILE="deployment_testnet_${NETWORK}.json"
+fi
+# backward compat fallback
 if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment_testnet.json" ]; then
-    DEPLOYMENT_FILE="deployment_testnet.json"
+  DEPLOYMENT_FILE="deployment_testnet.json"
 fi
 
 if [ ! -f "$DEPLOYMENT_FILE" ]; then
@@ -37,8 +41,9 @@ echo "--------------------------------------------------"
 echo "STEP 1: Minting USDC"
 echo "--------------------------------------------------"
 export MOCK_USDC_ADDRESS=$USDC_ADDRESS
+export USDC_ADDRESS=$USDC_ADDRESS
 export MINT_AMOUNT="10000"
-npx hardhat run scripts/demo/mint-usdc.ts --network hoodi
+npx hardhat run scripts/demo/mint-usdc.ts --network "$NETWORK"
 
 # 3. Deposit USDC into YieldVault (Get wYLDS)
 echo ""
@@ -47,7 +52,7 @@ echo "STEP 2: Depositing USDC for wYLDS"
 echo "--------------------------------------------------"
 export YIELD_VAULT_ADDRESS=$YIELD_VAULT_ADDRESS
 export DEPOSIT_AMOUNT="5000"
-npx hardhat run scripts/demo/deposit-usdc.ts --network hoodi
+npx hardhat run scripts/demo/deposit-usdc.ts --network "$NETWORK"
 
 # 4. Stake wYLDS into StakingVault (Get PRIME)
 echo ""
@@ -56,14 +61,14 @@ echo "STEP 3: Staking wYLDS for PRIME"
 echo "--------------------------------------------------"
 export STAKING_VAULT_ADDRESS=$STAKING_VAULT_ADDRESS
 export STAKE_AMOUNT="2000"
-npx hardhat run scripts/demo/stake-wylds.ts --network hoodi
+npx hardhat run scripts/demo/stake-wylds.ts --network "$NETWORK"
 
 # 5. Unstake and Redeem (Verify Unbonding)
 echo ""
 echo "--------------------------------------------------"
 echo "STEP 4: Instant Redeem (Verification)"
 echo "--------------------------------------------------"
-npx hardhat run scripts/demo/unstake-and-redeem.ts --network hoodi
+npx hardhat run scripts/demo/unstake-and-redeem.ts --network "$NETWORK"
 
 echo ""
 echo "--------------------------------------------------"

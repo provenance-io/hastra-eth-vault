@@ -1,5 +1,8 @@
 // @ts-ignore
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, network } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
+import { getDeploymentFile } from "../utils/getDeploymentFile";
 
 async function main() {
     console.log("\n🚀 UPGRADE TEST SCRIPT");
@@ -9,7 +12,8 @@ async function main() {
     console.log("Upgrading with account:", deployer.address);
 
     // Load existing deployment
-    const deployment = require("../../deployment_testnet.json");
+    const deploymentFile = getDeploymentFile(network.name);
+    const deployment = JSON.parse(fs.readFileSync(path.join(__dirname, "../../", deploymentFile), "utf8"));
     const yieldVaultProxy = deployment.contracts.yieldVault;
     const stakingVaultProxy = deployment.contracts.stakingVault;
 
@@ -53,6 +57,7 @@ async function main() {
     console.log("Upgrading YieldVault...");
     let yieldVaultV2;
     try {
+        await upgrades.forceImport(yieldVaultProxy, await ethers.getContractFactory("YieldVault"));
         yieldVaultV2 = await upgrades.upgradeProxy(yieldVaultProxy, YieldVaultV2, {
             timeout: 120000, // 2 minutes timeout
             pollingInterval: 2000, // Check every 2 seconds
@@ -78,6 +83,7 @@ async function main() {
     console.log("Upgrading StakingVault...");
     let stakingVaultV2;
     try {
+        await upgrades.forceImport(stakingVaultProxy, await ethers.getContractFactory("StakingVault"));
         stakingVaultV2 = await upgrades.upgradeProxy(stakingVaultProxy, StakingVaultV2, {
             timeout: 120000,
             pollingInterval: 2000,

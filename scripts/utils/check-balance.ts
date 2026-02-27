@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { ethers } from "hardhat";
 import * as fs from "fs";
+import { getDeploymentFile } from "./getDeploymentFile";
 
 /**
  * Check wYLDS balance for an address
@@ -25,9 +26,7 @@ async function main() {
   console.log("");
 
   // Load deployment file
-  const deploymentFile = fs.existsSync("deployment_testnet.json") 
-    ? "deployment_testnet.json" 
-    : "deployment.json";
+  const deploymentFile = getDeploymentFile(network.name);
   
   const deployment = JSON.parse(fs.readFileSync(deploymentFile, "utf-8"));
   const yieldVaultAddress = deployment.contracts.yieldVault;

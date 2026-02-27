@@ -15,12 +15,12 @@ echo "Network: $NETWORK"
 echo ""
 
 # Load deployment file
-if [ "$NETWORK" == "hoodi" ]; then
-    DEPLOYMENT_FILE="deployment_testnet.json"
-elif [ "$NETWORK" == "localhost" ]; then
-    DEPLOYMENT_FILE="deployment.json"
-else
-    DEPLOYMENT_FILE="deployment_${NETWORK}.json"
+if [ -z "$DEPLOYMENT_FILE" ] || [ ! -f "$DEPLOYMENT_FILE" ]; then
+  DEPLOYMENT_FILE="deployment_testnet_${NETWORK}.json"
+fi
+# backward compat fallback
+if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment_testnet.json" ]; then
+  DEPLOYMENT_FILE="deployment_testnet.json"
 fi
 
 if [ ! -f "$DEPLOYMENT_FILE" ]; then

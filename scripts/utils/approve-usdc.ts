@@ -1,5 +1,7 @@
-import { ethers } from "hardhat";
+// @ts-ignore
+import { ethers, network } from "hardhat";
 import * as fs from "fs";
+import { getDeploymentFile } from "./getDeploymentFile";
 
 /**
  * Approve YieldVault to spend your USDC
@@ -11,9 +13,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   
   // Load from deployment file
-  const deploymentFile = fs.existsSync("deployment_testnet.json") 
-    ? "deployment_testnet.json" 
-    : "deployment.json";
+  const deploymentFile = getDeploymentFile(network.name);
   
   const deployment = JSON.parse(fs.readFileSync(deploymentFile, "utf-8"));
   const usdcAddress = deployment.contracts.usdc;
