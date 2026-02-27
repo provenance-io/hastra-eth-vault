@@ -29,8 +29,8 @@ function loadDeploymentInfo(networkName: string, chainId: bigint): DeploymentInf
     "localhost": ["deployment.json"],
     "hardhat": ["deployment.json"],
     "mainnet": ["deployment_mainnet.json", "deployment.json"],
-    "sepolia": ["deployment_sepolia.json", "deployment_testnet.json"],
-    "hoodi": ["deployment_hoodi.json", "deployment_testnet.json"],
+    "sepolia": ["deployment_sepolia.json", "deployment_testnet_sepolia.json", "deployment_testnet.json"],
+    "hoodi": ["deployment_hoodi.json", "deployment_testnet_hoodi.json", "deployment_testnet.json"],
     "goerli": ["deployment_goerli.json", "deployment_testnet.json"],
     "polygon": ["deployment_polygon.json", "deployment_mainnet.json"],
     "mumbai": ["deployment_mumbai.json", "deployment_testnet.json"],
@@ -89,8 +89,8 @@ async function main() {
     // Show expected files for this network
     const networkFiles: Record<string, string[]> = {
       "mainnet": ["deployment_mainnet.json", "deployment.json"],
-      "sepolia": ["deployment_sepolia.json", "deployment_testnet.json"],
-      "hoodi": ["deployment_hoodi.json", "deployment_testnet.json"],
+      "sepolia": ["deployment_sepolia.json", "deployment_testnet_sepolia.json", "deployment_testnet.json"],
+      "hoodi": ["deployment_hoodi.json", "deployment_testnet_hoodi.json", "deployment_testnet.json"],
       "localhost": ["deployment.json"],
     };
     

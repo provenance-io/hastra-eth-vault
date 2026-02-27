@@ -7,10 +7,14 @@ cd "$(dirname "$0")/../.."
 AMOUNT=${1:-1000000000} # Default to 1M if no argument provided
 TARGET=${2:-"0xF4B35857A657eaFE095D1FCeB2bcAf09921E24DB"}
 
-# Determine deployment file
-DEPLOYMENT_FILE=${DEPLOYMENT_FILE:-"deployment.json"}
+# Resolve network-specific deployment file
+NETWORK=${NETWORK:-hoodi}
+if [ -z "$DEPLOYMENT_FILE" ] || [ ! -f "$DEPLOYMENT_FILE" ]; then
+  DEPLOYMENT_FILE="deployment_testnet_${NETWORK}.json"
+fi
+# backward compat fallback
 if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment_testnet.json" ]; then
-    DEPLOYMENT_FILE="deployment_testnet.json"
+  DEPLOYMENT_FILE="deployment_testnet.json"
 fi
 
 if [ ! -f "$DEPLOYMENT_FILE" ]; then

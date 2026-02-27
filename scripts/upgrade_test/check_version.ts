@@ -1,12 +1,16 @@
 // @ts-ignore
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
+import { getDeploymentFile } from "../utils/getDeploymentFile";
 
 async function main() {
   console.log("\n🔍 CONTRACT VERSION CHECKER");
   console.log("=" + "=".repeat(60));
 
   // Load deployment
-  const deployment = require("../../deployment_testnet.json");
+  const deploymentFile = getDeploymentFile(network.name);
+  const deployment = JSON.parse(fs.readFileSync(path.join(__dirname, "../../", deploymentFile), "utf8"));
   const yieldVaultProxy = deployment.contracts.yieldVault;
   const stakingVaultProxy = deployment.contracts.stakingVault;
 

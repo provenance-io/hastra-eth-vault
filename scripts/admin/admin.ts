@@ -1,6 +1,7 @@
 // @ts-nocheck
-import {ethers} from "hardhat";
+import { ethers, network } from "hardhat";
 import * as fs from "fs";
+import { getDeploymentFile } from "../utils/getDeploymentFile";
 
 /**
  * Admin operations for managing YieldVault and StakingVault
@@ -16,9 +17,7 @@ import * as fs from "fs";
 
 // Load deployment file
 function loadDeployment() {
-  const deploymentFile = fs.existsSync("deployment_testnet.json") 
-    ? "deployment_testnet.json" 
-    : "deployment.json";
+  const deploymentFile = getDeploymentFile(network.name);
   
   if (!fs.existsSync(deploymentFile)) {
     throw new Error(`Deployment file ${deploymentFile} not found!`);

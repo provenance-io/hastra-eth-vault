@@ -1,11 +1,12 @@
 // @ts-ignore
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
+import { getDeploymentFile } from "../utils/getDeploymentFile";
 
 async function main() {
-  // Read deployment addresses from deployment_testnet.json
-  const deploymentPath = path.join(__dirname, "../../deployment_testnet.json");
+  const deploymentFile = getDeploymentFile(network.name);
+  const deploymentPath = path.join(__dirname, "../../", deploymentFile);
   if (!fs.existsSync(deploymentPath)) {
     throw new Error(`Deployment file not found at ${deploymentPath}`);
   }
@@ -14,7 +15,7 @@ async function main() {
   const yieldVaultAddress = deployment.contracts.yieldVault;
 
   if (!yieldVaultAddress) {
-    throw new Error("YieldVault address not found in deployment_testnet.json");
+    throw new Error("YieldVault address not found in deployment file");
   }
 
   console.log("Checking YieldVault Whitelist State...");

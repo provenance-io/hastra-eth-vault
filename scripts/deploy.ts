@@ -295,7 +295,7 @@ async function main() {
   
   // Check if network is a testnet
   if (["sepolia", "hoodi", "goerli", "testnet"].includes(networkName)) {
-    filename = "deployment_testnet.json";
+    filename = `deployment_testnet_${networkName}.json`;
   }
 
   const deploymentInfo = {

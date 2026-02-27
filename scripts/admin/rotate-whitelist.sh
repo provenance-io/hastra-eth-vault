@@ -4,10 +4,14 @@ set -e
 # Ensure we are in the project root
 cd "$(dirname "$0")/../.."
 
-# Load YieldVault address from deployment file
-DEPLOYMENT_FILE="deployment_testnet.json"
-if [ ! -f "$DEPLOYMENT_FILE" ]; then
-  DEPLOYMENT_FILE="deployment.json"
+# Resolve network-specific deployment file
+NETWORK=${NETWORK:-hoodi}
+if [ -z "$DEPLOYMENT_FILE" ] || [ ! -f "$DEPLOYMENT_FILE" ]; then
+  DEPLOYMENT_FILE="deployment_testnet_${NETWORK}.json"
+fi
+# backward compat fallback
+if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment_testnet.json" ]; then
+  DEPLOYMENT_FILE="deployment_testnet.json"
 fi
 
 if [ ! -f "$DEPLOYMENT_FILE" ]; then
