@@ -18,6 +18,10 @@ jobs:
     - run: npm install
     - name: Compile contracts
       run: npx hardhat compile
+    - name: Install chainlink-hub dependencies
+      run: cd chainlink-hub && npm install
+    - name: Compile chainlink-hub contracts
+      run: cd chainlink-hub && npx hardhat compile
     - name: Upload compiled artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -25,6 +29,8 @@ jobs:
         path: |
           artifacts/
           typechain-types/
+          chainlink-hub/artifacts/
+          chainlink-hub/typechain-types/
         retention-days: 7
       
   lint:
@@ -87,37 +93,19 @@ jobs:
     - name: Extract ABIs
       run: |
         mkdir -p abi-exports
-        
-        # Extract YieldVault ABI
+
+        # Vault contracts
         jq '.abi' artifacts/contracts/YieldVault.sol/YieldVault.json > abi-exports/YieldVault.json
-        
-        # Extract StakingVault ABI
         jq '.abi' artifacts/contracts/StakingVault.sol/StakingVault.json > abi-exports/StakingVault.json
-        
-        # Extract MockUSDC ABI (for testing)
         jq '.abi' artifacts/contracts/mocks/MockUSDC.sol/MockUSDC.json > abi-exports/MockUSDC.json
-        
-        # Create combined contracts.json
-        cat > abi-exports/contracts.json << 'EOF'
-        {
-          "YieldVault": {
-            "contractName": "YieldVault",
-            "abi": $(cat abi-exports/YieldVault.json)
-          },
-          "StakingVault": {
-            "contractName": "StakingVault",
-            "abi": $(cat abi-exports/StakingVault.json)
-          },
-          "MockUSDC": {
-            "contractName": "MockUSDC",
-            "abi": $(cat abi-exports/MockUSDC.json)
-          }
-        }
-        EOF
-        
+
+        # Chainlink NAV contracts
+        jq '.abi' chainlink-hub/artifacts/contracts/HastraHub.sol/HastraHub.json > abi-exports/HastraHub.json
+        jq '.abi' chainlink-hub/artifacts/contracts/FeedVerifier.sol/FeedVerifier.json > abi-exports/FeedVerifier.json
+
         # Create version info
         echo "{\"version\": \"main-${{ github.sha }}\", \"commit\": \"${{ github.sha }}\", \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > abi-exports/version.json
-        
+
         echo "✅ ABIs extracted successfully"
         ls -lh abi-exports/
         
