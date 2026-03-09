@@ -211,6 +211,8 @@ contract FeedVerifier is
         if (address(feeManager) != address(0)) {
             address feeToken = feeManager.i_linkAddress();
             (Common.Asset memory fee,,) = feeManager.getFeeAndReward(address(this), reportData, feeToken);
+            // Use raw approve: LINK does not have the allowance-race condition and the
+            // Chainlink RewardManager will consume exactly fee.amount in the verify() call.
             IERC20(feeToken).approve(feeManager.i_rewardManager(), fee.amount);
             parameterPayload = abi.encode(feeToken);
         }
