@@ -67,6 +67,7 @@ contract FeedVerifier is
 
     bytes32 public constant PAUSER_ROLE   = keccak256("PAUSER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+    bytes32 public constant UPDATER_ROLE  = keccak256("UPDATER_ROLE");
 
     // ── Schema v7 (Redemption Rates) ─────────────────────────────────────────
     struct ReportV7 {
@@ -82,6 +83,9 @@ contract FeedVerifier is
     // ── Errors ────────────────────────────────────────────────────────────────
     error InvalidReportVersion(uint16 version);
     error NothingToWithdraw();
+    error StaleReport(uint32 newTimestamp, uint32 storedTimestamp);
+    error ExpiredReport(uint32 expiresAt, uint32 currentTime);
+    error ZeroAddress();
 
     // ── Events ────────────────────────────────────────────────────────────────
     event DecodedPrice(
@@ -114,9 +118,12 @@ contract FeedVerifier is
 
     /**
      * @param admin_          Address that receives DEFAULT_ADMIN_ROLE, PAUSER_ROLE, UPGRADER_ROLE.
+     * @param updater_        Bot address that receives UPDATER_ROLE (may equal admin_ on testnets).
      * @param verifierProxy_  Chainlink VerifierProxy address for this network.
      */
-    function initialize(address admin_, address verifierProxy_) external initializer {
+    function initialize(address admin_, address updater_, address verifierProxy_) external initializer {
+        if (admin_ == address(0) || updater_ == address(0) || verifierProxy_ == address(0)) revert ZeroAddress();
+
         __AccessControl_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
@@ -124,6 +131,7 @@ contract FeedVerifier is
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(PAUSER_ROLE,        admin_);
         _grantRole(UPGRADER_ROLE,      admin_);
+        _grantRole(UPDATER_ROLE,       updater_);
 
         verifierProxy = IVerifierProxy(verifierProxy_);
     }
@@ -134,7 +142,7 @@ contract FeedVerifier is
      * @notice Verify a single Data Streams Schema v7 report onchain.
      * @param unverifiedReport Full payload returned by Chainlink Data Streams API.
      */
-    function verifyReport(bytes memory unverifiedReport) external whenNotPaused {
+    function verifyReport(bytes memory unverifiedReport) external whenNotPaused onlyRole(UPDATER_ROLE) {
         bytes memory parameterPayload = _buildParameterPayload(unverifiedReport);
         bytes memory verified = verifierProxy.verify(unverifiedReport, parameterPayload);
         _storeReport(verified);
@@ -146,7 +154,7 @@ contract FeedVerifier is
      *      Uses VerifierProxy.verifyBulk() for gas efficiency.
      * @param unverifiedReports Array of full payloads from Chainlink Data Streams API.
      */
-    function verifyBulkReports(bytes[] calldata unverifiedReports) external whenNotPaused {
+    function verifyBulkReports(bytes[] calldata unverifiedReports) external whenNotPaused onlyRole(UPDATER_ROLE) {
         if (unverifiedReports.length == 0) return;
 
         bytes memory parameterPayload = _buildParameterPayload(unverifiedReports[0]);
@@ -211,9 +219,16 @@ contract FeedVerifier is
 
     /**
      * @dev Decodes a verified Schema v7 report and stores price + timestamp per feedId.
+     *      Reverts on expired or stale reports to prevent overwriting fresh data.
      */
     function _storeReport(bytes memory verified) internal {
         ReportV7 memory report = abi.decode(verified, (ReportV7));
+
+        if (block.timestamp > report.expiresAt)
+            revert ExpiredReport(report.expiresAt, uint32(block.timestamp));
+
+        if (report.observationsTimestamp <= timestampByFeed[report.feedId])
+            revert StaleReport(report.observationsTimestamp, timestampByFeed[report.feedId]);
 
         priceByFeed[report.feedId]     = report.price;
         timestampByFeed[report.feedId] = report.observationsTimestamp;

@@ -14,7 +14,8 @@ import * as path from "path";
  *   PRIVATE_KEY, SEPOLIA_RPC_URL (or HOODI_RPC_URL), ETHERSCAN_API_KEY
  *
  * Optional .env:
- *   ADMIN_ADDRESS  — defaults to deployer
+ *   ADMIN_ADDRESS    — defaults to deployer
+ *   UPDATER_ADDRESS  — defaults to deployer (set to bot wallet in production)
  */
 
 const VERIFIER_PROXY: Record<string, string> = {
@@ -30,17 +31,19 @@ async function main() {
   const verifierProxy = VERIFIER_PROXY[net];
   if (!verifierProxy) throw new Error(`No VerifierProxy address configured for network: ${net}`);
 
-  const admin = process.env.ADMIN_ADDRESS || deployer.address;
+  const admin   = process.env.ADMIN_ADDRESS   || deployer.address;
+  const updater = process.env.UPDATER_ADDRESS || deployer.address;
 
   console.log(`Network:         ${net}`);
   console.log(`Deployer:        ${deployer.address}`);
   console.log(`Admin:           ${admin}`);
+  console.log(`Updater (bot):   ${updater}`);
   console.log(`VerifierProxy:   ${verifierProxy}`);
   console.log("");
 
   console.log("🚀 Deploying FeedVerifier (UUPS proxy)...");
   const Factory = await ethers.getContractFactory("FeedVerifier");
-  const proxy = await upgrades.deployProxy(Factory, [admin, verifierProxy], {
+  const proxy = await upgrades.deployProxy(Factory, [admin, updater, verifierProxy], {
     kind: "uups",
     initializer: "initialize",
   });
@@ -61,6 +64,7 @@ async function main() {
     feedId: "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3",
     deployer: deployer.address,
     admin,
+    updater,
     deployedAt: new Date().toISOString(),
   }, null, 2));
   console.log(`📄 Saved to ${deploymentFile}`);
