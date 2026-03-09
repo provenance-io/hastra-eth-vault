@@ -77,7 +77,7 @@ contract StakingVault is
     bytes32 public navFeedId;
 
     /// @dev Storage gap for future upgrades (reserves 45 storage slots — 3 consumed above)
-    uint256[45] private __gap;
+    uint256[46] private __gap;
     
     // ============ Events ============
     

@@ -122,23 +122,23 @@ async function main() {
   console.log(`   Signer: ${signer.address}`);
 
   const feedVerifier = await ethers.getContractAt("FeedVerifier", contractAddress!, signer);
-  const priceBefore = await feedVerifier.lastDecodedPrice();
-  console.log(`   lastDecodedPrice before: ${priceBefore.toString()}`);
+  const priceBefore = await feedVerifier.priceOf(FEED_ID);
+  console.log(`   priceOf(feedId) before: ${priceBefore.toString()}`);
 
   const tx = await feedVerifier.verifyReport(report.fullReport);
   console.log(`   Tx hash: ${tx.hash}`);
   const receipt = await tx.wait();
   console.log(`   Block:   ${receipt!.blockNumber}`);
 
-  const priceAfter   = await feedVerifier.lastDecodedPrice();
+  const priceAfter   = await feedVerifier.priceOf(FEED_ID);
   const feedIdStored = await feedVerifier.lastFeedId();
-  const tsStored     = await feedVerifier.lastObservationsTimestamp();
+  const tsStored     = await feedVerifier.timestampOf(FEED_ID);
 
   console.log(`\n📊 On-chain state:`);
-  console.log(`   lastDecodedPrice:          ${priceAfter.toString()}`);
-  console.log(`   lastDecodedPrice (human):  ${(Number(priceAfter) / 1e18).toFixed(6)}`);
+  console.log(`   priceOf(feedId):           ${priceAfter.toString()}`);
+  console.log(`   priceOf(feedId) (human):   ${(Number(priceAfter) / 1e18).toFixed(6)}`);
   console.log(`   lastFeedId:                ${feedIdStored}`);
-  console.log(`   lastObservationsTimestamp: ${new Date(Number(tsStored) * 1000).toISOString()}`);
+  console.log(`   observationsTimestamp:     ${new Date(Number(tsStored) * 1000).toISOString()}`);
 
   const ok = feedIdStored.toLowerCase() === FEED_ID.toLowerCase() && priceAfter !== 0n;
   console.log(ok ? `\n✅ Publish PASSED.` : `\n❌ Publish FAILED.`);

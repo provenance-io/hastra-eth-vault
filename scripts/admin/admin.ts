@@ -558,6 +558,24 @@ async function main() {
     case "update-redeem-vault":
       await updateRedeemVault(args[1] || process.env.NEW_REDEEM_VAULT || "");
       break;
+    case "set-nav-oracle": {
+      const stakingVaultAddr = deployment.contracts.stakingVault;
+      const oracle    = process.env.NAV_ORACLE    || args[1] || "";
+      const staleness = process.env.NAV_STALENESS || args[2] || "3600";
+      const feedId    = process.env.NAV_FEED_ID   || args[3] || "";
+      if (!oracle) throw new Error("NAV_ORACLE env var required");
+      if (!feedId) throw new Error("NAV_FEED_ID env var required");
+      const [navAdmin] = await ethers.getSigners();
+      const sv = await ethers.getContractAt("StakingVault", stakingVaultAddr, navAdmin);
+      const tx = await sv.setNavOracle(oracle, BigInt(staleness), feedId);
+      await tx.wait();
+      console.log(`✅ setNavOracle set on StakingVault`);
+      console.log(`   Oracle:    ${oracle}`);
+      console.log(`   Staleness: ${staleness}s`);
+      console.log(`   FeedId:    ${feedId}`);
+      console.log(`   Tx: ${tx.hash}`);
+      break;
+    }
     case "check-role":
       await checkRole(args[1] || process.env.CONTRACT_ADDRESS || "", args[2] || process.env.ROLE || "", args[3] || process.env.ACCOUNT_ADDRESS || "");
       break;
@@ -578,6 +596,8 @@ async function main() {
       console.log("  distribute-rewards <amount>");
       console.log("  set-max-reward-percent <percent_1e18>  e.g. 200000000000000000 = 20%");
       console.log("  update-redeem-vault <address>");
+      console.log("  set-nav-oracle                           - Set NAV oracle on StakingVault");
+      console.log("                                             NAV_ORACLE=<addr> NAV_STALENESS=<secs> NAV_FEED_ID=<bytes32>");
       console.log("  check-role <contract> <role> <account>");
   }
 }
