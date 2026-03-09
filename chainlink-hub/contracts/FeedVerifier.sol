@@ -3,18 +3,19 @@ pragma solidity ^0.8.20;
 
 import {Common} from "@chainlink/contracts/src/v0.8/llo-feeds/libraries/Common.sol";
 import {IVerifierFeeManager} from "@chainlink/contracts/src/v0.8/llo-feeds/v0.3.0/interfaces/IVerifierFeeManager.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
-using SafeERC20 for IERC20;
+import {IERC20Upgradeable as IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import {SafeERC20Upgradeable as SafeERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title FeedVerifier
  * @notice Onchain verifier for Chainlink Data Streams Schema v7 (Redemption Rates).
  *
- * @dev Supports single and bulk report verification. Stores the latest price per feedId
- *      so multiple StakingVaults (each with a different fund NAV feed) can share one
- *      FeedVerifier contract.
+ * @dev UUPS upgradeable. Supports single and bulk report verification. Stores the
+ *      latest price per feedId so multiple StakingVaults can share one contract.
  *
  *      Based on Chainlink's official ClientReportsVerifier example:
  *      https://docs.chain.link/data-streams/tutorials/evm-onchain-report-verification
@@ -56,8 +57,16 @@ interface IFeeManager {
 //  Contract
 // ─────────────────────────────────────────────────────────────────────────────
 
-contract FeedVerifier {
+contract FeedVerifier is
+    Initializable,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    UUPSUpgradeable
+{
     using SafeERC20 for IERC20;
+
+    bytes32 public constant PAUSER_ROLE   = keccak256("PAUSER_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     // ── Schema v7 (Redemption Rates) ─────────────────────────────────────────
     struct ReportV7 {
@@ -71,7 +80,6 @@ contract FeedVerifier {
     }
 
     // ── Errors ────────────────────────────────────────────────────────────────
-    error NotOwner(address caller);
     error InvalidReportVersion(uint16 version);
     error NothingToWithdraw();
 
@@ -83,8 +91,7 @@ contract FeedVerifier {
     );
 
     // ── State ─────────────────────────────────────────────────────────────────
-    address public immutable i_owner;
-    IVerifierProxy public immutable i_verifierProxy;
+    IVerifierProxy public verifierProxy;
 
     /// @notice Latest verified price per feedId (1e18 scaled int192).
     mapping(bytes32 => int192) public priceByFeed;
@@ -95,15 +102,30 @@ contract FeedVerifier {
     /// @notice Most recently updated feedId (convenience for single-feed setups).
     bytes32 public lastFeedId;
 
-    // ── Constructor ───────────────────────────────────────────────────────────
-    constructor(address _verifierProxy) {
-        i_owner = msg.sender;
-        i_verifierProxy = IVerifierProxy(_verifierProxy);
+    // slither-disable-next-line unused-state
+    uint256[46] private __gap;
+
+    // ── Constructor / Initializer ─────────────────────────────────────────────
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
-    modifier onlyOwner() {
-        if (msg.sender != i_owner) revert NotOwner(msg.sender);
-        _;
+    /**
+     * @param admin_          Address that receives DEFAULT_ADMIN_ROLE, PAUSER_ROLE, UPGRADER_ROLE.
+     * @param verifierProxy_  Chainlink VerifierProxy address for this network.
+     */
+    function initialize(address admin_, address verifierProxy_) external initializer {
+        __AccessControl_init();
+        __Pausable_init();
+        __UUPSUpgradeable_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(PAUSER_ROLE,        admin_);
+        _grantRole(UPGRADER_ROLE,      admin_);
+
+        verifierProxy = IVerifierProxy(verifierProxy_);
     }
 
     // ── Core ──────────────────────────────────────────────────────────────────
@@ -112,9 +134,9 @@ contract FeedVerifier {
      * @notice Verify a single Data Streams Schema v7 report onchain.
      * @param unverifiedReport Full payload returned by Chainlink Data Streams API.
      */
-    function verifyReport(bytes memory unverifiedReport) external {
+    function verifyReport(bytes memory unverifiedReport) external whenNotPaused {
         bytes memory parameterPayload = _buildParameterPayload(unverifiedReport);
-        bytes memory verified = i_verifierProxy.verify(unverifiedReport, parameterPayload);
+        bytes memory verified = verifierProxy.verify(unverifiedReport, parameterPayload);
         _storeReport(verified);
     }
 
@@ -124,11 +146,11 @@ contract FeedVerifier {
      *      Uses VerifierProxy.verifyBulk() for gas efficiency.
      * @param unverifiedReports Array of full payloads from Chainlink Data Streams API.
      */
-    function verifyBulkReports(bytes[] calldata unverifiedReports) external {
+    function verifyBulkReports(bytes[] calldata unverifiedReports) external whenNotPaused {
         if (unverifiedReports.length == 0) return;
 
         bytes memory parameterPayload = _buildParameterPayload(unverifiedReports[0]);
-        bytes[] memory verifiedReports = i_verifierProxy.verifyBulk(unverifiedReports, parameterPayload);
+        bytes[] memory verifiedReports = verifierProxy.verifyBulk(unverifiedReports, parameterPayload);
 
         for (uint256 i = 0; i < verifiedReports.length; i++) {
             _storeReport(verifiedReports[i]);
@@ -147,16 +169,25 @@ contract FeedVerifier {
         return timestampByFeed[feedId];
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Admin ─────────────────────────────────────────────────────────────────
+
+    function pause()   external onlyRole(PAUSER_ROLE) { _pause(); }
+    function unpause() external onlyRole(PAUSER_ROLE) { _unpause(); }
 
     /// @notice Withdraw ERC-20 tokens (e.g. LINK) held by this contract.
-    function withdrawToken(address beneficiary, address token) external onlyOwner {
+    function withdrawToken(address beneficiary, address token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 amount = IERC20(token).balanceOf(address(this));
         if (amount == 0) revert NothingToWithdraw();
         IERC20(token).safeTransfer(beneficiary, amount);
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
+
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        override
+        onlyRole(UPGRADER_ROLE)
+    {}
 
     /**
      * @dev Validates schema version and builds the fee parameterPayload.
@@ -168,7 +199,7 @@ contract FeedVerifier {
         uint16 reportVersion = (uint16(uint8(reportData[0])) << 8) | uint16(uint8(reportData[1]));
         if (reportVersion != 7) revert InvalidReportVersion(reportVersion);
 
-        IFeeManager feeManager = IFeeManager(address(i_verifierProxy.s_feeManager()));
+        IFeeManager feeManager = IFeeManager(address(verifierProxy.s_feeManager()));
         if (address(feeManager) != address(0)) {
             address feeToken = feeManager.i_linkAddress();
             (Common.Asset memory fee,,) = feeManager.getFeeAndReward(address(this), reportData, feeToken);
