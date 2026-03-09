@@ -1,0 +1,8 @@
+{
+  "network": "sepolia",
+  "feedVerifier": "0xf08319ebdb0736bb12e670974B42DD695c330AFb",
+  "verifierProxy": "0x4e9935be37302B9C97Ff4ae6868F1b566ade26d2",
+  "feedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3",
+  "deployer": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+  "deployedAt": "2026-03-05T20:39:25.624Z"
+}

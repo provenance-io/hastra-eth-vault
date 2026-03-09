@@ -25,6 +25,7 @@ async function main() {
   const rewardsAdminAddress = process.env.REWARDS_ADMIN_ADDRESS ?? otherSigners[2]?.address ?? deployer.address;
   const whitelistAdminAddress = process.env.WHITELIST_ADMIN_ADDRESS ?? otherSigners[3]?.address ?? deployer.address;
   const withdrawalAdminAddress = process.env.WITHDRAWAL_ADMIN_ADDRESS ?? otherSigners[4]?.address ?? deployer.address;
+  const navOracleUpdaterAddress = process.env.NAV_ORACLE_UPDATER_ADDRESS ?? deployer.address;
 
   console.log("Deploying contracts with account:", deployer.address);
   console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
@@ -35,6 +36,7 @@ async function main() {
   console.log("  Rewards Admin:", rewardsAdminAddress);
   console.log("  Whitelist Admin:", whitelistAdminAddress);
   console.log("  Withdrawal Admin:", withdrawalAdminAddress);
+  console.log("  Nav Oracle Updater:", navOracleUpdaterAddress);
 
   // ============ Deploy USDC (or use existing) ============
   
@@ -194,6 +196,7 @@ async function main() {
   if (isDryRun) {
       console.log(`[Dry Run] Would grant FREEZE_ADMIN_ROLE to ${freezeAdminAddress}`);
       console.log(`[Dry Run] Would grant REWARDS_ADMIN_ROLE to ${rewardsAdminAddress}`);
+      console.log(`[Dry Run] Would grant NAV_ORACLE_UPDATER_ROLE to ${navOracleUpdaterAddress}`);
   } else {
       // Grant freeze admin role
       const STAKING_FREEZE_ADMIN_ROLE = await stakingVault.FREEZE_ADMIN_ROLE();
@@ -206,6 +209,12 @@ async function main() {
       const tx5 = await stakingVault.grantRole(STAKING_REWARDS_ADMIN_ROLE, rewardsAdminAddress);
       await tx5.wait();
       console.log("Granted REWARDS_ADMIN_ROLE to:", rewardsAdminAddress);
+
+      // Grant nav oracle updater role
+      const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
+      const tx6 = await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, navOracleUpdaterAddress);
+      await tx6.wait();
+      console.log("Granted NAV_ORACLE_UPDATER_ROLE to:", navOracleUpdaterAddress);
   }
 
   // ============ Setup Approvals ============

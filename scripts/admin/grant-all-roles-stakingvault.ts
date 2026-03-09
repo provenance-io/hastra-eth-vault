@@ -49,6 +49,7 @@ async function main() {
   const UPGRADER_ROLE = await stakingVault.UPGRADER_ROLE();
   const REWARDS_ADMIN_ROLE = await stakingVault.REWARDS_ADMIN_ROLE();
   const FREEZE_ADMIN_ROLE = await stakingVault.FREEZE_ADMIN_ROLE();
+  const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
 
   // Check current roles
   console.log("📊 Current Role Status:");
@@ -58,6 +59,7 @@ async function main() {
     { name: "UPGRADER_ROLE", hash: UPGRADER_ROLE },
     { name: "REWARDS_ADMIN_ROLE", hash: REWARDS_ADMIN_ROLE },
     { name: "FREEZE_ADMIN_ROLE", hash: FREEZE_ADMIN_ROLE },
+    { name: "NAV_ORACLE_UPDATER_ROLE", hash: NAV_ORACLE_UPDATER_ROLE },
   ];
 
   const missingRoles = [];

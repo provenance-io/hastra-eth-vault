@@ -33,15 +33,19 @@ const config: HardhatUserConfig = {
       chainId: 1,
     },
   },
+  etherscan: {
+    apiKey: {
+      sepolia: process.env.ETHERSCAN_API_KEY || "",
+      holesky: process.env.ETHERSCAN_API_KEY || "",
+      mainnet: process.env.ETHERSCAN_API_KEY || "",
+    },
+  },
   paths: {
     sources: "./contracts",
     tests: "./test",
     cache: "./cache",
     artifacts: "./artifacts",
   },
-  // Resolve Chainlink's OpenZeppelin dependency
-  // Chainlink uses @openzeppelin/contracts@4.8.3 internally
-  // Map it to our node_modules installation
   mocha: {
     timeout: 40000,
   },

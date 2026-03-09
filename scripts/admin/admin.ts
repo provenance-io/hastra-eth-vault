@@ -44,18 +44,34 @@ async function grantRole(
 
   let role: string;
   
-  switch (roleName.toUpperCase()) {
+  switch (roleName.toUpperCase().replace(/_ROLE$/, "")) {
+    case "DEFAULT_ADMIN":
+    case "ADMIN":
+      role = ethers.ZeroHash;
+      break;
     case "FREEZE_ADMIN":
       role = await vault.FREEZE_ADMIN_ROLE();
       break;
     case "REWARDS_ADMIN":
       role = await vault.REWARDS_ADMIN_ROLE();
       break;
+    case "NAV_ORACLE_UPDATER":
+      role = await vault.NAV_ORACLE_UPDATER_ROLE();
+      break;
     case "PAUSER":
       role = await vault.PAUSER_ROLE();
       break;
+    case "UPGRADER":
+      role = await vault.UPGRADER_ROLE();
+      break;
+    case "WHITELIST_ADMIN":
+      role = await vault.WHITELIST_ADMIN_ROLE();
+      break;
+    case "WITHDRAWAL_ADMIN":
+      role = await vault.WITHDRAWAL_ADMIN_ROLE();
+      break;
     default:
-      throw new Error(`Unknown role: ${roleName}`);
+      throw new Error(`Unknown role: ${roleName}. Available: DEFAULT_ADMIN, FREEZE_ADMIN, REWARDS_ADMIN, NAV_ORACLE_UPDATER, PAUSER, UPGRADER, WHITELIST_ADMIN, WITHDRAWAL_ADMIN`);
   }
 
   console.log(`Granting ${roleName} role to ${grantee}...`);
@@ -78,18 +94,34 @@ async function revokeRole(
 
   let role: string;
   
-  switch (roleName.toUpperCase()) {
+  switch (roleName.toUpperCase().replace(/_ROLE$/, "")) {
+    case "DEFAULT_ADMIN":
+    case "ADMIN":
+      role = ethers.ZeroHash;
+      break;
     case "FREEZE_ADMIN":
       role = await vault.FREEZE_ADMIN_ROLE();
       break;
     case "REWARDS_ADMIN":
       role = await vault.REWARDS_ADMIN_ROLE();
       break;
+    case "NAV_ORACLE_UPDATER":
+      role = await vault.NAV_ORACLE_UPDATER_ROLE();
+      break;
     case "PAUSER":
       role = await vault.PAUSER_ROLE();
       break;
+    case "UPGRADER":
+      role = await vault.UPGRADER_ROLE();
+      break;
+    case "WHITELIST_ADMIN":
+      role = await vault.WHITELIST_ADMIN_ROLE();
+      break;
+    case "WITHDRAWAL_ADMIN":
+      role = await vault.WITHDRAWAL_ADMIN_ROLE();
+      break;
     default:
-      throw new Error(`Unknown role: ${roleName}`);
+      throw new Error(`Unknown role: ${roleName}. Available: DEFAULT_ADMIN, FREEZE_ADMIN, REWARDS_ADMIN, NAV_ORACLE_UPDATER, PAUSER, UPGRADER, WHITELIST_ADMIN, WITHDRAWAL_ADMIN`);
   }
 
   console.log(`Revoking ${roleName} role from ${revokee}...`);
@@ -231,6 +263,22 @@ async function distributeStakingRewards(amount: bigint) {
 }
 
 /**
+ * Set max reward percent on StakingVault
+ */
+async function setMaxRewardPercent(percent: bigint) {
+  const [admin] = await ethers.getSigners();
+  const contractAddress = process.env.CONTRACT_ADDRESS || STAKING_VAULT_ADDRESS;
+  const vault = await ethers.getContractAt("StakingVault", contractAddress, admin);
+  const current = await vault.maxRewardPercent();
+  console.log(`Current maxRewardPercent: ${current.toString()} (${(Number(current) / 1e18 * 100).toFixed(2)}%)`);
+  const tx = await vault.setMaxRewardPercent(percent);
+  await tx.wait();
+  const updated = await vault.maxRewardPercent();
+  console.log(`✓ Updated maxRewardPercent: ${updated.toString()} (${(Number(updated) / 1e18 * 100).toFixed(2)}%)`);
+  console.log(`  Tx: ${tx.hash}`);
+}
+
+/**
  * Update redeem vault address
  */
 async function updateRedeemVault(newRedeemVault: string) {
@@ -288,6 +336,12 @@ async function delegateRole(
     case "REWARDS_ADMIN":
       roleHash = await yieldVault.REWARDS_ADMIN_ROLE();
       break;
+    case "NAV_ORACLE_UPDATER":
+      if (vaultType === "yield") {
+        throw new Error("NAV_ORACLE_UPDATER is only available on StakingVault");
+      }
+      roleHash = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
+      break;
     case "PAUSER":
       roleHash = await yieldVault.PAUSER_ROLE();
       break;
@@ -307,7 +361,7 @@ async function delegateRole(
       roleHash = await yieldVault.WITHDRAWAL_ADMIN_ROLE();
       break;
     default:
-      throw new Error(`Unknown role: ${roleName}. Available: DEFAULT_ADMIN, FREEZE_ADMIN, REWARDS_ADMIN, PAUSER, UPGRADER, WHITELIST_ADMIN, WITHDRAWAL_ADMIN`);
+      throw new Error(`Unknown role: ${roleName}. Available: DEFAULT_ADMIN, FREEZE_ADMIN, REWARDS_ADMIN, NAV_ORACLE_UPDATER, PAUSER, UPGRADER, WHITELIST_ADMIN, WITHDRAWAL_ADMIN`);
   }
   
   // Check current status
@@ -379,9 +433,10 @@ async function checkRole(
 
   let role: string;
   
-  switch (roleName.toUpperCase()) {
+  switch (roleName.toUpperCase().replace(/_ROLE$/, "")) {
+    case "DEFAULT_ADMIN":
     case "ADMIN":
-      role = await vault.DEFAULT_ADMIN_ROLE();
+      role = ethers.ZeroHash;
       break;
     case "FREEZE_ADMIN":
       role = await vault.FREEZE_ADMIN_ROLE();
@@ -389,11 +444,23 @@ async function checkRole(
     case "REWARDS_ADMIN":
       role = await vault.REWARDS_ADMIN_ROLE();
       break;
+    case "NAV_ORACLE_UPDATER":
+      role = await vault.NAV_ORACLE_UPDATER_ROLE();
+      break;
     case "PAUSER":
       role = await vault.PAUSER_ROLE();
       break;
+    case "UPGRADER":
+      role = await vault.UPGRADER_ROLE();
+      break;
+    case "WHITELIST_ADMIN":
+      role = await vault.WHITELIST_ADMIN_ROLE();
+      break;
+    case "WITHDRAWAL_ADMIN":
+      role = await vault.WITHDRAWAL_ADMIN_ROLE();
+      break;
     default:
-      throw new Error(`Unknown role: ${roleName}`);
+      throw new Error(`Unknown role: ${roleName}. Available: DEFAULT_ADMIN, FREEZE_ADMIN, REWARDS_ADMIN, NAV_ORACLE_UPDATER, PAUSER, UPGRADER, WHITELIST_ADMIN, WITHDRAWAL_ADMIN`);
   }
 
   const hasRole = await vault.hasRole(role, account);
@@ -485,6 +552,9 @@ async function main() {
     case "distribute-rewards":
       await distributeStakingRewards(ethers.parseUnits(args[1] || process.env.REWARD_AMOUNT || "0", 6));
       break;
+    case "set-max-reward-percent":
+      await setMaxRewardPercent(BigInt(args[1] || process.env.PERCENT || "0"));
+      break;
     case "update-redeem-vault":
       await updateRedeemVault(args[1] || process.env.NEW_REDEEM_VAULT || "");
       break;
@@ -506,6 +576,7 @@ async function main() {
       console.log("  create-epoch <index> <root> <total>");
       console.log("  complete-redeem <user>");
       console.log("  distribute-rewards <amount>");
+      console.log("  set-max-reward-percent <percent_1e18>  e.g. 200000000000000000 = 20%");
       console.log("  update-redeem-vault <address>");
       console.log("  check-role <contract> <role> <account>");
   }

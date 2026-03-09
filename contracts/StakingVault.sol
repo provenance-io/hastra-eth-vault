@@ -20,6 +20,14 @@ interface IYieldVault {
 }
 
 /**
+ * @notice Minimal interface for Chainlink FeedVerifier NAV oracle
+ */
+interface IFeedVerifier {
+    function priceOf(bytes32 feedId) external view returns (int192);
+    function timestampOf(bytes32 feedId) external view returns (uint32);
+}
+
+/**
  * @title StakingVault
  * @author Hastra
  * @notice Upgradeable ERC-4626 staking vault
@@ -41,6 +49,7 @@ contract StakingVault is
     bytes32 public constant REWARDS_ADMIN_ROLE = keccak256("REWARDS_ADMIN");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+    bytes32 public constant NAV_ORACLE_UPDATER_ROLE = keccak256("NAV_ORACLE_UPDATER");
     
     // ============ State Variables ============
 
@@ -58,8 +67,17 @@ contract StakingVault is
     /// @dev 20% = 0.2e18 = 200000000000000000. Prevents fat-finger or malicious reward calls.
     uint256 public maxRewardPercent;
 
-    /// @dev Storage gap for future upgrades (reserves 48 storage slots)
-    uint256[48] private __gap;
+    /// @notice Chainlink FeedVerifier NAV oracle address (optional — zero means no oracle)
+    address public navOracle;
+
+    /// @notice Maximum age of a NAV observation before it is considered stale
+    uint32 public navStalenessLimit;
+
+    /// @notice Chainlink feedId this vault reads NAV from (set alongside navOracle)
+    bytes32 public navFeedId;
+
+    /// @dev Storage gap for future upgrades (reserves 45 storage slots — 3 consumed above)
+    uint256[45] private __gap;
     
     // ============ Events ============
     
@@ -68,7 +86,8 @@ contract StakingVault is
     event AccountThawed(address indexed account);
     event YieldVaultUpdated(address oldVault, address newVault);
     event MaxRewardPercentUpdated(uint256 oldValue, uint256 newValue);
-    
+    event NavOracleUpdated(address oldOracle, address newOracle, bytes32 feedId);
+
     // ============ Errors ============
 
     error AccountIsFrozen();
@@ -77,6 +96,8 @@ contract StakingVault is
     error InvalidAddress();
     error ZeroAmount();
     error RewardExceedsMaxDelta(uint256 amount, uint256 maxAllowed);
+    error NavStale(uint32 age, uint32 limit);
+    error NavInvalid();
     
     // ============ Constructor ============
     
@@ -123,6 +144,7 @@ contract StakingVault is
         // grants these roles to separate addresses for security best practices:
         //   - FREEZE_ADMIN can freeze/thaw staker accounts
         //   - REWARDS_ADMIN can distribute wYLDS rewards to stakers
+        //   - NAV_ORACLE_UPDATER can call setNavOracle to point to a Chainlink FeedVerifier
         
         yieldVault = yieldVault_;
         maxRewardPercent = 0.2e18; // 20%
@@ -200,6 +222,49 @@ contract StakingVault is
     }
 
     /**
+     * @dev Convert wYLDS assets to PRIME shares using NAV when oracle is set.
+     *
+     * NAV = wYLDS per PRIME (1e18 scaled).
+     * shares = assets * 1e18 / NAV
+     *
+     * Falls back to standard ERC-4626 (totalAssets/totalSupply) when no oracle is set.
+     */
+    function _convertToShares(uint256 assets, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {
+        if (navOracle != address(0)) {
+            uint256 nav = getVerifiedNav(); // wYLDS per PRIME, 1e18 scaled
+            return assets.mulDiv(1e18, nav, rounding);
+        }
+        return super._convertToShares(assets, rounding);
+    }
+
+    /**
+     * @dev Convert PRIME shares to wYLDS assets using NAV when oracle is set.
+     *
+     * assets = shares * NAV / 1e18
+     *
+     * Falls back to standard ERC-4626 when no oracle is set.
+     */
+    function _convertToAssets(uint256 shares, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {
+        if (navOracle != address(0)) {
+            uint256 nav = getVerifiedNav(); // wYLDS per PRIME, 1e18 scaled
+            return shares.mulDiv(nav, 1e18, rounding);
+        }
+        return super._convertToAssets(shares, rounding);
+    }
+
+    /**
      * @dev Override deposit to track assets internally
      */
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) 
@@ -264,6 +329,46 @@ contract StakingVault is
         uint256 oldPercent = maxRewardPercent;
         maxRewardPercent = newPercent;
         emit MaxRewardPercentUpdated(oldPercent, newPercent);
+    }
+
+    /**
+     * @notice Set the Chainlink FeedVerifier NAV oracle address and feed ID.
+     * @param oracle Address of the deployed FeedVerifier contract, or address(0) to disable.
+     * @param stalenessLimit Maximum age (seconds) of a NAV observation before it is stale.
+     * @param feedId Chainlink feedId this vault should read NAV from.
+     */
+    function setNavOracle(address oracle, uint32 stalenessLimit, bytes32 feedId) external onlyRole(NAV_ORACLE_UPDATER_ROLE) {
+        address old = navOracle;
+        navOracle = oracle;
+        navStalenessLimit = stalenessLimit;
+        navFeedId = feedId;
+        emit NavOracleUpdated(old, oracle, feedId);
+    }
+
+    /**
+     * @notice Returns the latest verified NAV from the Chainlink oracle (1e18 scaled).
+     * @dev Reverts if the oracle is not set, the observation is stale, or the price is <= 0.
+     * @return nav Exchange rate in 1e18 units (e.g. 1e18 = 1.0 wYLDS per share).
+     */
+    function getVerifiedNav() public view returns (uint256 nav) {
+        if (navOracle == address(0)) revert InvalidAddress();
+        IFeedVerifier oracle = IFeedVerifier(navOracle);
+        uint32 ts = oracle.timestampOf(navFeedId);
+        uint32 age = uint32(block.timestamp) - ts;
+        if (age > navStalenessLimit) revert NavStale(age, navStalenessLimit);
+        int192 price = oracle.priceOf(navFeedId);
+        if (price <= 0) revert NavInvalid();
+        nav = uint256(uint192(price));
+    }
+
+    /**
+     * @notice Returns the total vault assets denominated in the NAV-adjusted underlying value.
+     * @dev totalAssets() is in wYLDS (6 decimals). NAV is 1e18 scaled.
+     *      Result is in 1e18 * 1e6 = 1e24 units — divide by 1e18 to get USDC (6 decimals).
+     * @return Total value = totalAssets * navRate / 1e18.
+     */
+    function getTotalValueAtNav() public view returns (uint256) {
+        return Math.mulDiv(totalAssets(), getVerifiedNav(), 1e18);
     }
     
     // ============ Freeze Functionality ============
