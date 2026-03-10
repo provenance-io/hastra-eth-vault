@@ -497,9 +497,11 @@ async function main() {
     console.log("  freeze               - Freeze an account");
     console.log("  thaw                 - Thaw an account");
     console.log("  check-role           - Check role membership");
+    console.log("  set-nav-oracle       - Set NAV oracle on StakingVault");
     console.log("\nExamples:");
     console.log("  COMMAND=delegate-role ROLE=REWARDS_ADMIN TARGET_ADDRESS=0x... npx hardhat run scripts/admin/admin.ts --network hoodi");
     console.log("  COMMAND=delegate-role ROLE=PAUSER TARGET_ADDRESS=0x... VAULT_TYPE=yield npx hardhat run scripts/admin/admin.ts --network hoodi");
+    console.log("  COMMAND=set-nav-oracle NAV_ORACLE=0x... NAV_STALENESS=3600 NAV_FEED_ID=0x... npx hardhat run scripts/admin/admin.ts --network sepolia");
     console.log("\nSee scripts/admin/README.md for detailed documentation");
     return;
   }
