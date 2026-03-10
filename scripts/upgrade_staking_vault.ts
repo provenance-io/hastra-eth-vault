@@ -53,13 +53,20 @@ async function main() {
   // Upgrade
   console.log("\n🔄 DEPLOYING NEW IMPLEMENTATION...");
   const StakingVaultNew = await ethers.getContractFactory("StakingVault");
+  const unsafeSkip = process.env.UNSAFE_SKIP_STORAGE_CHECK === "true";
+  if (unsafeSkip) console.log("⚠️  Skipping storage layout check (UNSAFE_SKIP_STORAGE_CHECK=true)");
   const upgraded = await upgrades.upgradeProxy(stakingVaultProxy, StakingVaultNew, {
     timeout: 120000,
     pollingInterval: 2000,
+    ...(unsafeSkip && { unsafeSkipStorageCheck: true }),
   });
   await upgraded.waitForDeployment();
 
-  const newImpl = await upgrades.erc1967.getImplementationAddress(stakingVaultProxy);
+  // Read impl from the ERC-1967 storage slot directly — upgrades.erc1967 can return
+  // a cached value equal to oldImpl. Reading the slot is always accurate.
+  const IMPL_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+  const rawSlot = await ethers.provider.getStorage(stakingVaultProxy, IMPL_SLOT);
+  const newImpl = "0x" + rawSlot.slice(-40);
   console.log("✅ Upgraded successfully");
   console.log("New implementation:", newImpl);
 

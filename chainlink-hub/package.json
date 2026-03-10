@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Chainlink Data Streams NAV Hub for Hastra",
   "scripts": {
+    "postinstall": "cd node_modules/@openzeppelin && ln -sfn contracts-4.8.3 'contracts@4.8.3'",
     "test": "hardhat test",
     "compile": "hardhat compile",
     "deploy:holesky": "hardhat run scripts/deploy.ts --network holesky",
@@ -11,7 +12,8 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@openzeppelin/contracts": "^4.9.6",
+    "@openzeppelin/contracts": "4.8.3",
+    "@openzeppelin/contracts-4.8.3": "npm:@openzeppelin/contracts@4.8.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.6",
     "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "hardhat": "^2.22.0",

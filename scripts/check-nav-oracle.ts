@@ -1,8 +1,18 @@
 // @ts-ignore
 import { ethers } from "hardhat";
+import { getDeploymentFile } from "./utils/getDeploymentFile";
+import * as fs from "fs";
+import * as path from "path";
 
 async function main() {
-  const proxy = "0xFf22361Ca2590761A2429D4127b7FF25E79fdC04";
+  const network = await ethers.provider.getNetwork();
+  const deploymentFile = getDeploymentFile(network.name);
+  const deployment = JSON.parse(fs.readFileSync(path.join(__dirname, "..", deploymentFile), "utf8"));
+  const proxy = deployment.contracts.stakingVault;
+
+  console.log(`StakingVault NAV Oracle state (${network.name}):`);
+  console.log("  Proxy:", proxy);
+
   const vault = await ethers.getContractAt("StakingVault", proxy);
 
   const [navOracle, navStaleness, navFeedId] = await Promise.all([
@@ -11,7 +21,6 @@ async function main() {
     vault.navFeedId(),
   ]);
 
-  console.log("StakingVault NAV Oracle state:");
   console.log("  navOracle:        ", navOracle);
   console.log("  navStalenessLimit:", navStaleness.toString(), "seconds");
   console.log("  navFeedId:        ", navFeedId);
