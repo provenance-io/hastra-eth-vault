@@ -71,6 +71,46 @@ async function fetchReport(clientId: string, clientSecret: string) {
   return data.report;
 }
 
+// ── Report body decoder ───────────────────────────────────────────────────────
+
+/**
+ * Extract expiresAt from the ABI-encoded fullReport binary.
+ *
+ * fullReport layout:
+ *   bytes32[3] reportContext  (96 bytes, fixed)
+ *   bytes      reportBlob     (dynamic, offset-encoded)
+ *   bytes32[]  rawRs
+ *   bytes32[]  rawSs
+ *   bytes32    rawVs
+ *
+ * reportBlob for the v3 NAV schema is ABI-encoded as:
+ *   (bytes32 feedId, uint32 validFromTimestamp, uint32 observationsTimestamp,
+ *    uint192 nativeFee, uint192 linkFee, uint32 expiresAt, int192 benchmarkPrice)
+ */
+function decodeExpiresAt(fullReport: string): number | null {
+  try {
+    const bytes = ethers.getBytes(fullReport);
+
+    // The head at bytes 96-127 contains the ABSOLUTE offset (from byte 0) to the
+    // reportBlob tail. Do NOT slice the context off before reading this offset.
+    const blobOffset = Number(ethers.toBigInt(bytes.slice(96, 128)));
+    const blobLen    = Number(ethers.toBigInt(bytes.slice(blobOffset, blobOffset + 32)));
+    const blobData   = bytes.slice(blobOffset + 32, blobOffset + 32 + blobLen);
+
+    // Report blob (v3 NAV schema) fields, each ABI-padded to 32 bytes:
+    //   [0] bytes32  feedId
+    //   [1] uint32   validFromTimestamp
+    //   [2] uint32   observationsTimestamp
+    //   [3] uint192  nativeFee
+    //   [4] uint192  linkFee
+    //   [5] uint32   expiresAt          ← index 5
+    //   [6] int192   benchmarkPrice
+    return Number(ethers.toBigInt(blobData.slice(5 * 32, 6 * 32)));
+  } catch {
+    return null;
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -90,11 +130,16 @@ async function main() {
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const report = await fetchReport(clientId, clientSecret);
 
+  const expiresAt = report.expiresAt ?? decodeExpiresAt(report.fullReport);
+  const expiresAtStr = expiresAt != null
+    ? `${expiresAt} (${new Date(expiresAt * 1000).toISOString()})`
+    : "n/a";
+
   console.log(`\n✅ Report received`);
   console.log(`   feedID:                ${report.feedID}`);
   console.log(`   observationsTimestamp: ${report.observationsTimestamp}`);
   console.log(`   validFromTimestamp:    ${report.validFromTimestamp}`);
-  console.log(`   expiresAt:             ${report.expiresAt ?? "n/a"}`);
+  console.log(`   expiresAt:             ${expiresAtStr}`);
   console.log(`   fullReport:            ${report.fullReport}`);
 
   if (MODE === "read") {
