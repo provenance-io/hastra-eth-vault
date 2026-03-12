@@ -83,8 +83,6 @@ jobs:
     - uses: actions/setup-node@v4
       with:
         node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: chainlink-hub/package-lock.json
     - name: Install chainlink-hub dependencies
       run: cd chainlink-hub && npm install
     - name: Run chainlink-hub tests
