@@ -50,11 +50,19 @@ async function main() {
   console.log("  Asset (wYLDS):", asset);
   console.log("  Paused:", paused);
 
-  // Upgrade
+  // Upgrade — forceImport re-registers the proxy with OZ if the manifest was wiped
   console.log("\n🔄 DEPLOYING NEW IMPLEMENTATION...");
   const StakingVaultNew = await ethers.getContractFactory("StakingVault");
   const unsafeSkip = process.env.UNSAFE_SKIP_STORAGE_CHECK === "true";
   if (unsafeSkip) console.log("⚠️  Skipping storage layout check (UNSAFE_SKIP_STORAGE_CHECK=true)");
+
+  try {
+    await upgrades.forceImport(stakingVaultProxy, StakingVaultNew, { kind: "uups" });
+    console.log("ℹ️  Proxy re-registered via forceImport (manifest was missing)");
+  } catch {
+    // Already registered — normal path
+  }
+
   const upgraded = await upgrades.upgradeProxy(stakingVaultProxy, StakingVaultNew, {
     timeout: 120000,
     pollingInterval: 2000,
