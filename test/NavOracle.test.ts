@@ -35,6 +35,15 @@ describe("StakingVault — NAV Oracle", function () {
     await yieldVault.grantRole(YIELD_REWARDS, await stakingVault.getAddress());
     await yieldVault.grantRole(YIELD_REWARDS, owner.address);
 
+    // Grant NAV_ORACLE_UPDATER_ROLE to owner for tests
+    const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
+    await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, owner.address);
+
+    // Set oracle at NAV=1.0 so the fixture deposit below succeeds
+    const seedNow = await time.latest();
+    await oracle.setPrice(FEED_ID, NAV_1x, seedNow);
+    await stakingVault.setNavOracle(await oracle.getAddress(), 7 * 24 * 3600, FEED_ID);
+
     const depositAmt = ethers.parseUnits("1000", 6); // 1000 USDC
     await usdc.mint(user.address, depositAmt);
     await usdc.connect(user).approve(await yieldVault.getAddress(), depositAmt);
@@ -44,9 +53,8 @@ describe("StakingVault — NAV Oracle", function () {
     await yieldVault.connect(user).approve(await stakingVault.getAddress(), wyldsAmt);
     await stakingVault.connect(user).deposit(wyldsAmt, user.address);
 
-    // Grant NAV_ORACLE_UPDATER_ROLE to owner for tests
-    const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
-    await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, owner.address);
+    // Clear the oracle so individual tests can set their own state
+    await stakingVault.setNavOracle(ethers.ZeroAddress, 0, ethers.ZeroHash);
 
     return { stakingVault, yieldVault, usdc, oracle, owner, user };
   }
@@ -254,9 +262,9 @@ describe("StakingVault — NAV Oracle", function () {
       expect(received).to.be.closeTo(expected, ethers.parseUnits("0.01", 6));
     });
 
-    it("without oracle: falls back to standard ERC-4626 share price", async function () {
+    it("without oracle: deposit reverts with InvalidAddress()", async function () {
       const { stakingVault, yieldVault, usdc, user } = await loadFixture(deployFixture);
-      // navOracle is address(0) — standard ERC-4626 applies
+      // navOracle is address(0) — getVerifiedNav() reverts with InvalidAddress()
       const depositAmt = ethers.parseUnits("100", 6);
       const [, , , depositor] = await ethers.getSigners();
 
@@ -265,10 +273,10 @@ describe("StakingVault — NAV Oracle", function () {
       await yieldVault.connect(depositor).deposit(depositAmt, depositor.address);
       await yieldVault.connect(depositor).approve(await stakingVault.getAddress(), depositAmt);
 
-      // Should not revert — uses standard totalAssets/totalSupply
+      // Now reverts with InvalidAddress() because oracle is required
       await expect(
         stakingVault.connect(depositor).deposit(depositAmt, depositor.address)
-      ).to.not.be.reverted;
+      ).to.be.revertedWithCustomError(stakingVault, "InvalidAddress");
     });
   });
 });

@@ -5,6 +5,7 @@
   "scripts": {
     "postinstall": "cd node_modules/@openzeppelin && ln -sfn contracts-4.8.3 'contracts@4.8.3'",
     "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
     "compile": "hardhat compile",
     "deploy:holesky": "hardhat run scripts/deploy.ts --network holesky",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",

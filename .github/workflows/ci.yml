@@ -74,6 +74,29 @@ jobs:
       with:
         files: ./coverage/lcov.info
         fail_ci_if_error: false
+
+  test-chainlink-hub:
+    runs-on: ubuntu-latest
+    needs: compile
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: chainlink-hub/package-lock.json
+    - name: Install chainlink-hub dependencies
+      run: cd chainlink-hub && npm install
+    - name: Run chainlink-hub tests
+      run: cd chainlink-hub && npm test
+    - name: Generate chainlink-hub coverage
+      run: cd chainlink-hub && npm run test:coverage
+    - name: Upload chainlink-hub coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./chainlink-hub/coverage/lcov.info
+        flags: chainlink-hub
+        fail_ci_if_error: false
         
   extract-abis:
     runs-on: ubuntu-latest
@@ -118,14 +141,15 @@ jobs:
         
   status-check:
     runs-on: ubuntu-latest
-    needs: [lint, compile, test]
+    needs: [lint, compile, test, test-chainlink-hub]
     if: always()
     steps:
     - name: Check status
       run: |
         if [ "${{ needs.lint.result }}" != "success" ] || \
            [ "${{ needs.compile.result }}" != "success" ] || \
-           [ "${{ needs.test.result }}" != "success" ]; then
+           [ "${{ needs.test.result }}" != "success" ] || \
+           [ "${{ needs.test-chainlink-hub.result }}" != "success" ]; then
           echo "❌ CI failed"
           exit 1
         fi

@@ -174,7 +174,9 @@ contract StakingVault is
         bytes32 r,
         bytes32 s
     ) external whenNotPaused nonReentrant returns (uint256 shares) {
-        IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s);
+        // Silently ignore a permit revert — a front-runner may have consumed the
+        // signature first, but the allowance is already set so deposit() will succeed.
+        try IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s) {} catch {}
         return super.deposit(assets, receiver);
     }
     
@@ -227,7 +229,7 @@ contract StakingVault is
      * NAV = wYLDS per PRIME (1e18 scaled).
      * shares = assets * 1e18 / NAV
      *
-     * Falls back to standard ERC-4626 (totalAssets/totalSupply) when no oracle is set.
+     * Reverts if NAV oracle is not set — no fallback to ERC-4626 ratio.
      */
     function _convertToShares(uint256 assets, Math.Rounding rounding)
         internal
@@ -236,19 +238,15 @@ contract StakingVault is
         override
         returns (uint256)
     {
-        if (navOracle != address(0)) {
-            uint256 nav = getVerifiedNav(); // wYLDS per PRIME, 1e18 scaled
-            return assets.mulDiv(1e18, nav, rounding);
-        }
-        return super._convertToShares(assets, rounding);
+        uint256 nav = getVerifiedNav(); // reverts if oracle not set or price stale
+        return assets.mulDiv(1e18, nav, rounding);
     }
 
     /**
-     * @dev Convert PRIME shares to wYLDS assets using NAV when oracle is set.
+     * @dev Convert PRIME shares to wYLDS assets using NAV.
+     * Reverts if NAV oracle is not set — no fallback to ERC-4626 ratio.
      *
      * assets = shares * NAV / 1e18
-     *
-     * Falls back to standard ERC-4626 when no oracle is set.
      */
     function _convertToAssets(uint256 shares, Math.Rounding rounding)
         internal
@@ -257,11 +255,8 @@ contract StakingVault is
         override
         returns (uint256)
     {
-        if (navOracle != address(0)) {
-            uint256 nav = getVerifiedNav(); // wYLDS per PRIME, 1e18 scaled
-            return shares.mulDiv(nav, 1e18, rounding);
-        }
-        return super._convertToAssets(shares, rounding);
+        uint256 nav = getVerifiedNav(); // reverts if oracle not set or price stale
+        return shares.mulDiv(nav, 1e18, rounding);
     }
 
     /**

@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
-import type { MockUSDC, YieldVault, StakingVault } from "../../typechain-types";
+import type { MockUSDC, YieldVault, StakingVault, MockFeedVerifier } from "../../typechain-types";
 
 describe("StakingVault", function () {
   // ============ Fixtures ============
@@ -74,6 +74,16 @@ describe("StakingVault", function () {
     await yieldVault.connect(user3).approve(await stakingVault.getAddress(), ethers.MaxUint256);
     await yieldVault.connect(rewardsAdmin).approve(await stakingVault.getAddress(), ethers.MaxUint256);
 
+    // Setup NAV oracle at NAV=1.0 (required — no fallback path)
+    const FEED_ID = ethers.encodeBytes32String("TEST_FEED");
+    const MockFeedVerifier = await ethers.getContractFactory("MockFeedVerifier");
+    const oracle = await MockFeedVerifier.deploy() as unknown as MockFeedVerifier;
+    const now = await time.latest();
+    await oracle.setPrice(FEED_ID, ethers.parseUnits("1", 18), now);
+    const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
+    await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, owner.address);
+    await stakingVault.setNavOracle(await oracle.getAddress(), 7 * 24 * 3600, FEED_ID);
+
     return { 
       stakingVault, 
       yieldVault, 
@@ -83,7 +93,9 @@ describe("StakingVault", function () {
       rewardsAdmin, 
       user1, 
       user2, 
-      user3
+      user3,
+      oracle,
+      FEED_ID
     };
   }
 
@@ -163,7 +175,7 @@ describe("StakingVault", function () {
 
   describe("Rewards Distribution", function () {
     it("Should distribute rewards and increase share value", async function () {
-      const { stakingVault, yieldVault, rewardsAdmin, user1 } = 
+      const { stakingVault, yieldVault, rewardsAdmin, user1, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       const stakeAmount = ethers.parseUnits("1000", 6);
@@ -178,6 +190,9 @@ describe("StakingVault", function () {
       const receipt = await tx.wait();
       const block = await ethers.provider.getBlock(receipt!.blockNumber);
       
+      // Update oracle NAV to reflect 10% reward (1000 + 100 / 1000 = 1.1)
+      await oracle.setPrice(FEED_ID, ethers.parseUnits("1.1", 18), await time.latest());
+
       await expect(tx)
         .to.emit(stakingVault, "RewardsDistributed")
         .withArgs(rewardAmount, block!.timestamp);
@@ -195,7 +210,7 @@ describe("StakingVault", function () {
     });
 
     it("Should distribute rewards proportionally to all stakers", async function () {
-      const { stakingVault, rewardsAdmin, user1, user2 } = 
+      const { stakingVault, rewardsAdmin, user1, user2, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       const stake1 = ethers.parseUnits("1000", 6);
@@ -210,6 +225,9 @@ describe("StakingVault", function () {
       const shares2Before = await stakingVault.balanceOf(user2.address);
       
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
+
+      // Update oracle NAV to reflect 10% reward (3000 + 300 / 3000 = 1.1)
+      await oracle.setPrice(FEED_ID, ethers.parseUnits("1.1", 18), await time.latest());
       
       const assets1After = await stakingVault.convertToAssets(shares1Before);
       const assets2After = await stakingVault.convertToAssets(shares2Before);
@@ -302,7 +320,7 @@ describe("StakingVault", function () {
     });
 
     it("Should update conversion after rewards", async function () {
-      const { stakingVault, rewardsAdmin, user1 } = 
+      const { stakingVault, rewardsAdmin, user1, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       const stakeAmount = ethers.parseUnits("1000", 6);
@@ -317,6 +335,9 @@ describe("StakingVault", function () {
       // Add rewards
       const rewardAmount = ethers.parseUnits("100", 6);
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
+
+      // Update oracle NAV to reflect 10% reward (1000 + 100 / 1000 = 1.1)
+      await oracle.setPrice(FEED_ID, ethers.parseUnits("1.1", 18), await time.latest());
       
       // After rewards: shares worth more
       assets = await stakingVault.convertToAssets(shares);
@@ -347,7 +368,7 @@ describe("StakingVault", function () {
 
   describe("Integration", function () {
     it("Should handle complete staking lifecycle (Deposit -> Reward -> Redeem)", async function () {
-      const { stakingVault, yieldVault, rewardsAdmin, user1 } = 
+      const { stakingVault, yieldVault, rewardsAdmin, user1, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       // 1. Stake
@@ -357,6 +378,9 @@ describe("StakingVault", function () {
       // 2. Receive rewards
       const rewardAmount = ethers.parseUnits("100", 6);
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
+
+      // Update oracle NAV to reflect 10% reward (1000 + 100 / 1000 = 1.1)
+      await oracle.setPrice(FEED_ID, ethers.parseUnits("1.1", 18), await time.latest());
       
       // 3. Redeem (Instant Exit)
       const primeBalance = await stakingVault.balanceOf(user1.address);
@@ -601,7 +625,7 @@ describe("StakingVault", function () {
     });
 
     it("Should handle withdraw and redeem with different share/asset ratios after rewards", async function () {
-      const { stakingVault, yieldVault, rewardsAdmin, user1 } = 
+      const { stakingVault, yieldVault, rewardsAdmin, user1, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       const depositAmount = ethers.parseUnits("1000", 6);
@@ -609,6 +633,9 @@ describe("StakingVault", function () {
       
       const rewardAmount = ethers.parseUnits("100", 6); // 10% of deposit, within 20% delta
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
+
+      // Update oracle NAV to reflect 10% reward (1000 + 100 / 1000 = 1.1)
+      await oracle.setPrice(FEED_ID, ethers.parseUnits("1.1", 18), await time.latest());
       
       const totalAssets = await stakingVault.totalAssets();
       const totalShares = await stakingVault.totalSupply();

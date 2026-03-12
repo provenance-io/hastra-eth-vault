@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import type { MockUSDC, YieldVault, StakingVault } from "../../typechain-types";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
+import type { MockUSDC, YieldVault, StakingVault, MockFeedVerifier } from "../../typechain-types";
 
 describe("StakingVault - Inflation Attack Protection", function () {
   
@@ -55,7 +55,17 @@ describe("StakingVault - Inflation Attack Protection", function () {
     await yieldVault.connect(attacker).approve(await stakingVault.getAddress(), ethers.MaxUint256);
     await yieldVault.connect(victim).approve(await stakingVault.getAddress(), ethers.MaxUint256);
 
-    return { stakingVault, yieldVault, usdc, owner, attacker, victim };
+    // Setup NAV oracle at NAV=1.0 (required — no fallback path)
+    const FEED_ID = ethers.encodeBytes32String("TEST_FEED");
+    const MockFeedVerifier = await ethers.getContractFactory("MockFeedVerifier");
+    const oracle = await MockFeedVerifier.deploy() as unknown as MockFeedVerifier;
+    const now = await time.latest();
+    await oracle.setPrice(FEED_ID, ethers.parseUnits("1", 18), now);
+    const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
+    await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, owner.address);
+    await stakingVault.setNavOracle(await oracle.getAddress(), 7 * 24 * 3600, FEED_ID);
+
+    return { stakingVault, yieldVault, usdc, owner, attacker, victim, oracle, FEED_ID };
   }
 
   it("Should protect against inflation attack via donation", async function () {
