@@ -88,17 +88,11 @@ describe("HastraNavEngine - int192 Type Safety Tests", function () {
       expect(rate).to.be.lte(MAX_RATE); // <= 3.0
     });
 
-    it("Should alert if rate would overflow int192 practical bounds", async function () {
+    it("Should revert if rate would exceed practical bounds (> MAX_RATE)", async function () {
       const supply = ethers.parseEther("1000");
       const tvl = ethers.parseEther("5000"); // Rate = 5.0 (> MAX_RATE)
-      
-      // Should emit alert for exceeding MAX_RATE
       await expect(navEngine.connect(updater).updateRate(supply, tvl))
-        .to.emit(navEngine, "AlertInvalidRate");
-      
-      // Rate should remain 0 (not updated)
-      const rate = await navEngine.getRate();
-      expect(rate).to.equal(0);
+        .to.be.revertedWithCustomError(navEngine, "RateOutOfBounds");
     });
 
     it("Should verify type is int192 not uint256", async function () {
@@ -325,8 +319,7 @@ describe("HastraNavEngine - int192 Type Safety Tests", function () {
   });
 
   describe("Rate Boundary Edge Cases", function () {
-    it("Should alert when rate below minRate", async function () {
-      // Deploy fresh contract to avoid TVL difference check
+    it("Should revert when rate below minRate", async function () {
       const [testOwner, testUpdater] = await ethers.getSigners();
       const HastraNavEngine = await ethers.getContractFactory("HastraNavEngine");
       const testEngine = await upgrades.deployProxy(
@@ -335,17 +328,11 @@ describe("HastraNavEngine - int192 Type Safety Tests", function () {
         { initializer: "initialize", kind: "uups" }
       ) as unknown as HastraNavEngine;
       await testEngine.waitForDeployment();
-      
-      // First update: rate below minRate (0.5)
+
       const supply = ethers.parseEther("1000");
-      const tvl = ethers.parseEther("450"); // Rate = 0.45
-      
+      const tvl = ethers.parseEther("450"); // Rate = 0.45 < minRate 0.5
       await expect(testEngine.connect(testUpdater).updateRate(supply, tvl))
-        .to.emit(testEngine, "AlertInvalidRate");
-      
-      // Rate should remain 0 (not updated)
-      const rate = await testEngine.getRate();
-      expect(rate).to.equal(0);
+        .to.be.revertedWithCustomError(testEngine, "RateOutOfBounds");
     });
 
     it("Should revert if calculated rate overflows int192", async function () {

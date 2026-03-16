@@ -26,21 +26,18 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
     }
 
     // ERC-7201: keccak256(abi.encode(uint256(keccak256("hastra.storage.NavEngine")) - 1)) & ~bytes32(uint256(0xff))
-    // NOTE: Testnet deployments (Hoodi, Sepolia) use legacy slot 0x8f3c1e5d7c0e9c5c9d8e7f6b5a4d3c2b1a0f9e8d7c6b5a4d3c2b1a0f9e8d7c00
-    //       Changing slot on existing deployments would brick the contract (state lives at old slot).
-    //       This ERC-7201 slot is for mainnet fresh deploy only.
     bytes32 private constant NAV_ENGINE_STORAGE_SLOT =
         0x993f277ac229bbe15da412d652fbea5e3a685c7d321444df0ee913d0c6efbc00;
 
     uint256 public constant RATE_PRECISION = 1e18;
 
+    error TVLIsZero();
+    error TVLDifferenceExceeded(uint256 previousTVL, uint256 newTVL, uint256 difference, uint256 maxAllowed);
+    error RateOutOfBounds(int192 rate, int192 minRate, int192 maxRate);
     event UpdaterSet(address indexed updater);
     event MinRateSet(int192 minRate);
     event MaxRateSet(int192 maxRate);
     event MaxDifferencePercentSet(uint256 maxDifferencePercent);
-    event AlertInvalidTVL(uint256 indexed tvl, uint256 indexed timestamp);
-    event AlertInvalidTVLDifference(uint256 indexed previousTVL, uint256 indexed newTVL, uint256 indexed timestamp);
-    event AlertInvalidRate(int192 indexed rate, uint256 indexed timestamp);
     event RateUpdated(int192 indexed rate, uint256 totalSupply, uint256 totalTVL, uint256 indexed timestamp);
 
     modifier onlyUpdater() {
@@ -86,8 +83,7 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
         NavEngineStorage storage $ = _getStorage();
 
         if (totalTVL_ == 0) {
-            emit AlertInvalidTVL(totalTVL_, block.timestamp);
-            return $.latestRate;
+            revert TVLIsZero();
         }
 
         if ($.latestUpdateTime != 0) {
@@ -98,8 +94,7 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
                 difference = Math.mulDiv(totalTVL_ - $.latestTVL, RATE_PRECISION, totalTVL_);
             }
             if (difference > $.maxDifferencePercent) {
-                emit AlertInvalidTVLDifference($.latestTVL, totalTVL_, block.timestamp);
-                return $.latestRate;
+                revert TVLDifferenceExceeded($.latestTVL, totalTVL_, difference, $.maxDifferencePercent);
             }
         }
 
@@ -108,8 +103,7 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
         int192 newRate = int192(int256(calculatedRate));
 
         if (newRate < $.minRate || newRate > $.maxRate) {
-            emit AlertInvalidRate(newRate, block.timestamp);
-            return $.latestRate;
+            revert RateOutOfBounds(newRate, $.minRate, $.maxRate);
         }
 
         $.latestTVL = totalTVL_;

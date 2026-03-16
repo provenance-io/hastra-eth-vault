@@ -24,7 +24,6 @@ interface IYieldVault {
  */
 interface IFeedVerifier {
     function priceOf(bytes32 feedId) external view returns (int192);
-    function timestampOf(bytes32 feedId) external view returns (uint32);
 }
 
 /**
@@ -70,7 +69,7 @@ contract StakingVault is
     /// @notice Chainlink FeedVerifier NAV oracle address (optional — zero means no oracle)
     address public navOracle;
 
-    /// @notice Maximum age of a NAV observation before it is considered stale
+    /// @dev Deprecated — staleness is now enforced by FeedVerifier.priceOf(). Kept for storage layout.
     uint32 public navStalenessLimit;
 
     /// @notice Chainlink feedId this vault reads NAV from (set alongside navOracle)
@@ -96,7 +95,6 @@ contract StakingVault is
     error InvalidAddress();
     error ZeroAmount();
     error RewardExceedsMaxDelta(uint256 amount, uint256 maxAllowed);
-    error NavStale(uint32 age, uint32 limit);
     error NavInvalid();
     
     // ============ Constructor ============
@@ -329,35 +327,33 @@ contract StakingVault is
     /**
      * @notice Set the Chainlink FeedVerifier NAV oracle address and feed ID.
      * @param oracle Address of the deployed FeedVerifier contract, or address(0) to disable.
-     * @param stalenessLimit Maximum age (seconds) of a NAV observation before it is stale.
      * @param feedId Chainlink feedId this vault should read NAV from.
      */
-    function setNavOracle(address oracle, uint32 stalenessLimit, bytes32 feedId) external onlyRole(NAV_ORACLE_UPDATER_ROLE) {
+    function setNavOracle(address oracle, bytes32 feedId) external onlyRole(NAV_ORACLE_UPDATER_ROLE) {
         address old = navOracle;
         navOracle = oracle;
-        navStalenessLimit = stalenessLimit;
         navFeedId = feedId;
         emit NavOracleUpdated(old, oracle, feedId);
     }
 
     /**
      * @notice Returns the latest verified NAV from the Chainlink oracle (1e18 scaled).
-     * @dev Reverts if the oracle is not set, the observation is stale, or the price is <= 0.
+     * @dev Reverts if the oracle is not set or the price is <= 0.
+     *      Staleness is enforced by FeedVerifier.priceOf() itself (via maxStaleness).
      * @return nav Exchange rate in 1e18 units (e.g. 1e18 = 1.0 wYLDS per share).
      */
     function getVerifiedNav() public view returns (uint256 nav) {
         if (navOracle == address(0)) revert InvalidAddress();
-        IFeedVerifier oracle = IFeedVerifier(navOracle);
-        uint32 ts = oracle.timestampOf(navFeedId);
-        uint32 age = uint32(block.timestamp) - ts;
-        if (age > navStalenessLimit) revert NavStale(age, navStalenessLimit);
-        int192 price = oracle.priceOf(navFeedId);
+        int192 price = IFeedVerifier(navOracle).priceOf(navFeedId);
         if (price <= 0) revert NavInvalid();
         nav = uint256(uint192(price));
     }
 
     /**
-     * @notice Returns the total vault assets denominated in the NAV-adjusted underlying value.
+     * @notice Returns the total vault asset{
+  "totalSupply_": "1774451557000000000000",
+  "totalTVL_": "3098740125000000000000"
+}s denominated in the NAV-adjusted underlying value.
      * @dev totalAssets() is in wYLDS (6 decimals). NAV is 1e18 scaled.
      *      Result is in 1e18 * 1e6 = 1e24 units — divide by 1e18 to get USDC (6 decimals).
      * @return Total value = totalAssets * navRate / 1e18.

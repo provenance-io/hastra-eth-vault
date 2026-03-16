@@ -105,18 +105,11 @@ describe("HastraNavEngine", function () {
       expect(safeRate).to.be.lt(int192Max);
     });
 
-    it("Should alert if calculated rate exceeds bounds (int192 safety)", async function () {
-      // Try to create a rate that exceeds MAX_RATE
+    it("Should revert if calculated rate exceeds bounds", async function () {
       const supply = ethers.parseEther("1");
-      const excessiveTVL = ethers.parseEther("5"); // Would give rate of 5.0 (> MAX_RATE of 3.0)
-      
-      // Should emit alert and keep old rate
+      const excessiveTVL = ethers.parseEther("5"); // rate = 5.0 > maxRate 3.0
       await expect(navEngine.connect(updater).updateRate(supply, excessiveTVL))
-        .to.emit(navEngine, "AlertInvalidRate");
-      
-      // Rate should not have changed
-      const rate = await navEngine.getRate();
-      expect(rate).to.not.equal(ethers.parseEther("5"));
+        .to.be.revertedWithCustomError(navEngine, "RateOutOfBounds");
     });
 
     it("Should revert if not updater", async function () {
@@ -131,52 +124,29 @@ describe("HastraNavEngine", function () {
       ).to.be.revertedWith("Total supply is zero");
     });
 
-    it("Should emit alert and return last rate if TVL is zero", async function () {
-      // First update with valid data
+    it("Should revert if TVL is zero", async function () {
       await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
-      const firstRate = await navEngine.getRate();
-
-      // Try to update with zero TVL
-      const tx = await navEngine.connect(updater).updateRate(totalSupply, 0);
-      await expect(tx).to.emit(navEngine, "AlertInvalidTVL");
-
-      // Should return last good rate
-      expect(await navEngine.getRate()).to.equal(firstRate);
+      await expect(navEngine.connect(updater).updateRate(totalSupply, 0))
+        .to.be.revertedWithCustomError(navEngine, "TVLIsZero");
     });
 
-    it("Should emit alert if rate below minRate", async function () {
-      const lowTVL = ethers.parseEther("400"); // Will give rate = 0.4
-      const tx = await navEngine.connect(updater).updateRate(totalSupply, lowTVL);
-      
-      await expect(tx).to.emit(navEngine, "AlertInvalidRate");
-      
-      // Rate should remain 0 (initial value)
-      expect(await navEngine.getRate()).to.equal(0);
+    it("Should revert if rate below minRate", async function () {
+      const lowTVL = ethers.parseEther("400"); // rate = 0.4 < minRate 0.5
+      await expect(navEngine.connect(updater).updateRate(totalSupply, lowTVL))
+        .to.be.revertedWithCustomError(navEngine, "RateOutOfBounds");
     });
 
-    it("Should emit alert if rate above maxRate", async function () {
-      const highTVL = ethers.parseEther("3500"); // Will give rate = 3.5
-      const tx = await navEngine.connect(updater).updateRate(totalSupply, highTVL);
-      
-      await expect(tx).to.emit(navEngine, "AlertInvalidRate");
-      
-      // Rate should remain 0 (initial value)
-      expect(await navEngine.getRate()).to.equal(0);
+    it("Should revert if rate above maxRate", async function () {
+      const highTVL = ethers.parseEther("3500"); // rate = 3.5 > maxRate 3.0
+      await expect(navEngine.connect(updater).updateRate(totalSupply, highTVL))
+        .to.be.revertedWithCustomError(navEngine, "RateOutOfBounds");
     });
 
-    it("Should emit alert if TVL changes too much", async function () {
-      // First update
+    it("Should revert if TVL changes too much", async function () {
       await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
-      const firstRate = await navEngine.getRate();
-
-      // Second update with >10% TVL change
-      const newTVL = ethers.parseEther("1700"); // ~13% increase
-      const tx = await navEngine.connect(updater).updateRate(totalSupply, newTVL);
-      
-      await expect(tx).to.emit(navEngine, "AlertInvalidTVLDifference");
-      
-      // Rate should remain unchanged
-      expect(await navEngine.getRate()).to.equal(firstRate);
+      const newTVL = ethers.parseEther("1700"); // ~13% increase > 10% maxDiff
+      await expect(navEngine.connect(updater).updateRate(totalSupply, newTVL))
+        .to.be.revertedWithCustomError(navEngine, "TVLDifferenceExceeded");
     });
 
     it("Should allow TVL change within threshold", async function () {

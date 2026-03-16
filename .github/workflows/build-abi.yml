@@ -41,7 +41,6 @@ jobs:
         jq '.abi' artifacts/contracts/mocks/MockUSDC.sol/MockUSDC.json > abi-exports/MockUSDC.json
 
         # Chainlink NAV contracts
-        jq '.abi' chainlink-hub/artifacts/contracts/HastraHub.sol/HastraHub.json > abi-exports/HastraHub.json
         jq '.abi' chainlink-hub/artifacts/contracts/FeedVerifier.sol/FeedVerifier.json > abi-exports/FeedVerifier.json
 
         # Create version info

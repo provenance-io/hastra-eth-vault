@@ -87,10 +87,8 @@ async function main() {
     let outputFile: string;
     if (network.name === "mainnet") {
         outputFile = "deployment_nav_mainnet.json";
-    } else if (network.name === "hoodi" || network.name === "sepolia") {
-        outputFile = "deployment_nav_testnet.json";
     } else {
-        outputFile = `deployment_nav_${network.name}.json`;
+        outputFile = `deployment_nav_testnet_${network.name}.json`;
     }
 
     const outputPath = path.join(process.cwd(), outputFile);

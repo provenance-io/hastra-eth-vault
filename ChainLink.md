@@ -43,7 +43,7 @@ SVM —> https://docs.chain.link/data-streams/tutorials/solana-onchain-report-ve
 1. **Off-Chain:** NAV engine calculates the exchangeRate  `Exchange Rate = 1.3333333`.
 2. **Chainlink:** Captures this and generates a **Signed Report**.
 3. **Bot:** Sees the new report in the API.
-4. **Bot Action 1:** Sends TX to Ethereum `HastraHubETH.updateRate(report)`.
+4. **Bot Action 1:** Sends TX to Ethereum `FeedVerifier.submitReport(report)`.
 5. **Bot Action 2:** Sends TX to Solana `hastra_hub.update_rate(report)`.
 6. **Result:** Both chains verify the *exact same* source data independently using their local Chainlink Verifiers.
 
@@ -68,7 +68,7 @@ The Replicator is a lightweight, stateless automation service ) responsible for 
     1. **Monitor:** Listens for the "Report Generated" signal from the Chainlink Data Streams API (corresponding to your off-chain NAV update).
     2. **Fetch:** Downloads the **Signed Report (Schema v7)** payload.
     3. **Broadcast (Atomic-ish):** Submits two parallel transactions:
-        - **Tx A (Ethereum):** Calls `HastraHub.updateRate(report)`
+        - **Tx A (Ethereum):** Calls `FeedVerifier.submitReport(report)`
         - **Tx B (Solana):** Calls `hastra_hub::update_rate(report)`
 - **Key Responsibility:**
     - **Gas Management:** Holds ETH and SOL to pay for the "push" transactions.
@@ -79,7 +79,7 @@ The Replicator is a lightweight, stateless automation service ) responsible for 
 
 The "Hubs" are the gatekeepers. They are the *only* contracts in your system authorized to write the global exchange rate. They act as a firewall, rejecting any data that lacks a valid signature from the Chainlink DON.
 
-### Ethereum Hub (`HastraHub.sol`)
+### Ethereum Hub (`FeedVerifier.sol`)
 
 A Consumer Contract deployed on Ethereum Mainnet.
 

@@ -85,7 +85,11 @@ contract FeedVerifier is
     error NothingToWithdraw();
     error StaleReport(uint32 newTimestamp, uint32 storedTimestamp);
     error ExpiredReport(uint32 expiresAt, uint32 currentTime);
+    error ReportNotYetValid(uint32 validFromTimestamp, uint32 currentTime);
+    error StalePrice(bytes32 feedId, uint32 lastTimestamp, uint32 currentTime);
+    error PriceNotInitialized(bytes32 feedId);
     error ZeroAddress();
+    error InvalidFeedId(bytes32 expected, bytes32 actual);
 
     // ── Events ────────────────────────────────────────────────────────────────
     event DecodedPrice(
@@ -93,6 +97,8 @@ contract FeedVerifier is
         int192  price,
         uint32  observationsTimestamp
     );
+    event FeedIdUpdated(bytes32 indexed oldFeedId, bytes32 indexed newFeedId);
+    event MaxStalenessUpdated(uint32 oldMaxStaleness, uint32 newMaxStaleness);
 
     // ── State ─────────────────────────────────────────────────────────────────
     IVerifierProxy public verifierProxy;
@@ -106,8 +112,15 @@ contract FeedVerifier is
     /// @notice Most recently updated feedId (convenience for single-feed setups).
     bytes32 public lastFeedId;
 
+    /// @notice When non-zero, only reports with this feedId are accepted.
+    bytes32 public allowedFeedId;
+
+    /// @notice Maximum age (seconds) a stored price may be when read via priceOf().
+    ///         Defaults to 86400 (24 h). Set to 0 to disable.
+    uint32 public maxStaleness;
+
     // slither-disable-next-line unused-state
-    uint256[46] private __gap;
+    uint256[44] private __gap;
 
     // ── Constructor / Initializer ─────────────────────────────────────────────
 
@@ -120,23 +133,51 @@ contract FeedVerifier is
      * @param admin_          Address that receives DEFAULT_ADMIN_ROLE, PAUSER_ROLE, UPGRADER_ROLE.
      * @param updater_        Bot address that receives UPDATER_ROLE (may equal admin_ on testnets).
      * @param verifierProxy_  Chainlink VerifierProxy address for this network.
+     * @param feedId_         Enforced feedId. Pass bytes32(0) to leave unenforced (migrate via initializeV2 later).
      */
-    function initialize(address admin_, address updater_, address verifierProxy_) external initializer {
-        if (admin_ == address(0) || updater_ == address(0) || verifierProxy_ == address(0)) revert ZeroAddress();
+    function initialize(address admin_, address updater_, address verifierProxy_, bytes32 feedId_) external initializer {
+        _initializeCore(admin_, updater_, verifierProxy_);
+        if (feedId_ != bytes32(0)) _setAllowedFeedId(feedId_);
+    }
 
+    /// @dev Shared setup extracted so FeedVerifierV1 mock can call it without the feedId param.
+    function _initializeCore(address admin_, address updater_, address verifierProxy_) internal {
+        if (admin_ == address(0) || updater_ == address(0) || verifierProxy_ == address(0)) revert ZeroAddress();
         __AccessControl_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
-
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(PAUSER_ROLE,        admin_);
         _grantRole(UPGRADER_ROLE,      admin_);
         _grantRole(UPDATER_ROLE,       updater_);
-
         verifierProxy = IVerifierProxy(verifierProxy_);
+        maxStaleness = 86400; // 24 h default; override with setMaxStaleness
     }
 
     // ── Core ──────────────────────────────────────────────────────────────────
+
+    /**
+     * @notice Update the enforced feedId (e.g. during a scheduled feed rotation).
+     * @dev    Set to bytes32(0) to disable enforcement.
+     */
+    function setAllowedFeedId(bytes32 feedId_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setAllowedFeedId(feedId_);
+    }
+
+    /**
+     * @notice Set the maximum age (seconds) a stored price may be when read via latestPrice().
+     * @dev    Set to 0 to disable staleness enforcement (default).
+     */
+    function setMaxStaleness(uint32 maxStaleness_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        emit MaxStalenessUpdated(maxStaleness, maxStaleness_);
+        maxStaleness = maxStaleness_;
+    }
+
+    function _setAllowedFeedId(bytes32 feedId_) internal {
+        bytes32 old = allowedFeedId;
+        allowedFeedId = feedId_;
+        emit FeedIdUpdated(old, feedId_);
+    }
 
     /**
      * @notice Verify a single Data Streams Schema v7 report onchain.
@@ -168,7 +209,13 @@ contract FeedVerifier is
     // ── Views ─────────────────────────────────────────────────────────────────
 
     /// @notice Latest verified price for a specific feedId.
+    /// @dev    Reverts PriceNotInitialized if no report has been stored yet.
+    ///         Reverts StalePrice if maxStaleness is set and the stored price is too old.
     function priceOf(bytes32 feedId) external view returns (int192) {
+        uint32 timestamp = timestampByFeed[feedId];
+        if (timestamp == 0) revert PriceNotInitialized(feedId);
+        if (maxStaleness > 0 && block.timestamp - timestamp > maxStaleness)
+            revert StalePrice(feedId, timestamp, uint32(block.timestamp));
         return priceByFeed[feedId];
     }
 
@@ -225,6 +272,12 @@ contract FeedVerifier is
      */
     function _storeReport(bytes memory verified) internal {
         ReportV7 memory report = abi.decode(verified, (ReportV7));
+
+        if (allowedFeedId != bytes32(0) && report.feedId != allowedFeedId)
+            revert InvalidFeedId(allowedFeedId, report.feedId);
+
+        if (block.timestamp < report.validFromTimestamp)
+            revert ReportNotYetValid(report.validFromTimestamp, uint32(block.timestamp));
 
         if (block.timestamp > report.expiresAt)
             revert ExpiredReport(report.expiresAt, uint32(block.timestamp));

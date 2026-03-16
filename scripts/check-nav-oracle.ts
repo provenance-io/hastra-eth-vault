@@ -15,15 +15,13 @@ async function main() {
 
   const vault = await ethers.getContractAt("StakingVault", proxy);
 
-  const [navOracle, navStaleness, navFeedId] = await Promise.all([
+  const [navOracle, navFeedId] = await Promise.all([
     vault.navOracle(),
-    vault.navStalenessLimit(),
     vault.navFeedId(),
   ]);
 
-  console.log("  navOracle:        ", navOracle);
-  console.log("  navStalenessLimit:", navStaleness.toString(), "seconds");
-  console.log("  navFeedId:        ", navFeedId);
+  console.log("  navOracle:", navOracle);
+  console.log("  navFeedId:", navFeedId);
 
   try {
     const nav = await vault.getVerifiedNav();

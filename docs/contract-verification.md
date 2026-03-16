@@ -38,7 +38,7 @@ Get the current implementation addresses:
 npx hardhat run scripts/verify_contracts/get_implementations.ts --network sepolia
 ```
 
-### Chainlink-hub contracts (FeedVerifier, HastraHub)
+### Chainlink-hub contracts (FeedVerifier)
 
 Run from the `chainlink-hub/` subdirectory:
 
@@ -47,9 +47,6 @@ cd chainlink-hub
 
 # FeedVerifier implementation
 npx hardhat verify --network sepolia <FEED_VERIFIER_IMPL>
-
-# HastraHub / NavEngine implementation (if applicable)
-npx hardhat verify --network sepolia <HASTRA_HUB_IMPL>
 ```
 
 Implementation addresses are in:

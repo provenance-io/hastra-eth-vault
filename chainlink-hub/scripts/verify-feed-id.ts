@@ -25,7 +25,8 @@ const FEED_ID =
 const CLIENT_ID = process.env.CHAINLINK_CLIENT_ID;
 const CLIENT_SECRET = process.env.CHAINLINK_CLIENT_SECRET;
 const BASE_URL =
-  process.env.CHAINLINK_API_URL || "https://api.testnet-dataengine.chain.link";
+  process.env.CHAINLINK_API_URL || "" +
+    "https://api.testnet-dataengine.chain.link";
 
 // ── HMAC Auth ─────────────────────────────────────────────────────────────────
 
@@ -194,7 +195,7 @@ async function main() {
     }
   }
 
-  console.log("\n✅ Feed ID verified successfully. Safe to use in HastraHub.");
+  console.log("\n✅ Feed ID verified successfully. Safe to use in FeedVerifier.");
 }
 
 main().catch((err) => {

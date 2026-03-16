@@ -98,7 +98,7 @@ Point Chainlink DON to read from your deployed NavEngine:
 2. DON signs rate into Schema v7 report
 3. DON publishes to Data Streams API
 4. Your bot fetches signed report
-5. Bot submits to HastraHub for verification
+5. Bot submits updated rate via FeedVerifier
 
 ## API Reference
 

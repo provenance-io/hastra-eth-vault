@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
-import type { FeedVerifier, MockVerifierProxy, MockERC20 } from "../typechain-types";
+import type { FeedVerifier, MockVerifierProxy, MockERC20, MockFeeManager } from "../typechain-types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -34,16 +34,18 @@ function buildUnverifiedReport(schemaVersion = 7): string {
 /**
  * Build the verified report bytes that MockVerifierProxy returns.
  * This is what FeedVerifier._storeReport() abi.decodes as ReportV7.
+ * validFromTimestamp defaults to obsTimestamp (already opened window).
  */
 function buildVerifiedReport(
   feedId: string,
   price: bigint,
   obsTimestamp: number,
-  expiresAt: number
+  expiresAt: number,
+  validFromTimestamp?: number
 ): string {
   return abiCoder.encode(
     ["bytes32", "uint32", "uint32", "uint192", "uint192", "uint32", "int192"],
-    [feedId, obsTimestamp, obsTimestamp, 0n, 0n, expiresAt, price]
+    [feedId, validFromTimestamp ?? obsTimestamp, obsTimestamp, 0n, 0n, expiresAt, price]
   );
 }
 
@@ -58,7 +60,7 @@ async function deployFixture() {
   const FeedVerifier = await ethers.getContractFactory("FeedVerifier");
   const feedVerifier = (await upgrades.deployProxy(
     FeedVerifier,
-    [admin.address, updater.address, await mockProxy.getAddress()],
+    [admin.address, updater.address, await mockProxy.getAddress(), ethers.ZeroHash],
     { kind: "uups" }
   )) as unknown as FeedVerifier;
 
@@ -104,7 +106,7 @@ describe("FeedVerifier", function () {
       const mp = await MockProxy.deploy();
       const FeedVerifier = await ethers.getContractFactory("FeedVerifier");
       await expect(
-        upgrades.deployProxy(FeedVerifier, [ethers.ZeroAddress, ethers.ZeroAddress, await mp.getAddress()], { kind: "uups" })
+        upgrades.deployProxy(FeedVerifier, [ethers.ZeroAddress, ethers.ZeroAddress, await mp.getAddress(), ethers.ZeroHash], { kind: "uups" })
       ).to.be.revertedWithCustomError(await FeedVerifier.deploy(), "ZeroAddress");
     });
 
@@ -112,8 +114,38 @@ describe("FeedVerifier", function () {
       const [admin, updater] = await ethers.getSigners();
       const FeedVerifier = await ethers.getContractFactory("FeedVerifier");
       await expect(
-        upgrades.deployProxy(FeedVerifier, [admin.address, updater.address, ethers.ZeroAddress], { kind: "uups" })
+        upgrades.deployProxy(FeedVerifier, [admin.address, updater.address, ethers.ZeroAddress, ethers.ZeroHash], { kind: "uups" })
       ).to.be.revertedWithCustomError(await FeedVerifier.deploy(), "ZeroAddress");
+    });
+
+    it("reverts with ZeroAddress if updater is zero", async function () {
+      const [admin] = await ethers.getSigners();
+      const MockProxy = await ethers.getContractFactory("MockVerifierProxy");
+      const mp = await MockProxy.deploy();
+      const FeedVerifier = await ethers.getContractFactory("FeedVerifier");
+      await expect(
+        upgrades.deployProxy(FeedVerifier, [admin.address, ethers.ZeroAddress, await mp.getAddress(), ethers.ZeroHash], { kind: "uups" })
+      ).to.be.revertedWithCustomError(await FeedVerifier.deploy(), "ZeroAddress");
+    });
+
+    it("cannot be initialized twice", async function () {
+      const { feedVerifier, mockProxy, admin, updater } = await loadFixture(deployFixture);
+      await expect(
+        feedVerifier.connect(admin).initialize(admin.address, updater.address, await mockProxy.getAddress(), ethers.ZeroHash)
+      ).to.be.reverted;
+    });
+
+    it("sets allowedFeedId when provided at deploy", async function () {
+      const [admin, updater] = await ethers.getSigners();
+      const MockProxy = await ethers.getContractFactory("MockVerifierProxy");
+      const mp = await MockProxy.deploy();
+      const FeedVerifier = await ethers.getContractFactory("FeedVerifier");
+      const fv = (await upgrades.deployProxy(
+        FeedVerifier,
+        [admin.address, updater.address, await mp.getAddress(), FEED_ID],
+        { kind: "uups" }
+      )) as unknown as FeedVerifier;
+      expect(await fv.allowedFeedId()).to.equal(FEED_ID);
     });
   });
 
@@ -184,6 +216,19 @@ describe("FeedVerifier", function () {
       ).to.be.revertedWithCustomError(feedVerifier, "ExpiredReport");
     });
 
+    it("reverts with ReportNotYetValid when validFromTimestamp is in the future", async function () {
+      const { feedVerifier, mockProxy, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const obsTs          = Math.floor(Date.now() / 1000) - 60;
+      const expiresAt      = obsTs + 86400;
+      const futureValidFrom = Math.floor(Date.now() / 1000) + 3600; // 1h from now
+      await mockProxy.setVerifiedResponse(
+        buildVerifiedReport(FEED_ID, ONE_NAV, obsTs, expiresAt, futureValidFrom)
+      );
+      await expect(
+        feedVerifier.connect(updater).verifyReport(unverifiedReport)
+      ).to.be.revertedWithCustomError(feedVerifier, "ReportNotYetValid");
+    });
+
     it("reverts with StaleReport when observationsTimestamp is not newer", async function () {
       const { feedVerifier, mockProxy, updater, unverifiedReport } = await loadFixture(deployFixture);
       const obsTs     = Math.floor(Date.now() / 1000) - 120;
@@ -214,9 +259,44 @@ describe("FeedVerifier", function () {
       expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV_5);
       expect(await feedVerifier.timestampOf(FEED_ID)).to.equal(obsTs2);
     });
-  });
 
-  // ── verifyBulkReports ─────────────────────────────────────────────────────
+    it("pays fee via FeeManager when present (covers fee branch)", async function () {
+      const [admin, updater] = await ethers.getSigners();
+
+      // Deploy LINK token and reward manager address (reuse MockERC20 for LINK)
+      const MockERC20Factory = await ethers.getContractFactory("MockERC20");
+      const linkToken = (await MockERC20Factory.deploy()) as unknown as MockERC20;
+      const rewardMgr = ethers.Wallet.createRandom().address;
+
+      // Deploy FeeManager mock
+      const MockFeeManagerFactory = await ethers.getContractFactory("MockFeeManager");
+      const feeManager = (await MockFeeManagerFactory.deploy(
+        await linkToken.getAddress(), rewardMgr
+      )) as unknown as MockFeeManager;
+      await feeManager.setFeeAmount(ethers.parseEther("0.01"));
+
+      // Deploy proxy with FeeManager wired in
+      const MockProxy = await ethers.getContractFactory("MockVerifierProxy");
+      const mockProxy = (await MockProxy.deploy()) as unknown as MockVerifierProxy;
+      await mockProxy.setFeeManager(await feeManager.getAddress());
+
+      const FeedVerifierFactory = await ethers.getContractFactory("FeedVerifier");
+      const fv = (await upgrades.deployProxy(
+        FeedVerifierFactory,
+        [admin.address, updater.address, await mockProxy.getAddress(), ethers.ZeroHash],
+        { kind: "uups" }
+      )) as unknown as FeedVerifier;
+
+      // Mint LINK to FeedVerifier so approve doesn't fail
+      await linkToken.mint(await fv.getAddress(), ethers.parseEther("1"));
+
+      const obsTs = Math.floor(Date.now() / 1000) - 60;
+      await mockProxy.setVerifiedResponse(buildVerifiedReport(FEED_ID, ONE_NAV, obsTs, obsTs + 86400));
+      await fv.connect(updater).verifyReport(buildUnverifiedReport(7));
+
+      expect(await fv.priceOf(FEED_ID)).to.equal(ONE_NAV);
+    });
+  });
 
   describe("verifyBulkReports", function () {
     it("no-ops on empty array", async function () {
@@ -258,9 +338,10 @@ describe("FeedVerifier", function () {
   // ── priceOf / timestampOf ─────────────────────────────────────────────────
 
   describe("priceOf / timestampOf", function () {
-    it("returns 0 for unknown feedId", async function () {
+    it("reverts PriceNotInitialized for unknown feedId", async function () {
       const { feedVerifier } = await loadFixture(deployFixture);
-      expect(await feedVerifier.priceOf(FEED_ID)).to.equal(0n);
+      await expect(feedVerifier.priceOf(FEED_ID))
+        .to.be.revertedWithCustomError(feedVerifier, "PriceNotInitialized");
       expect(await feedVerifier.timestampOf(FEED_ID)).to.equal(0);
     });
 
@@ -276,7 +357,51 @@ describe("FeedVerifier", function () {
     });
   });
 
-  // ── pause / unpause ───────────────────────────────────────────────────────
+  // ── priceOf staleness / maxStaleness ─────────────────────────────────────
+
+  describe("priceOf staleness / maxStaleness", function () {
+    async function storeReport(feedVerifier: FeedVerifier, mockProxy: MockVerifierProxy, updater: any, unverifiedReport: string, obsTs: number) {
+      await mockProxy.setVerifiedResponse(buildVerifiedReport(FEED_ID, ONE_NAV, obsTs, obsTs + 86400));
+      await feedVerifier.connect(updater).verifyReport(unverifiedReport);
+    }
+
+    it("returns price when within default 24h maxStaleness window", async function () {
+      const { feedVerifier, mockProxy, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const obsTs = Math.floor(Date.now() / 1000) - 120; // 2 min old — well within 24h
+      await storeReport(feedVerifier, mockProxy, updater, unverifiedReport, obsTs);
+      expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV);
+    });
+
+    it("returns price when within maxStaleness window", async function () {
+      const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const obsTs = Math.floor(Date.now() / 1000) - 60;
+      await storeReport(feedVerifier, mockProxy, updater, unverifiedReport, obsTs);
+      await feedVerifier.connect(admin).setMaxStaleness(3600); // 1 hour
+      expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV);
+    });
+
+    it("reverts StalePrice when price age exceeds maxStaleness", async function () {
+      const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const obsTs = Math.floor(Date.now() / 1000) - 7200; // 2h old
+      await storeReport(feedVerifier, mockProxy, updater, unverifiedReport, obsTs);
+      await feedVerifier.connect(admin).setMaxStaleness(3600); // 1 hour limit
+      await expect(feedVerifier.priceOf(FEED_ID))
+        .to.be.revertedWithCustomError(feedVerifier, "StalePrice");
+    });
+
+    it("setMaxStaleness emits MaxStalenessUpdated", async function () {
+      const { feedVerifier, admin } = await loadFixture(deployFixture);
+      await expect(feedVerifier.connect(admin).setMaxStaleness(1800))
+        .to.emit(feedVerifier, "MaxStalenessUpdated")
+        .withArgs(86400, 1800);
+    });
+
+    it("setMaxStaleness reverts for non-admin", async function () {
+      const { feedVerifier, other } = await loadFixture(deployFixture);
+      await expect(feedVerifier.connect(other).setMaxStaleness(3600))
+        .to.be.revertedWith(/AccessControl:/);
+    });
+  });
 
   describe("pause / unpause", function () {
     it("admin can pause and unpause", async function () {
@@ -290,6 +415,13 @@ describe("FeedVerifier", function () {
     it("non-admin cannot pause", async function () {
       const { feedVerifier, other } = await loadFixture(deployFixture);
       await expect(feedVerifier.connect(other).pause())
+        .to.be.revertedWith(/AccessControl:/);
+    });
+
+    it("non-admin cannot unpause", async function () {
+      const { feedVerifier, admin, other } = await loadFixture(deployFixture);
+      await feedVerifier.connect(admin).pause();
+      await expect(feedVerifier.connect(other).unpause())
         .to.be.revertedWith(/AccessControl:/);
     });
   });
@@ -332,6 +464,101 @@ describe("FeedVerifier", function () {
     });
   });
 
+  // ── allowedFeedId enforcement ─────────────────────────────────────────────
+
+  describe("allowedFeedId", function () {
+    describe("setAllowedFeedId", function () {
+      it("sets allowedFeedId and emits FeedIdUpdated", async function () {
+        const { feedVerifier, admin } = await loadFixture(deployFixture);
+        await expect(feedVerifier.connect(admin).setAllowedFeedId(FEED_ID))
+          .to.emit(feedVerifier, "FeedIdUpdated")
+          .withArgs(ethers.ZeroHash, FEED_ID);
+        expect(await feedVerifier.allowedFeedId()).to.equal(FEED_ID);
+      });
+
+      it("updates allowedFeedId and emits FeedIdUpdated on rotation", async function () {
+        const { feedVerifier, admin } = await loadFixture(deployFixture);
+        await feedVerifier.connect(admin).setAllowedFeedId(FEED_ID);
+        await expect(feedVerifier.connect(admin).setAllowedFeedId(FEED_ID_2))
+          .to.emit(feedVerifier, "FeedIdUpdated")
+          .withArgs(FEED_ID, FEED_ID_2);
+        expect(await feedVerifier.allowedFeedId()).to.equal(FEED_ID_2);
+      });
+
+      it("can be set to zero to disable enforcement", async function () {
+        const { feedVerifier, admin } = await loadFixture(deployFixture);
+        await feedVerifier.connect(admin).setAllowedFeedId(FEED_ID);
+        await feedVerifier.connect(admin).setAllowedFeedId(ethers.ZeroHash);
+        expect(await feedVerifier.allowedFeedId()).to.equal(ethers.ZeroHash);
+      });
+
+      it("reverts for non-admin", async function () {
+        const { feedVerifier, other } = await loadFixture(deployFixture);
+        await expect(
+          feedVerifier.connect(other).setAllowedFeedId(FEED_ID)
+        ).to.be.revertedWith(/AccessControl:/);
+      });
+    });
+
+    describe("enforcement in verifyReport", function () {
+      it("allows any feedId when allowedFeedId is zero (unconfigured)", async function () {
+        const { feedVerifier, mockProxy, updater, unverifiedReport } = await loadFixture(deployFixture);
+        const obsTs = Math.floor(Date.now() / 1000) - 60;
+        await mockProxy.setVerifiedResponse(buildVerifiedReport(FEED_ID_2, ONE_NAV, obsTs, obsTs + 86400));
+        await expect(feedVerifier.connect(updater).verifyReport(unverifiedReport)).to.not.be.reverted;
+      });
+
+      it("accepts report with matching feedId", async function () {
+        const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+        await feedVerifier.connect(admin).setAllowedFeedId(FEED_ID);
+        const obsTs = Math.floor(Date.now() / 1000) - 60;
+        await mockProxy.setVerifiedResponse(buildVerifiedReport(FEED_ID, ONE_NAV, obsTs, obsTs + 86400));
+        await expect(feedVerifier.connect(updater).verifyReport(unverifiedReport)).to.not.be.reverted;
+        expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV);
+      });
+
+      it("reverts with InvalidFeedId for wrong feedId", async function () {
+        const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+        await feedVerifier.connect(admin).setAllowedFeedId(FEED_ID);
+        const obsTs = Math.floor(Date.now() / 1000) - 60;
+        await mockProxy.setVerifiedResponse(buildVerifiedReport(FEED_ID_2, ONE_NAV, obsTs, obsTs + 86400));
+        await expect(
+          feedVerifier.connect(updater).verifyReport(unverifiedReport)
+        ).to.be.revertedWithCustomError(feedVerifier, "InvalidFeedId")
+          .withArgs(FEED_ID, FEED_ID_2);
+      });
+    });
+
+    describe("enforcement in verifyBulkReports", function () {
+      it("reverts if any report has wrong feedId", async function () {
+        const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+        await feedVerifier.connect(admin).setAllowedFeedId(FEED_ID);
+        const obsTs = Math.floor(Date.now() / 1000) - 60;
+        const r1 = buildVerifiedReport(FEED_ID,   ONE_NAV,   obsTs,     obsTs + 86400);
+        const r2 = buildVerifiedReport(FEED_ID_2, ONE_NAV_5, obsTs + 1, obsTs + 86400);
+        await mockProxy.setBulkResponses([r1, r2]);
+        await expect(
+          feedVerifier.connect(updater).verifyBulkReports([unverifiedReport, unverifiedReport])
+        ).to.be.revertedWithCustomError(feedVerifier, "InvalidFeedId")
+          .withArgs(FEED_ID, FEED_ID_2);
+      });
+
+      it("accepts bulk reports when all feedIds match", async function () {
+        const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+        await feedVerifier.connect(admin).setAllowedFeedId(FEED_ID);
+        const obsTs1 = Math.floor(Date.now() / 1000) - 120;
+        const obsTs2 = obsTs1 + 60;
+        const r1 = buildVerifiedReport(FEED_ID, ONE_NAV,   obsTs1, obsTs1 + 86400);
+        const r2 = buildVerifiedReport(FEED_ID, ONE_NAV_5, obsTs2, obsTs2 + 86400);
+        await mockProxy.setBulkResponses([r1, r2]);
+        await expect(
+          feedVerifier.connect(updater).verifyBulkReports([unverifiedReport, unverifiedReport])
+        ).to.not.be.reverted;
+        expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV_5);
+      });
+    });
+  });
+
   // ── UUPS upgrade ─────────────────────────────────────────────────────────
 
   describe("upgradeability", function () {
@@ -349,6 +576,29 @@ describe("FeedVerifier", function () {
       await expect(
         upgrades.upgradeProxy(await feedVerifier.getAddress(), FeedVerifierV2)
       ).to.be.revertedWith(/AccessControl:/);
+    });
+
+    it("V1 → V2 upgrade path: deploy V1, upgrade impl, set feedId via setAllowedFeedId", async function () {
+      const [admin, updater] = await ethers.getSigners();
+      const MockProxy = await ethers.getContractFactory("MockVerifierProxy");
+      const mockProxy = await MockProxy.deploy();
+
+      // Deploy using V1 (3-param initialize, no feedId)
+      const V1Factory = await ethers.getContractFactory("FeedVerifierV1", admin);
+      const v1 = await upgrades.deployProxy(
+        V1Factory,
+        [admin.address, updater.address, await mockProxy.getAddress()],
+        { kind: "uups", initializer: "initialize(address,address,address)" }
+      ) as unknown as FeedVerifier;
+      expect(await v1.allowedFeedId()).to.equal(ethers.ZeroHash);
+
+      // Upgrade proxy to V2 impl
+      const V2Factory = await ethers.getContractFactory("FeedVerifier", admin);
+      await upgrades.upgradeProxy(await v1.getAddress(), V2Factory, { kind: "uups" });
+
+      // Set feedId via admin call (no reinitializer needed)
+      await v1.connect(admin).setAllowedFeedId(FEED_ID);
+      expect(await v1.allowedFeedId()).to.equal(FEED_ID);
     });
   });
 });

@@ -48,7 +48,7 @@ describe("StakingVault Ratio Repro", function () {
     await oracle.setPrice(FEED_ID, ethers.parseUnits("1", 18), now);
     const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
     await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, owner.address);
-    await stakingVault.setNavOracle(await oracle.getAddress(), 7 * 24 * 3600, FEED_ID);
+    await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
     return { stakingVault, yieldVault, oracle, owner, userA };
   }

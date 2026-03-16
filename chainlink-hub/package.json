@@ -7,9 +7,15 @@
     "test": "hardhat test",
     "test:coverage": "hardhat coverage",
     "compile": "hardhat compile",
-    "deploy:holesky": "hardhat run scripts/deploy.ts --network holesky",
-    "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
-    "deploy:mainnet": "hardhat run scripts/deploy.ts --network mainnet"
+    "deploy:holesky": "hardhat run scripts/deploy-feed-verifier.ts --network holesky",
+    "deploy:sepolia": "hardhat run scripts/deploy-feed-verifier.ts --network sepolia",
+    "deploy:mainnet": "hardhat run scripts/deploy-feed-verifier.ts --network mainnet",
+    "upgrade:sepolia": "hardhat run scripts/upgrade-feed-verifier.ts --network sepolia",
+    "upgrade:hoodi":   "hardhat run scripts/upgrade-feed-verifier.ts --network hoodi",
+    "upgrade:mainnet": "hardhat run scripts/upgrade-feed-verifier.ts --network mainnet",
+    "safe:prepare-upgrade": "hardhat run scripts/admin/prepare-safe-upgrade.ts",
+    "safe:prepare-role": "hardhat run scripts/admin/prepare-safe-role-grant.ts",
+    "safe:verify-upgrade": "hardhat run scripts/admin/verify-safe-upgrade.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

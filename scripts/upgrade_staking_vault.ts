@@ -50,31 +50,19 @@ async function main() {
   console.log("  Asset (wYLDS):", asset);
   console.log("  Paused:", paused);
 
-  // Upgrade — forceImport re-registers the proxy with OZ if the manifest was wiped
   console.log("\n🔄 DEPLOYING NEW IMPLEMENTATION...");
   const StakingVaultNew = await ethers.getContractFactory("StakingVault");
-  const unsafeSkip = process.env.UNSAFE_SKIP_STORAGE_CHECK === "true";
-  if (unsafeSkip) console.log("⚠️  Skipping storage layout check (UNSAFE_SKIP_STORAGE_CHECK=true)");
 
-  try {
-    await upgrades.forceImport(stakingVaultProxy, StakingVaultNew, { kind: "uups" });
-    console.log("ℹ️  Proxy re-registered via forceImport (manifest was missing)");
-  } catch {
-    // Already registered — normal path
-  }
+  // Deploy using plain deploy() so address is nonce-based (not CREATE2/bytecode-cached).
+  const implContract = await StakingVaultNew.deploy();
+  await implContract.waitForDeployment();
+  const newImpl = await implContract.getAddress();
+  console.log("New implementation deployed:", newImpl);
 
-  const upgraded = await upgrades.upgradeProxy(stakingVaultProxy, StakingVaultNew, {
-    timeout: 120000,
-    pollingInterval: 2000,
-    ...(unsafeSkip && { unsafeSkipStorageCheck: true }),
-  });
-  await upgraded.waitForDeployment();
+  const upgraded = await ethers.getContractAt("StakingVault", stakingVaultProxy);
+  const upgradeTx = await (upgraded as any).upgradeToAndCall(newImpl, "0x");
+  await upgradeTx.wait();
 
-  // Read impl from the ERC-1967 storage slot directly — upgrades.erc1967 can return
-  // a cached value equal to oldImpl. Reading the slot is always accurate.
-  const IMPL_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
-  const rawSlot = await ethers.provider.getStorage(stakingVaultProxy, IMPL_SLOT);
-  const newImpl = "0x" + rawSlot.slice(-40);
   console.log("✅ Upgraded successfully");
   console.log("New implementation:", newImpl);
 

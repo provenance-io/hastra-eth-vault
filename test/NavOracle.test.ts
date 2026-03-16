@@ -42,7 +42,7 @@ describe("StakingVault — NAV Oracle", function () {
     // Set oracle at NAV=1.0 so the fixture deposit below succeeds
     const seedNow = await time.latest();
     await oracle.setPrice(FEED_ID, NAV_1x, seedNow);
-    await stakingVault.setNavOracle(await oracle.getAddress(), 7 * 24 * 3600, FEED_ID);
+    await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
     const depositAmt = ethers.parseUnits("1000", 6); // 1000 USDC
     await usdc.mint(user.address, depositAmt);
@@ -54,7 +54,7 @@ describe("StakingVault — NAV Oracle", function () {
     await stakingVault.connect(user).deposit(wyldsAmt, user.address);
 
     // Clear the oracle so individual tests can set their own state
-    await stakingVault.setNavOracle(ethers.ZeroAddress, 0, ethers.ZeroHash);
+    await stakingVault.setNavOracle(ethers.ZeroAddress, ethers.ZeroHash);
 
     return { stakingVault, yieldVault, usdc, oracle, owner, user };
   }
@@ -62,27 +62,26 @@ describe("StakingVault — NAV Oracle", function () {
   // ── setNavOracle ─────────────────────────────────────────────────────────────
 
   describe("setNavOracle", function () {
-    it("admin can set oracle and staleness limit", async function () {
-      const { stakingVault, oracle, owner } = await loadFixture(deployFixture);
-      await expect(stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID))
+    it("admin can set oracle and emit event", async function () {
+      const { stakingVault, oracle } = await loadFixture(deployFixture);
+      await expect(stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID))
         .to.emit(stakingVault, "NavOracleUpdated")
         .withArgs(ethers.ZeroAddress, await oracle.getAddress(), FEED_ID);
 
       expect(await stakingVault.navOracle()).to.equal(await oracle.getAddress());
-      expect(await stakingVault.navStalenessLimit()).to.equal(ONE_HOUR);
     });
 
     it("non-admin cannot set oracle", async function () {
       const { stakingVault, oracle, user } = await loadFixture(deployFixture);
       await expect(
-        stakingVault.connect(user).setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID)
+        stakingVault.connect(user).setNavOracle(await oracle.getAddress(), FEED_ID)
       ).to.be.reverted;
     });
 
     it("can clear oracle by setting address(0)", async function () {
       const { stakingVault, oracle, owner } = await loadFixture(deployFixture);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
-      await stakingVault.setNavOracle(ethers.ZeroAddress, 0, ethers.ZeroHash);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
+      await stakingVault.setNavOracle(ethers.ZeroAddress, ethers.ZeroHash);
       expect(await stakingVault.navOracle()).to.equal(ethers.ZeroAddress);
     });
   });
@@ -94,7 +93,7 @@ describe("StakingVault — NAV Oracle", function () {
       const { stakingVault, oracle, owner } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_1x, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       expect(await stakingVault.getVerifiedNav()).to.equal(NAV_1x);
     });
@@ -103,27 +102,16 @@ describe("StakingVault — NAV Oracle", function () {
       const { stakingVault, oracle } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_105, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       expect(await stakingVault.getVerifiedNav()).to.equal(NAV_105);
-    });
-
-    it("reverts NavStale when observation too old", async function () {
-      const { stakingVault, oracle } = await loadFixture(deployFixture);
-      const staleTs = (await time.latest()) - ONE_HOUR - 1;
-      await oracle.setPrice(FEED_ID, NAV_1x, staleTs);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
-
-      await expect(stakingVault.getVerifiedNav()).to.be.revertedWithCustomError(
-        stakingVault, "NavStale"
-      );
     });
 
     it("reverts NavInvalid when price is zero", async function () {
       const { stakingVault, oracle } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, 0n, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       await expect(stakingVault.getVerifiedNav()).to.be.revertedWithCustomError(
         stakingVault, "NavInvalid"
@@ -134,7 +122,7 @@ describe("StakingVault — NAV Oracle", function () {
       const { stakingVault, oracle } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, -1n, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       await expect(stakingVault.getVerifiedNav()).to.be.revertedWithCustomError(
         stakingVault, "NavInvalid"
@@ -157,7 +145,7 @@ describe("StakingVault — NAV Oracle", function () {
       const { stakingVault, oracle } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_1x, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       const totalAssets = await stakingVault.totalAssets();
       const totalValue  = await stakingVault.getTotalValueAtNav();
@@ -169,7 +157,7 @@ describe("StakingVault — NAV Oracle", function () {
       const { stakingVault, oracle } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_105, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       const totalAssets = await stakingVault.totalAssets();
       const totalValue  = await stakingVault.getTotalValueAtNav();
@@ -181,7 +169,7 @@ describe("StakingVault — NAV Oracle", function () {
       const { stakingVault, yieldVault, oracle, owner } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_1x, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       const valueBefore = await stakingVault.getTotalValueAtNav();
 
@@ -202,7 +190,7 @@ describe("StakingVault — NAV Oracle", function () {
       const [, , , depositor] = await ethers.getSigners();
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_1x, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       // Give depositor wYLDS
       const depositAmt = ethers.parseUnits("100", 6);
@@ -225,7 +213,7 @@ describe("StakingVault — NAV Oracle", function () {
       const [, , , depositor] = await ethers.getSigners();
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_105, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       const depositAmt = ethers.parseUnits("105", 6);
       await usdc.mint(depositor.address, depositAmt);
@@ -245,7 +233,7 @@ describe("StakingVault — NAV Oracle", function () {
       const { stakingVault, yieldVault, usdc, oracle, user } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_105, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), ONE_HOUR, FEED_ID);
+      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
 
       // user already has PRIME from fixture deposit
       const primeBal = await stakingVault.balanceOf(user.address);

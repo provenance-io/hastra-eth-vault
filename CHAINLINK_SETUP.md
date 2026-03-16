@@ -31,11 +31,11 @@
         │ submitReport()
         ▼
 ┌─────────────────────────────────────┐
-│ HastraHub                           │ ← To be deployed
+│ FeedVerifier                        │ ← Deployed
 │ - Verifies signature                │
 │ - Stores verified rate              │
 └───────┬─────────────────────────────┘
-        │ getExchangeRate()
+        │ priceOf(feedId)
         ▼
 ┌─────────────────┐
 │ StakingVault    │
@@ -95,24 +95,6 @@ The DON will:
 3. Sign it as a Schema v7 report
 4. Publish to Data Streams API
 
-### 3. Deploy HastraHub (⏳ Next Step)
-
-Location: `chainlink-hub/`
-
-This contract verifies signed reports from Chainlink DON.
-
-**To deploy:**
-```bash
-cd chainlink-hub
-npx hardhat run scripts/deploy.ts --network holesky
-```
-
-**Parameters needed:**
-- Chainlink Verifier Proxy address (for Holesky)
-- Feed ID (from Chainlink)
-- Min/Max rates
-- Max staleness
-
 ### 4. Bot Integration (⏳ After Testing)
 
 Update `bot/internal/bot/bot.go` to read real vault data:
@@ -152,9 +134,9 @@ Once everything is deployed:
 
 5. **Bot fetches signed report**
    - From Chainlink API
-   - Submits to HastraHub
+   - Submits to FeedVerifier
 
-6. **HastraHub verifies**
+6. **FeedVerifier verifies**
    - Checks signatures
    - Validates report
    - Stores verified rate
@@ -171,8 +153,8 @@ Once everything is deployed:
 - [ ] NavEngine stores correct int192 rate
 - [ ] Chainlink DON configured and reading
 - [ ] DON producing signed reports
-- [ ] HastraHub deployed
-- [ ] HastraHub verifying reports
+- [ ] FeedVerifier deployed ✅
+- [ ] FeedVerifier verifying reports
 - [ ] Vault integration working
 
 ## Monitoring
