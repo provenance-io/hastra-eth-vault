@@ -88,6 +88,7 @@ contract FeedVerifier is
     error ReportNotYetValid(uint32 validFromTimestamp, uint32 currentTime);
     error StalePrice(bytes32 feedId, uint32 lastTimestamp, uint32 currentTime);
     error PriceNotInitialized(bytes32 feedId);
+    error ZeroPriceInReport(bytes32 feedId);
     error ZeroAddress();
     error InvalidFeedId(bytes32 expected, bytes32 actual);
 
@@ -216,7 +217,9 @@ contract FeedVerifier is
         if (timestamp == 0) revert PriceNotInitialized(feedId);
         if (maxStaleness > 0 && block.timestamp - timestamp > maxStaleness)
             revert StalePrice(feedId, timestamp, uint32(block.timestamp));
-        return priceByFeed[feedId];
+        int192 price = priceByFeed[feedId];
+        if (price <= 0) revert ZeroPriceInReport(feedId);
+        return price;
     }
 
     /// @notice Latest observation timestamp for a specific feedId.
@@ -284,6 +287,8 @@ contract FeedVerifier is
 
         if (report.observationsTimestamp <= timestampByFeed[report.feedId])
             revert StaleReport(report.observationsTimestamp, timestampByFeed[report.feedId]);
+
+        if (report.price <= 0) revert ZeroPriceInReport(report.feedId);
 
         priceByFeed[report.feedId]     = report.price;
         timestampByFeed[report.feedId] = report.observationsTimestamp;

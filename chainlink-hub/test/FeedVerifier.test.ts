@@ -355,6 +355,23 @@ describe("FeedVerifier", function () {
       expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV_5);
       expect(await feedVerifier.timestampOf(FEED_ID)).to.equal(obsTs);
     });
+
+    it("reverts ZeroPriceInReport if report contains price = 0", async function () {
+      const { feedVerifier, mockProxy, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const obsTs = Math.floor(Date.now() / 1000) - 60;
+      await mockProxy.setVerifiedResponse(buildVerifiedReport(FEED_ID, 0n, obsTs, obsTs + 86400));
+      await expect(feedVerifier.connect(updater).verifyReport(unverifiedReport))
+        .to.be.revertedWithCustomError(feedVerifier, "ZeroPriceInReport");
+    });
+
+    it("reverts ZeroPriceInReport if report contains negative price", async function () {
+      const { feedVerifier, mockProxy, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const obsTs = Math.floor(Date.now() / 1000) - 60;
+      const negativePrice = -1n * ONE_NAV;
+      await mockProxy.setVerifiedResponse(buildVerifiedReport(FEED_ID, negativePrice, obsTs, obsTs + 86400));
+      await expect(feedVerifier.connect(updater).verifyReport(unverifiedReport))
+        .to.be.revertedWithCustomError(feedVerifier, "ZeroPriceInReport");
+    });
   });
 
   // ── priceOf staleness / maxStaleness ─────────────────────────────────────

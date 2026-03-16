@@ -1,5 +1,5 @@
 // @ts-ignore
-import { ethers, upgrades, run, network } from "hardhat";
+import { ethers, run, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -47,14 +47,16 @@ async function main() {
 
   const Factory = await ethers.getContractFactory("FeedVerifier", deployer);
 
-  console.log("🚀 Upgrading FeedVerifier (deploying new implementation + setting feedId atomically)...");
-  const upgraded = await upgrades.upgradeProxy(proxyAddress, Factory, {
-    kind: "uups",
-    call: { fn: "setAllowedFeedId", args: [feedId] },
-  });
-  await upgraded.waitForDeployment();
+  console.log("🚀 Deploying new FeedVerifier implementation...");
+  const impl = await Factory.deploy();
+  await impl.waitForDeployment();
+  const newImplAddress = await impl.getAddress();
+  console.log(`   New implementation: ${newImplAddress}`);
 
-  const newImplAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
+  const calldata = Factory.interface.encodeFunctionData("setAllowedFeedId", [feedId]);
+  console.log("🚀 Upgrading proxy (upgradeToAndCall + setAllowedFeedId atomically)...");
+  const proxy = await ethers.getContractAt("FeedVerifier", proxyAddress, deployer);
+  await (await proxy.upgradeToAndCall(newImplAddress, calldata)).wait();
 
   console.log(`✅ Upgrade complete`);
   console.log(`   Proxy (unchanged):  ${proxyAddress}`);
