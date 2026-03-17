@@ -465,3 +465,174 @@ This maintains the same total storage footprint while adding new functionality.
 - [Storage Gaps](https://docs.openzeppelin.com/contracts/5.x/upgradeable#storage_gaps)
 - [ROLES.md](./ROLES.md) - UPGRADER_ROLE details
 - [Test Files](../test/*_Upgrade.test.ts) - Upgrade test examples
+
+---
+
+## Safe Wallet Upgrade Flow (Sepolia — Verified 2026-03-02)
+
+This section documents the **production-like upgrade process** using a Safe multisig as the UPGRADER.
+
+### Contracts
+
+| Contract     | Proxy                                        | V1 Impl                                      | V2/V3 Impl (post-upgrade)                    |
+|--------------|----------------------------------------------|----------------------------------------------|----------------------------------------------|
+| YieldVault   | `0x0258787Eb97DD01436B562943D8ca85B772D7b98` | `0x7f01686b6176EbeE09015c19Ccf6f66a711EDE45` | `0xD614987f5CcAF52227Cc56DF59Db53baDA4Ff154` |
+| StakingVault | `0xFf22361Ca2590761A2429D4127b7FF25E79fdC04` | `0x7f01686b6176EbeE09015c19Ccf6f66a711EDE45` | `0x4439d9726A6a6379dc79F35669b75C1f1b363907` |
+
+**Safe (Sepolia):** `0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4`  
+**Deployer EOA:** `0x3778F66336F79B2B0D86E759499D191EA030a4c6`
+
+### Step 1 — Grant UPGRADER_ROLE + DEFAULT_ADMIN_ROLE to Safe
+
+Before upgrading, grant the Safe both roles (keep deployer roles as safety net):
+
+```bash
+# YieldVault
+COMMAND=grant-role CONTRACT_ADDRESS=0x0258787Eb97DD01436B562943D8ca85B772D7b98 \
+  ROLE=UPGRADER TARGET_ADDRESS=0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+
+COMMAND=grant-role CONTRACT_ADDRESS=0x0258787Eb97DD01436B562943D8ca85B772D7b98 \
+  ROLE=DEFAULT_ADMIN TARGET_ADDRESS=0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+
+# StakingVault
+COMMAND=grant-role CONTRACT_ADDRESS=0xFf22361Ca2590761A2429D4127b7FF25E79fdC04 \
+  ROLE=UPGRADER TARGET_ADDRESS=0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+
+COMMAND=grant-role CONTRACT_ADDRESS=0xFf22361Ca2590761A2429D4127b7FF25E79fdC04 \
+  ROLE=DEFAULT_ADMIN TARGET_ADDRESS=0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+```
+
+Verify with:
+```bash
+COMMAND=check-role CONTRACT_ADDRESS=<proxy> ROLE=UPGRADER \
+  ACCOUNT_ADDRESS=0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+```
+
+### Step 2 — Deploy new implementation & generate Safe calldata
+
+```bash
+# YieldVault → V2
+PROXY=0x0258787Eb97DD01436B562943D8ca85B772D7b98 CONTRACT=YieldVaultV2 \
+  npx hardhat run scripts/admin/prepare-safe-upgrade.ts --network sepolia
+
+# StakingVault → V3 (includes initializeV3 calldata)
+PROXY=0xFf22361Ca2590761A2429D4127b7FF25E79fdC04 CONTRACT=StakingVaultV3 \
+  INIT_CALLDATA=$(cast calldata "initializeV3()") \
+  npx hardhat run scripts/admin/prepare-safe-upgrade.ts --network sepolia
+```
+
+Each command prints the `newImplementation` address and raw calldata to paste into Safe UI.
+
+### Step 3 — Submit via Safe UI
+
+1. Go to https://app.safe.global/sep:0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4
+2. **New transaction → Transaction Builder → Custom data**
+3. **To** = proxy address | **Value** = `0` | **Data** = raw calldata from Step 2
+4. Sign & Execute
+
+### Step 4 — Verify upgrade
+
+```bash
+PROXY=<proxy> EXPECTED_IMPL=<newImplAddress from step 2> \
+  npx hardhat run scripts/admin/verify-safe-upgrade.ts --network sepolia
+```
+
+Expected output:
+```
+Match:    ✅
+version(): 3 ✅
+paused():  false ✅
+✅ Upgrade confirmed.
+```
+
+### Step 5 — Revoke deployer UPGRADER_ROLE (✅ done 2026-03-03)
+
+```bash
+COMMAND=revoke-role CONTRACT_ADDRESS=0x0258787Eb97DD01436B562943D8ca85B772D7b98 \
+  ROLE=UPGRADER TARGET_ADDRESS=0x3778F66336F79B2B0D86E759499D191EA030a4c6 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+
+COMMAND=revoke-role CONTRACT_ADDRESS=0xFf22361Ca2590761A2429D4127b7FF25E79fdC04 \
+  ROLE=UPGRADER TARGET_ADDRESS=0x3778F66336F79B2B0D86E759499D191EA030a4c6 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+```
+
+### Step 6 — Safe grants DEFAULT_ADMIN back to deployer EOA (recovery test)
+
+This proves the Safe can restore access in an emergency — run before removing the deployer's DEFAULT_ADMIN.
+
+#### 6a. Generate Safe calldata
+
+```bash
+# YieldVault
+PROXY=0x0258787Eb97DD01436B562943D8ca85B772D7b98 ROLE=DEFAULT_ADMIN \
+  TARGET=0x3778F66336F79B2B0D86E759499D191EA030a4c6 \
+  npx hardhat run scripts/admin/prepare-safe-role-grant.ts --network sepolia
+
+# StakingVault
+PROXY=0xFf22361Ca2590761A2429D4127b7FF25E79fdC04 ROLE=DEFAULT_ADMIN \
+  TARGET=0x3778F66336F79B2B0D86E759499D191EA030a4c6 \
+  npx hardhat run scripts/admin/prepare-safe-role-grant.ts --network sepolia
+```
+
+**Pre-computed calldata** (DEFAULT_ADMIN to deployer — same for both contracts):
+```
+0x2f2ff15d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000003778f66336f79b2b0d86e759499d191ea030a4c6
+```
+
+#### 6b. Submit via Safe UI
+
+1. https://app.safe.global/sep:0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4
+2. **New transaction → Transaction Builder → Custom data**
+3. **To** = proxy | **Value** = `0` | **Data** = calldata above
+4. Sign & Execute (repeat for each proxy)
+
+#### 6c. Verify
+
+```bash
+COMMAND=check-role CONTRACT_ADDRESS=0x0258787Eb97DD01436B562943D8ca85B772D7b98 \
+  ROLE=DEFAULT_ADMIN ACCOUNT_ADDRESS=0x3778F66336F79B2B0D86E759499D191EA030a4c6 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+# Expected: true
+
+COMMAND=check-role CONTRACT_ADDRESS=0xFf22361Ca2590761A2429D4127b7FF25E79fdC04 \
+  ROLE=DEFAULT_ADMIN ACCOUNT_ADDRESS=0x3778F66336F79B2B0D86E759499D191EA030a4c6 \
+  npx hardhat run scripts/admin/admin.ts --network sepolia
+# Expected: true
+```
+
+### Role state (as of 2026-03-03)
+
+| Contract | Role | Safe `0x4E79...` | Deployer `0x3778...` |
+|----------|------|-----------------|---------------------|
+| YieldVault | DEFAULT_ADMIN | ✅ | ✅ |
+| YieldVault | UPGRADER | ✅ | ❌ revoked |
+| StakingVault | DEFAULT_ADMIN | ✅ | ✅ |
+| StakingVault | UPGRADER | ✅ | ❌ revoked |
+| NavEngine | owner | ❌ | ✅ |
+
+### Upgrade Security Checklist (Safe flow)
+
+- [x] New implementation deployed via `prepare-safe-upgrade.ts`
+- [x] Safe holds UPGRADER_ROLE + DEFAULT_ADMIN before calling `upgradeToAndCall`
+- [x] `verify-safe-upgrade.ts` confirms impl address matches
+- [x] `version()` returns expected value
+- [x] `paused()` returns false (proxy still responsive)
+- [x] Deployer UPGRADER_ROLE revoked
+- [ ] Safe grants DEFAULT_ADMIN back to deployer EOA (recovery test)
+- [ ] NavEngine ownership transferred to Safe via `transferOwnership`
+
+### Scripts reference
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/admin/prepare-safe-upgrade.ts` | Deploy new impl + print `upgradeToAndCall` calldata |
+| `scripts/admin/verify-safe-upgrade.ts` | Confirm proxy points to expected new impl |
+| `scripts/admin/prepare-safe-role-grant.ts` | Print `grantRole`/`revokeRole` calldata for Safe |
+| `scripts/admin/admin.ts` | grant-role, revoke-role, check-role, pause, unpause (EOA) |
+| `scripts/admin/nav-admin.ts` | pause, unpause, status, set-updater for NavEngine |

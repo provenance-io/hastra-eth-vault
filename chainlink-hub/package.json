@@ -1,0 +1,33 @@
+{
+  "name": "hastra-chainlink-hub",
+  "version": "1.0.0",
+  "description": "Chainlink Data Streams NAV Hub for Hastra",
+  "scripts": {
+    "postinstall": "cd node_modules/@openzeppelin && ln -sfn contracts-4.8.3 'contracts@4.8.3'",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "compile": "hardhat compile",
+    "deploy:holesky": "hardhat run scripts/deploy-feed-verifier.ts --network holesky",
+    "deploy:sepolia": "hardhat run scripts/deploy-feed-verifier.ts --network sepolia",
+    "deploy:mainnet": "hardhat run scripts/deploy-feed-verifier.ts --network mainnet",
+    "upgrade:sepolia": "hardhat run scripts/upgrade-feed-verifier.ts --network sepolia",
+    "upgrade:hoodi":   "hardhat run scripts/upgrade-feed-verifier.ts --network hoodi",
+    "upgrade:mainnet": "hardhat run scripts/upgrade-feed-verifier.ts --network mainnet",
+    "safe:prepare-upgrade": "hardhat run scripts/admin/prepare-safe-upgrade.ts",
+    "safe:prepare-role": "hardhat run scripts/admin/prepare-safe-role-grant.ts",
+    "safe:verify-upgrade": "hardhat run scripts/admin/verify-safe-upgrade.ts"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "4.8.3",
+    "@openzeppelin/contracts-4.8.3": "npm:@openzeppelin/contracts@4.8.3",
+    "@openzeppelin/contracts-upgradeable": "^4.9.6",
+    "@openzeppelin/hardhat-upgrades": "^3.9.1",
+    "hardhat": "^2.22.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@chainlink/contracts": "^1.5.0",
+    "dotenv": "^16.6.1"
+  }
+}

@@ -330,34 +330,33 @@ describe("YieldVault", function () {
       const { vault, usdc, user1, user2 } = await loadFixture(deployYieldVaultFixture);
       const amount = ethers.parseUnits("1000", 6);
       const deadline = (await time.latest()) + 3600;
-      
-      // User1 signs, but User2 tries to use it? No, signature includes owner.
-      // If we pass wrong signer to permit?
-      // ERC20Permit.permit(owner, spender, value, deadline, v, r, s)
-      // The contract calls: IERC20Permit(asset()).permit(msg.sender, address(this), ...)
-      // So it enforces owner = msg.sender.
-      
-      // So if I sign with user2, but call with user1, the recovered address will be user2, 
-      // but permit expects msg.sender (user1).
-      
+
+      // Revoke pre-approved allowance so the fallback deposit also fails
+      await usdc.connect(user1).approve(await vault.getAddress(), 0);
+
       const { v, r, s } = await signPermit(
         usdc,
-        user2, // Signed by user2
+        user2, // Signed by user2 — wrong signer for user1
         await vault.getAddress(),
         amount,
         deadline
       );
-      
+
+      // Permit is silently ignored (front-run griefing protection).
+      // Invalid signature leaves no allowance, so transferFrom reverts.
       await expect(
         vault.connect(user1).depositWithPermit(amount, user1.address, deadline, v, r, s)
-      ).to.be.revertedWithCustomError(usdc, "ERC2612InvalidSigner");
+      ).to.be.revertedWithCustomError(usdc, "ERC20InsufficientAllowance");
     });
 
     it("Should revert with expired deadline", async function () {
       const { vault, usdc, user1 } = await loadFixture(deployYieldVaultFixture);
       const amount = ethers.parseUnits("1000", 6);
       const deadline = (await time.latest()) - 3600; // Expired
-      
+
+      // Revoke pre-approved allowance so the fallback deposit also fails
+      await usdc.connect(user1).approve(await vault.getAddress(), 0);
+
       const { v, r, s } = await signPermit(
         usdc,
         user1,
@@ -365,10 +364,12 @@ describe("YieldVault", function () {
         amount,
         deadline
       );
-      
+
+      // Permit is silently ignored (front-run griefing protection).
+      // Expired deadline leaves no allowance, so transferFrom reverts.
       await expect(
         vault.connect(user1).depositWithPermit(amount, user1.address, deadline, v, r, s)
-      ).to.be.revertedWithCustomError(usdc, "ERC2612ExpiredSignature");
+      ).to.be.revertedWithCustomError(usdc, "ERC20InsufficientAllowance");
     });
   });
 

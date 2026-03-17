@@ -24,41 +24,28 @@ jobs:
       
     - name: Compile contracts
       run: npx hardhat compile
+
+    - name: Install chainlink-hub dependencies
+      run: cd chainlink-hub && npm install
+
+    - name: Compile chainlink-hub contracts
+      run: cd chainlink-hub && npx hardhat compile
       
     - name: Extract ABIs
       run: |
         mkdir -p abi-exports
-        
-        # Extract YieldVault ABI
+
+        # Vault contracts
         jq '.abi' artifacts/contracts/YieldVault.sol/YieldVault.json > abi-exports/YieldVault.json
-        
-        # Extract StakingVault ABI
         jq '.abi' artifacts/contracts/StakingVault.sol/StakingVault.json > abi-exports/StakingVault.json
-        
-        # Extract MockUSDC ABI (for testing)
         jq '.abi' artifacts/contracts/mocks/MockUSDC.sol/MockUSDC.json > abi-exports/MockUSDC.json
-        
-        # Create a combined package with contract info
-        cat > abi-exports/contracts.json << 'EOF'
-        {
-          "YieldVault": {
-            "contractName": "YieldVault",
-            "abi": $(cat abi-exports/YieldVault.json)
-          },
-          "StakingVault": {
-            "contractName": "StakingVault",
-            "abi": $(cat abi-exports/StakingVault.json)
-          },
-          "MockUSDC": {
-            "contractName": "MockUSDC",
-            "abi": $(cat abi-exports/MockUSDC.json)
-          }
-        }
-        EOF
-        
+
+        # Chainlink NAV contracts
+        jq '.abi' chainlink-hub/artifacts/contracts/FeedVerifier.sol/FeedVerifier.json > abi-exports/FeedVerifier.json
+
         # Create version info
         echo "{\"version\": \"${{ github.ref_name }}\", \"commit\": \"${{ github.sha }}\", \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > abi-exports/version.json
-        
+
         echo "✅ ABIs extracted successfully"
         ls -lh abi-exports/
         
@@ -79,26 +66,15 @@ jobs:
           ## Contract ABIs - ${{ github.ref_name }}
           
           This release includes the compiled ABIs for:
-          - YieldVault (wYLDS)
-          - StakingVault (PRIME)
-          - MockUSDC
+          - `YieldVault` (wYLDS)
+          - `StakingVault` (PRIME)
+          - `HastraHub` (NAV engine — UUPS upgradeable)
+          - `FeedVerifier` (Chainlink Data Streams verifier — UUPS upgradeable)
+          - `MockUSDC` (testing only)
           
           ### Files
           - `hastra-vault-abis-${{ github.ref_name }}.tar.gz` - Compressed tarball
           - `hastra-vault-abis-${{ github.ref_name }}.zip` - Zip archive
-          
-          ### Usage
-          Download and extract to integrate with your frontend/backend application.
-          
-          ```javascript
-          import YieldVaultABI from './abi-exports/YieldVault.json';
-          
-          const contract = new ethers.Contract(
-            YIELD_VAULT_ADDRESS,
-            YieldVaultABI,
-            provider
-          );
-          ```
           
           **Commit:** ${{ github.sha }}
       env:

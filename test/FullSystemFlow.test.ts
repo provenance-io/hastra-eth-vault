@@ -1,7 +1,7 @@
 import {expect} from "chai";
 import { ethers, upgrades } from "hardhat";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
-import type { MockUSDC, YieldVault, StakingVault } from "../typechain-types";
+import type { MockUSDC, YieldVault, StakingVault, MockFeedVerifier } from "../typechain-types";
 
 describe("Full System Flow: Deposit -> Stake -> Rewards -> Profit", function () {
   async function deploySystemFixture() {
@@ -42,11 +42,21 @@ describe("Full System Flow: Deposit -> Stake -> Rewards -> Profit", function () 
     // Owner must be allowed to complete redemption
     await yieldVault.grantRole(YIELD_REWARDS_ROLE, owner.address);
 
-    return { stakingVault, yieldVault, usdc, owner, userA };
+    // Setup NAV oracle at NAV=1.0 (required — no fallback path)
+    const FEED_ID = ethers.encodeBytes32String("TEST_FEED");
+    const MockFeedVerifier = await ethers.getContractFactory("MockFeedVerifier");
+    const oracle = await MockFeedVerifier.deploy() as unknown as MockFeedVerifier;
+    const now = await time.latest();
+    await oracle.setPrice(FEED_ID, ethers.parseUnits("1", 18), now);
+    const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
+    await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, owner.address);
+    await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
+
+    return { stakingVault, yieldVault, usdc, owner, userA, oracle, FEED_ID };
   }
 
   it("Should execute the full appreciation flow", async function () {
-    const { usdc, yieldVault, stakingVault, owner, userA } = await loadFixture(deploySystemFixture);
+    const { usdc, yieldVault, stakingVault, owner, userA, oracle, FEED_ID } = await loadFixture(deploySystemFixture);
 
     // ==========================================
     // Step 1: User gets USDC and Deposits to YieldVault
@@ -74,6 +84,10 @@ describe("Full System Flow: Deposit -> Stake -> Rewards -> Profit", function () 
     // ==========================================
     const rewardAmount = ethers.parseUnits("10", 6);
     await stakingVault.connect(owner).distributeRewards(rewardAmount);
+
+    // Update oracle NAV to reflect the 10% reward increase (100 → 110 wYLDS, 100 shares)
+    const navAfterRewards = await time.latest();
+    await oracle.setPrice(FEED_ID, ethers.parseUnits("1.1", 18), navAfterRewards);
 
     // Check: StakingVault now has 110 wYLDS
     const expectedTotalAssets = initialAmount + rewardAmount;

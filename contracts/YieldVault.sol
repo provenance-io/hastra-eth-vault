@@ -175,7 +175,9 @@ contract YieldVault is
         bytes32 r,
         bytes32 s
     ) external whenNotPaused nonReentrant returns (uint256 shares) {
-        IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s);
+        // Guard against permit front-running: a front-runner consuming the nonce also
+        // sets the allowance, so deposit() via transferFrom() will still succeed.
+        try IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s) {} catch {}
         return super.deposit(assets, receiver);
     }
     

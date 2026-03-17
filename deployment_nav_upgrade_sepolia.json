@@ -1,0 +1,7 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "proxy": "0xBc494b33Cd67e8033644608876b10BB84d0eDF55",
+  "implementation": "0x04993EC23a6ED0C8b3BaCDe1A550C762BC128102",
+  "upgradedAt": "2026-03-17T22:41:38.119Z"
+}

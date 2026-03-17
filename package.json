@@ -62,9 +62,12 @@
     "dotenv": "^16.3.0"
   },
   "resolutions": {
-    "fast-xml-parser": "5.3.4",
+    "fast-xml-parser": "5.3.6",
     "lodash": "4.17.23",
     "undici": "6.23.0",
     "elliptic": "6.6.1"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
   }
 }

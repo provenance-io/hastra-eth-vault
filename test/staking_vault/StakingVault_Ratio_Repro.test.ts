@@ -1,7 +1,7 @@
 import {expect} from "chai";
 import pkg from "hardhat";
 const { ethers, upgrades } = pkg;
-import type { MockUSDC, YieldVault, StakingVault } from "../../typechain-types";
+import type { MockUSDC, YieldVault, StakingVault, MockFeedVerifier } from "../../typechain-types";
 import {loadFixture, time} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("StakingVault Ratio Repro", function () {
@@ -39,7 +39,18 @@ describe("StakingVault Ratio Repro", function () {
     await yieldVault.transfer(userA.address, startAmount);
     await yieldVault.connect(userA).approve(await stakingVault.getAddress(), ethers.MaxUint256);
 
-    return { stakingVault, yieldVault, userA };
+    // Setup NAV oracle (required — no fallback path)
+    const FEED_ID = ethers.encodeBytes32String("TEST_FEED");
+    const MockFeedVerifier = await ethers.getContractFactory("MockFeedVerifier");
+    const oracle = await MockFeedVerifier.deploy() as unknown as MockFeedVerifier;
+    const block = await ethers.provider.getBlock("latest");
+    const now = block!.timestamp;
+    await oracle.setPrice(FEED_ID, ethers.parseUnits("1", 18), now);
+    const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
+    await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, owner.address);
+    await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
+
+    return { stakingVault, yieldVault, oracle, owner, userA };
   }
 
   it("Should maintain 1:1 ratio after instant redemption", async function () {

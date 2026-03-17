@@ -1,7 +1,8 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
-import { StakingVault, YieldVault, MockUSDC } from "../typechain-types";
+import { StakingVault, YieldVault, MockUSDC, MockFeedVerifier } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("Branch Coverage Tests", function () {
   let yieldVault: YieldVault;
@@ -11,6 +12,7 @@ describe("Branch Coverage Tests", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let redeemVault: SignerWithAddress;
+  let oracle: MockFeedVerifier;
 
   beforeEach(async function () {
     [admin, user1, user2, redeemVault] = await ethers.getSigners();
@@ -39,6 +41,16 @@ describe("Branch Coverage Tests", function () {
       admin.address,
       await yieldVault.getAddress(),
     ])) as unknown as StakingVault;
+
+    // Setup NAV oracle at NAV=1.0 (required — no fallback path)
+    const FEED_ID = ethers.encodeBytes32String("TEST_FEED");
+    const MockFeedVerifier = await ethers.getContractFactory("MockFeedVerifier");
+    oracle = (await MockFeedVerifier.deploy()) as unknown as MockFeedVerifier;
+    const now = await time.latest();
+    await oracle.setPrice(FEED_ID, ethers.parseUnits("1", 18), now);
+    const NAV_ORACLE_UPDATER_ROLE = await stakingVault.NAV_ORACLE_UPDATER_ROLE();
+    await stakingVault.grantRole(NAV_ORACLE_UPDATER_ROLE, admin.address);
+    await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
   });
 
   describe("StakingVault - Initialize Error Branches", function () {
