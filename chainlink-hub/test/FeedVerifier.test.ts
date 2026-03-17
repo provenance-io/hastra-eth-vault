@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
-import type { FeedVerifier, MockVerifierProxy, MockERC20, MockFeeManager } from "../typechain-types";
+import type { FeedVerifier, MockVerifierProxy, MockFeeManager } from "../typechain-types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -260,20 +260,23 @@ describe("FeedVerifier", function () {
       expect(await feedVerifier.timestampOf(FEED_ID)).to.equal(obsTs2);
     });
 
-    it("pays fee via FeeManager when present (covers fee branch)", async function () {
+    it("forwards native ETH fee to VerifierProxy when FeeManager is present", async function () {
       const [admin, updater] = await ethers.getSigners();
 
-      // Deploy LINK token and reward manager address (reuse MockERC20 for LINK)
+      // Deploy LINK token (unused on ETH path) and a dummy native-token address
       const MockERC20Factory = await ethers.getContractFactory("MockERC20");
-      const linkToken = (await MockERC20Factory.deploy()) as unknown as MockERC20;
-      const rewardMgr = ethers.Wallet.createRandom().address;
+      const linkToken   = (await MockERC20Factory.deploy());
+      const nativeToken = (await MockERC20Factory.deploy());
+      const rewardMgr   = ethers.Wallet.createRandom().address;
 
-      // Deploy FeeManager mock
+      const fee = ethers.parseEther("0.01");
+
+      // Deploy FeeManager mock — native path, no LINK approval needed
       const MockFeeManagerFactory = await ethers.getContractFactory("MockFeeManager");
       const feeManager = (await MockFeeManagerFactory.deploy(
-        await linkToken.getAddress(), rewardMgr
+        await linkToken.getAddress(), await nativeToken.getAddress(), rewardMgr
       )) as unknown as MockFeeManager;
-      await feeManager.setFeeAmount(ethers.parseEther("0.01"));
+      await feeManager.setFeeAmount(fee);
 
       // Deploy proxy with FeeManager wired in
       const MockProxy = await ethers.getContractFactory("MockVerifierProxy");
@@ -287,12 +290,20 @@ describe("FeedVerifier", function () {
         { kind: "uups" }
       )) as unknown as FeedVerifier;
 
-      // Mint LINK to FeedVerifier so approve doesn't fail
-      await linkToken.mint(await fv.getAddress(), ethers.parseEther("1"));
+      // Fund the FeedVerifier contract with ETH so it can forward fees
+      await admin.sendTransaction({ to: await fv.getAddress(), value: ethers.parseEther("1") });
 
       const obsTs = Math.floor(Date.now() / 1000) - 60;
       await mockProxy.setVerifiedResponse(buildVerifiedReport(FEED_ID, ONE_NAV, obsTs, obsTs + 86400));
+
+      const proxyAddr = await mockProxy.getAddress();
+      const proxyBalBefore = await ethers.provider.getBalance(proxyAddr);
+
       await fv.connect(updater).verifyReport(buildUnverifiedReport(7));
+
+      // MockVerifierProxy is payable; it receives the fee forwarded by FeedVerifier
+      const proxyBalAfter = await ethers.provider.getBalance(proxyAddr);
+      expect(proxyBalAfter - proxyBalBefore).to.equal(fee);
 
       expect(await fv.priceOf(FEED_ID)).to.equal(ONE_NAV);
     });
@@ -443,45 +454,38 @@ describe("FeedVerifier", function () {
     });
   });
 
-  // ── withdrawToken ─────────────────────────────────────────────────────────
+  // ── withdrawEth ───────────────────────────────────────────────────────────
 
-  describe("withdrawToken", function () {
-    it("transfers full token balance to beneficiary", async function () {
+  describe("withdrawEth", function () {
+    it("transfers full ETH balance to beneficiary", async function () {
       const { feedVerifier, admin, other } = await loadFixture(deployFixture);
-      const MockERC20 = await ethers.getContractFactory("MockERC20");
-      const token = (await MockERC20.deploy()) as unknown as MockERC20;
+      const amount = ethers.parseEther("0.5");
+      await admin.sendTransaction({ to: await feedVerifier.getAddress(), value: amount });
 
-      const amount = ethers.parseEther("100");
-      await token.mint(await feedVerifier.getAddress(), amount);
+      const before = await ethers.provider.getBalance(other.address);
+      await feedVerifier.connect(admin).withdrawEth(other.address);
+      const after = await ethers.provider.getBalance(other.address);
 
-      await feedVerifier.connect(admin).withdrawToken(other.address, await token.getAddress());
-      expect(await token.balanceOf(other.address)).to.equal(amount);
-      expect(await token.balanceOf(await feedVerifier.getAddress())).to.equal(0n);
+      expect(after - before).to.equal(amount);
+      expect(await ethers.provider.getBalance(await feedVerifier.getAddress())).to.equal(0n);
     });
 
     it("reverts with NothingToWithdraw when balance is zero", async function () {
       const { feedVerifier, admin, other } = await loadFixture(deployFixture);
-      const MockERC20 = await ethers.getContractFactory("MockERC20");
-      const token = (await MockERC20.deploy()) as unknown as MockERC20;
-
       await expect(
-        feedVerifier.connect(admin).withdrawToken(other.address, await token.getAddress())
+        feedVerifier.connect(admin).withdrawEth(other.address)
       ).to.be.revertedWithCustomError(feedVerifier, "NothingToWithdraw");
     });
 
     it("reverts for non-admin", async function () {
-      const { feedVerifier, other } = await loadFixture(deployFixture);
-      const MockERC20 = await ethers.getContractFactory("MockERC20");
-      const token = (await MockERC20.deploy()) as unknown as MockERC20;
-      await token.mint(await feedVerifier.getAddress(), 1n);
-
+      const { feedVerifier, admin, other } = await loadFixture(deployFixture);
+      await admin.sendTransaction({ to: await feedVerifier.getAddress(), value: 1n });
       await expect(
-        feedVerifier.connect(other).withdrawToken(other.address, await token.getAddress())
+        feedVerifier.connect(other).withdrawEth(other.address)
       ).to.be.revertedWith(/AccessControl:/);
     });
   });
 
-  // ── allowedFeedId enforcement ─────────────────────────────────────────────
 
   describe("allowedFeedId", function () {
     describe("setAllowedFeedId", function () {

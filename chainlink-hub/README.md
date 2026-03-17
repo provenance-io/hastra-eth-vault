@@ -54,7 +54,7 @@ Useful write methods:
 
 Related docs outside this folder:
 
-- Chainlink integration overview: [`../CHAINLINK_SETUP.md`](../CHAINLINK_SETUP.md)
+- Chainlink integration overview: [`../CHAINLINK_SETUP.md`](../docs/CHAINLINK_SETUP.mdUP.md)
 - Contract verification guide: [`../docs/contract-verification.md`](../docs/contract-verification.md)
 
 ## Quick start
@@ -170,7 +170,7 @@ Why this subproject exists:
 If you need to verify contracts or look up current addresses:
 
 - verification steps: [`../docs/contract-verification.md`](../docs/contract-verification.md)
-- broader Chainlink setup/context: [`../CHAINLINK_SETUP.md`](../CHAINLINK_SETUP.md)
+- broader Chainlink setup/context: [`../CHAINLINK_SETUP.md`](../docs/CHAINLINK_SETUP.mdUP.md)
 - deployment output: [`./deployment_feed_verifier_sepolia.json`](./deployment_feed_verifier_sepolia.json)
 
 ## Safe admin workflow

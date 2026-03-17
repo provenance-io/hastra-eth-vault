@@ -3,8 +3,6 @@ pragma solidity ^0.8.20;
 
 import {Common} from "@chainlink/contracts/src/v0.8/llo-feeds/libraries/Common.sol";
 import {IVerifierFeeManager} from "@chainlink/contracts/src/v0.8/llo-feeds/v0.3.0/interfaces/IVerifierFeeManager.sol";
-import {IERC20Upgradeable as IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import {SafeERC20Upgradeable as SafeERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -63,8 +61,6 @@ contract FeedVerifier is
     PausableUpgradeable,
     UUPSUpgradeable
 {
-    using SafeERC20 for IERC20;
-
     bytes32 public constant PAUSER_ROLE   = keccak256("PAUSER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant UPDATER_ROLE  = keccak256("UPDATER_ROLE");
@@ -121,7 +117,21 @@ contract FeedVerifier is
     uint32 public maxStaleness;
 
     // slither-disable-next-line unused-state
-    uint256[44] private __gap;
+    uint256[43] private __gap;
+
+    // Occupies the last slot of the original __gap[44] — storage footprint unchanged,
+    // safe for upgrading an existing proxy. OZ v4 ReentrancyGuardUpgradeable cannot be
+    // added here because: (1) Chainlink llo-feeds pins @openzeppelin/contracts@4.8.3
+    // via versioned imports, making a v5 mix unsafe in the same compilation unit;
+    // (2) adding it to an existing proxy would shift storage layout in OZ v4.
+    uint256 private _reentrancyStatus; // 0/1 = not entered, 2 = entered
+
+    modifier nonReentrant() {
+        require(_reentrancyStatus != 2, "ReentrancyGuard: reentrant call");
+        _reentrancyStatus = 2;
+        _;
+        _reentrancyStatus = 1;
+    }
 
     // ── Constructor / Initializer ─────────────────────────────────────────────
 
@@ -185,8 +195,8 @@ contract FeedVerifier is
      * @param unverifiedReport Full payload returned by Chainlink Data Streams API.
      */
     function verifyReport(bytes memory unverifiedReport) external whenNotPaused onlyRole(UPDATER_ROLE) {
-        bytes memory parameterPayload = _buildParameterPayload(unverifiedReport);
-        bytes memory verified = verifierProxy.verify(unverifiedReport, parameterPayload);
+        (bytes memory parameterPayload, uint256 nativeFee) = _buildParameterPayload(unverifiedReport);
+        bytes memory verified = verifierProxy.verify{value: nativeFee}(unverifiedReport, parameterPayload);
         _storeReport(verified);
     }
 
@@ -199,8 +209,8 @@ contract FeedVerifier is
     function verifyBulkReports(bytes[] calldata unverifiedReports) external whenNotPaused onlyRole(UPDATER_ROLE) {
         if (unverifiedReports.length == 0) return;
 
-        bytes memory parameterPayload = _buildParameterPayload(unverifiedReports[0]);
-        bytes[] memory verifiedReports = verifierProxy.verifyBulk(unverifiedReports, parameterPayload);
+        (bytes memory parameterPayload, uint256 nativeFee) = _buildParameterPayload(unverifiedReports[0]);
+        bytes[] memory verifiedReports = verifierProxy.verifyBulk{value: nativeFee}(unverifiedReports, parameterPayload);
 
         for (uint256 i = 0; i < verifiedReports.length; i++) {
             _storeReport(verifiedReports[i]);
@@ -232,12 +242,17 @@ contract FeedVerifier is
     function pause()   external onlyRole(PAUSER_ROLE) { _pause(); }
     function unpause() external onlyRole(PAUSER_ROLE) { _unpause(); }
 
-    /// @notice Withdraw ERC-20 tokens (e.g. LINK) held by this contract.
-    function withdrawToken(address beneficiary, address token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        uint256 amount = IERC20(token).balanceOf(address(this));
+    /// @notice Withdraw ETH held by this contract (e.g. unspent verification fees).
+    /// @dev    .transfer() caps the call at 2300 gas so reentrance is physically impossible;
+    ///         nonReentrant is added as defence-in-depth in case this is ever changed to .call().
+    function withdrawEth(address payable beneficiary) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        uint256 amount = address(this).balance;
         if (amount == 0) revert NothingToWithdraw();
-        IERC20(token).safeTransfer(beneficiary, amount);
+        beneficiary.transfer(amount);
     }
+
+    /// @notice Accept ETH to fund native fee payments on mainnet.
+    receive() external payable {}
 
     // ── Internal ──────────────────────────────────────────────────────────────
 
@@ -249,9 +264,10 @@ contract FeedVerifier is
 
     /**
      * @dev Validates schema version and builds the fee parameterPayload.
-     *      Returns empty bytes when no FeeManager is present (e.g. Sepolia).
+     *      Returns (empty bytes, 0) when no FeeManager is present (e.g. Sepolia).
+     *      Returns (abi.encode(nativeToken), nativeFee) on mainnet — caller must forward nativeFee.
      */
-    function _buildParameterPayload(bytes memory unverifiedReport) internal returns (bytes memory parameterPayload) {
+    function _buildParameterPayload(bytes memory unverifiedReport) internal returns (bytes memory parameterPayload, uint256 nativeFee) {
         (, bytes memory reportData) = abi.decode(unverifiedReport, (bytes32[3], bytes));
 
         uint16 reportVersion = (uint16(uint8(reportData[0])) << 8) | uint16(uint8(reportData[1]));
@@ -259,14 +275,12 @@ contract FeedVerifier is
 
         IFeeManager feeManager = IFeeManager(address(verifierProxy.s_feeManager()));
         if (address(feeManager) != address(0)) {
-            address feeToken = feeManager.i_linkAddress();
-            (Common.Asset memory fee,,) = feeManager.getFeeAndReward(address(this), reportData, feeToken);
-            // Use raw approve: LINK does not have the allowance-race condition and the
-            // Chainlink RewardManager will consume exactly fee.amount in the verify() call.
-            IERC20(feeToken).approve(feeManager.i_rewardManager(), fee.amount);
-            parameterPayload = abi.encode(feeToken);
+            address nativeToken = feeManager.i_nativeAddress();
+            (Common.Asset memory fee,,) = feeManager.getFeeAndReward(address(this), reportData, nativeToken);
+            nativeFee = fee.amount;
+            parameterPayload = abi.encode(nativeToken);
         }
-        // else: no FeeManager (Sepolia) — parameterPayload stays empty
+        // else: no FeeManager (Sepolia) — parameterPayload stays empty, nativeFee stays 0
     }
 
     /**
