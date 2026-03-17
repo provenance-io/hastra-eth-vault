@@ -4,7 +4,7 @@
  * Usage:
  *   CHAINLINK_CLIENT_ID=<id> CHAINLINK_CLIENT_SECRET=<secret> \
  *     FEED_ID=0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3 \
- *     npx ts-node scripts/verify-feed-id.ts
+ *     npx ts-node scripts/utils/verify-feed-id.ts
  *
  * The script:
  *   1. Calls the Chainlink Data Streams REST API for the given feed ID
@@ -118,7 +118,7 @@ async function main() {
         "   Export them and re-run:\n" +
         "   CHAINLINK_CLIENT_ID=<id> CHAINLINK_CLIENT_SECRET=<secret> \\\n" +
         `   FEED_ID=${FEED_ID} \\\n` +
-        "   npx ts-node scripts/verify-feed-id.ts"
+        "   npx ts-node scripts/utils/verify-feed-id.ts"
     );
     process.exit(1);
   }

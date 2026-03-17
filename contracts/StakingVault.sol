@@ -350,10 +350,7 @@ contract StakingVault is
     }
 
     /**
-     * @notice Returns the total vault asset{
-  "totalSupply_": "1774451557000000000000",
-  "totalTVL_": "3098740125000000000000"
-}s denominated in the NAV-adjusted underlying value.
+     * @notice Returns the total vault assets denominated in the NAV-adjusted underlying value.
      * @dev totalAssets() is in wYLDS (6 decimals). NAV is 1e18 scaled.
      *      Result is in 1e18 * 1e6 = 1e24 units — divide by 1e18 to get USDC (6 decimals).
      * @return Total value = totalAssets * navRate / 1e18.

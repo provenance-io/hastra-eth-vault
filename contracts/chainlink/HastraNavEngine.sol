@@ -34,6 +34,8 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
     error TVLIsZero();
     error TVLDifferenceExceeded(uint256 previousTVL, uint256 newTVL, uint256 difference, uint256 maxAllowed);
     error RateOutOfBounds(int192 rate, int192 minRate, int192 maxRate);
+    error TotalSupplyIsZero();
+    error RateOverflow(uint256 calculatedRate);
     event UpdaterSet(address indexed updater);
     event MinRateSet(int192 minRate);
     event MaxRateSet(int192 maxRate);
@@ -79,7 +81,7 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
     // totalSupply = Total pTokens (Prime tokens) issued
     // totalAssets = Total wYLDS held = Total USDC value (since 1:1)
     function updateRate(uint256 totalSupply_, uint256 totalTVL_) external onlyUpdater whenNotPaused returns (int192) {
-        require(totalSupply_ > 0, "Total supply is zero");
+        if (totalSupply_ == 0) revert TotalSupplyIsZero();
         NavEngineStorage storage $ = _getStorage();
 
         if (totalTVL_ == 0) {
@@ -99,7 +101,7 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
         }
 
         uint256 calculatedRate = Math.mulDiv(totalTVL_, RATE_PRECISION, totalSupply_);
-        require(calculatedRate <= uint192(type(int192).max), "Rate overflow");
+        if (calculatedRate > uint256(uint192(type(int192).max))) revert RateOverflow(calculatedRate);
         int192 newRate = int192(int256(calculatedRate));
 
         if (newRate < $.minRate || newRate > $.maxRate) {

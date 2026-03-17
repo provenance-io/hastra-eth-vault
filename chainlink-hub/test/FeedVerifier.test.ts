@@ -263,18 +263,16 @@ describe("FeedVerifier", function () {
     it("forwards native ETH fee to VerifierProxy when FeeManager is present", async function () {
       const [admin, updater] = await ethers.getSigners();
 
-      // Deploy LINK token (unused on ETH path) and a dummy native-token address
+      // Deploy a dummy ERC20 to act as the wrapped-native token address
       const MockERC20Factory = await ethers.getContractFactory("MockERC20");
-      const linkToken   = (await MockERC20Factory.deploy());
       const nativeToken = (await MockERC20Factory.deploy());
-      const rewardMgr   = ethers.Wallet.createRandom().address;
 
       const fee = ethers.parseEther("0.01");
 
-      // Deploy FeeManager mock — native path, no LINK approval needed
+      // Deploy FeeManager mock — native path only
       const MockFeeManagerFactory = await ethers.getContractFactory("MockFeeManager");
       const feeManager = (await MockFeeManagerFactory.deploy(
-        await linkToken.getAddress(), await nativeToken.getAddress(), rewardMgr
+        await nativeToken.getAddress()
       )) as unknown as MockFeeManager;
       await feeManager.setFeeAmount(fee);
 

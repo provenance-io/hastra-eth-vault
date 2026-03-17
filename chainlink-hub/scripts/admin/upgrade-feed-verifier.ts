@@ -4,14 +4,17 @@ import * as fs from "fs";
 import * as path from "path";
 
 /**
- * Upgrade FeedVerifier to V2 (adds allowedFeedId enforcement).
+ * Upgrade FeedVerifier to a new implementation.
  *
- * Deploys a new implementation and calls setAllowedFeedId(feedId) atomically
- * via upgradeToAndCall in a single transaction.
+ * Deploys a fresh implementation bypassing the OZ manifest cache, then calls
+ * upgradeToAndCall() atomically with setAllowedFeedId() in a single transaction.
+ *
+ * NOTE: Uses Factory.deploy() + upgradeToAndCall() directly — never uses the OZ
+ * upgrades plugin — to avoid manifest cache issues with existing proxies.
  *
  * Usage:
- *   npx hardhat run scripts/upgrade-feed-verifier.ts --network sepolia
- *   npx hardhat run scripts/upgrade-feed-verifier.ts --network hoodi
+ *   npx hardhat run scripts/admin/upgrade-feed-verifier.ts --network sepolia
+ *   npx hardhat run scripts/admin/upgrade-feed-verifier.ts --network hoodi
  *
  * Required .env:
  *   PRIVATE_KEY        — must hold UPGRADER_ROLE + DEFAULT_ADMIN_ROLE on the proxy
@@ -26,7 +29,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const net = network.name;
 
-  const artifactPath = path.join(__dirname, `../deployment_feed_verifier_${net}.json`);
+  const artifactPath = path.join(__dirname, `../../deployment_feed_verifier_${net}.json`);
   if (!fs.existsSync(artifactPath)) {
     throw new Error(`No deployment artifact found at ${artifactPath}. Deploy first.`);
   }

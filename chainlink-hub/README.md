@@ -44,17 +44,34 @@ Useful write methods:
 
 ## Project layout
 
-- Contracts: [`./contracts/`](./contracts/)
-- Tests: [`./test/FeedVerifier.test.ts`](./test/FeedVerifier.test.ts)
-- Deploy script: [`./scripts/deploy-feed-verifier.ts`](./scripts/deploy-feed-verifier.ts)
-- Read/publish script: [`./scripts/test-feed-verifier.ts`](./scripts/test-feed-verifier.ts)
-- Feed ID helper: [`./scripts/verify-feed-id.ts`](./scripts/verify-feed-id.ts)
-- Report decoder: [`./scripts/decode-report.ts`](./scripts/decode-report.ts)
-- Latest Sepolia deployment artifact: [`./deployment_feed_verifier_sepolia.json`](./deployment_feed_verifier_sepolia.json)
+```
+contracts/
+  FeedVerifier.sol          — production contract (UUPS upgradeable)
+  mocks/                    — test doubles (not deployed)
+test/
+  FeedVerifier.test.ts      — 49 tests, 100% coverage
+scripts/
+  deploy/
+    deploy-feed-verifier.ts — initial proxy deployment
+  admin/
+    upgrade-feed-verifier.ts      — deploy new impl + upgradeToAndCall()
+    prepare-safe-upgrade.ts       — generate Safe upgrade calldata
+    prepare-safe-role-grant.ts    — generate Safe role grant/revoke calldata
+    verify-safe-upgrade.ts        — confirm a Safe upgrade completed
+    safe-helpers.ts               — shared helpers (not runnable directly)
+  ops/
+    test-feed-verifier.ts   — fetch report (read) or publish on-chain (publish)
+  utils/
+    decode-report.ts        — pretty-print a Chainlink Schema v7 report
+    decode-calldata.ts      — decode raw EVM calldata for known functions
+    verify-feed-id.ts       — verify a feed ID via the Data Streams API
+docs/
+  FeedVerifier.md           — contract reference: roles, errors, fee model
+```
 
 Related docs outside this folder:
 
-- Chainlink integration overview: [`../CHAINLINK_SETUP.md`](../docs/CHAINLINK_SETUP.mdUP.md)
+- Chainlink integration overview: [`../CHAINLINK_SETUP.md`](../docs/CHAINLINK_SETUP.md)
 - Contract verification guide: [`../docs/contract-verification.md`](../docs/contract-verification.md)
 
 ## Quick start
@@ -83,7 +100,7 @@ npm run test:coverage
 
 Primary deployment script:
 
-- [`./scripts/deploy-feed-verifier.ts`](./scripts/deploy-feed-verifier.ts)
+- [`./scripts/deploy/deploy-feed-verifier.ts`](./scripts/deploy/deploy-feed-verifier.ts)
 
 Example:
 
@@ -91,7 +108,7 @@ Example:
 cd chainlink-hub
 ADMIN_ADDRESS=<admin> \
 UPDATER_ADDRESS=<bot-wallet> \
-npx hardhat run scripts/deploy-feed-verifier.ts --network sepolia
+npx hardhat run scripts/deploy/deploy-feed-verifier.ts --network sepolia
 ```
 
 Expected environment:
@@ -118,7 +135,7 @@ Current Sepolia deployment artifact:
 
 ## Reading and publishing reports
 
-Use [`./scripts/test-feed-verifier.ts`](./scripts/test-feed-verifier.ts) for both dry-run reads and real onchain publishes.
+Use [`./scripts/ops/test-feed-verifier.ts`](./scripts/ops/test-feed-verifier.ts) for both dry-run reads and real onchain publishes.
 
 Read only:
 
@@ -127,7 +144,7 @@ cd chainlink-hub
 MODE=read \
 CHAINLINK_CLIENT_ID=<id> \
 CHAINLINK_CLIENT_SECRET=<secret> \
-npx hardhat run scripts/test-feed-verifier.ts --network sepolia
+npx hardhat run scripts/ops/test-feed-verifier.ts --network sepolia
 ```
 
 Publish onchain:
@@ -138,7 +155,7 @@ MODE=publish \
 FEED_VERIFIER_ADDRESS=<proxy-address> \
 CHAINLINK_CLIENT_ID=<id> \
 CHAINLINK_CLIENT_SECRET=<secret> \
-npx hardhat run scripts/test-feed-verifier.ts --network sepolia
+npx hardhat run scripts/ops/test-feed-verifier.ts --network sepolia
 ```
 
 The publish flow will:
@@ -170,7 +187,7 @@ Why this subproject exists:
 If you need to verify contracts or look up current addresses:
 
 - verification steps: [`../docs/contract-verification.md`](../docs/contract-verification.md)
-- broader Chainlink setup/context: [`../CHAINLINK_SETUP.md`](../docs/CHAINLINK_SETUP.mdUP.md)
+- broader Chainlink setup/context: [`../CHAINLINK_SETUP.md`](../docs/CHAINLINK_SETUP.md)
 - deployment output: [`./deployment_feed_verifier_sepolia.json`](./deployment_feed_verifier_sepolia.json)
 
 ## Safe admin workflow

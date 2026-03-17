@@ -355,7 +355,7 @@ describe("HastraNavEngine - int192 Type Safety Tests", function () {
       
       await expect(
         testEngine.connect(testUpdater).updateRate(supply, tvl)
-      ).to.be.revertedWith("Rate overflow");
+      ).to.be.revertedWithCustomError(testEngine, "RateOverflow");
     });
   });
 });

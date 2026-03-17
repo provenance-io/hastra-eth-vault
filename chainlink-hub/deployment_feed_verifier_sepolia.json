@@ -1,7 +1,7 @@
 {
   "network": "sepolia",
   "feedVerifier": "0xCd9DC3EFaE333Be42d9CbAc0B4F8A4af8f3C8f3D",
-  "feedVerifierImplementation": "0xf42f3fBBB5eEFb93e7e5f43Cc39FbBA368387433",
+  "feedVerifierImplementation": "0x35a08C19dfA9422Ac306B8b3461815c7ef7aFfE6",
   "verifierProxy": "0x4e9935be37302B9C97Ff4ae6868F1b566ade26d2",
   "feedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3",
   "deployer": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
@@ -9,5 +9,5 @@
   "updater": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
   "deployedAt": "2026-03-09T17:25:25.503Z",
   "allowedFeedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3",
-  "upgradedAt": "2026-03-17T16:29:37.303Z"
+  "upgradedAt": "2026-03-17T22:44:37.726Z"
 }

@@ -6,11 +6,11 @@
  * Prints human-readable argument values with token-scaled interpretations.
  *
  * Usage:
- *   CALLDATA=0x405abb41... npx hardhat run scripts/decode-calldata.ts --network hardhat
- *   CALLDATA=0x405abb41... node scripts/decode-calldata.ts   (plain Node, no hardhat needed)
+ *   CALLDATA=0x405abb41... npx hardhat run scripts/utils/decode-calldata.ts --network hardhat
+ *   CALLDATA=0x405abb41... node scripts/utils/decode-calldata.ts   (plain Node, no hardhat needed)
  *
  * Or pass as CLI arg:
- *   node scripts/decode-calldata.ts 0x405abb41...
+ *   node scripts/utils/decode-calldata.ts 0x405abb41...
  */
 
 import { ethers } from "ethers";
@@ -125,8 +125,8 @@ function decode(calldata: string) {
 
 const calldata = process.argv[2] || process.env.CALLDATA;
 if (!calldata) {
-  console.error("Usage: CALLDATA=0x... node scripts/decode-calldata.ts");
-  console.error("   or: node scripts/decode-calldata.ts 0x...");
+  console.error("Usage: CALLDATA=0x... node scripts/utils/decode-calldata.ts");
+  console.error("   or: node scripts/utils/decode-calldata.ts 0x...");
   process.exit(1);
 }
 

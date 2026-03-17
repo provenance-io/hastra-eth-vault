@@ -16,14 +16,14 @@ import * as path from "path";
  *   MODE=read \
  *   CHAINLINK_CLIENT_ID=<id> \
  *   CHAINLINK_CLIENT_SECRET=<secret> \
- *   npx hardhat run scripts/test-feed-verifier.ts --network sepolia
+ *   npx hardhat run scripts/ops/test-feed-verifier.ts --network sepolia
  *
  *   # Publish on-chain:
  *   MODE=publish \
  *   FEED_VERIFIER_ADDRESS=<addr> \
  *   CHAINLINK_CLIENT_ID=<id> \
  *   CHAINLINK_CLIENT_SECRET=<secret> \
- *   npx hardhat run scripts/test-feed-verifier.ts --network sepolia
+ *   npx hardhat run scripts/ops/test-feed-verifier.ts --network sepolia
  */
 
 const FEED_ID =
@@ -154,7 +154,7 @@ async function main() {
 
   let contractAddress = process.env.FEED_VERIFIER_ADDRESS;
   if (!contractAddress) {
-    const deployFile = path.join(__dirname, `../deployment_feed_verifier_${net}.json`);
+    const deployFile = path.join(__dirname, `../../deployment_feed_verifier_${net}.json`);
     if (fs.existsSync(deployFile)) {
       contractAddress = JSON.parse(fs.readFileSync(deployFile, "utf8")).feedVerifier;
     } else {

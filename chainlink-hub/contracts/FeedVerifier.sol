@@ -46,9 +46,7 @@ interface IFeeManager {
         address quoteAddress
     ) external returns (Common.Asset memory, Common.Asset memory, uint256);
 
-    function i_linkAddress() external view returns (address);
     function i_nativeAddress() external view returns (address);
-    function i_rewardManager() external view returns (address);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,8 +68,8 @@ contract FeedVerifier is
         bytes32 feedId;
         uint32  validFromTimestamp;
         uint32  observationsTimestamp;
-        uint192 nativeFee;
-        uint192 linkFee;
+        uint192 nativeFee; // from Chainlink schema — not used directly but required for abi.decode offset alignment
+        uint192 linkFee;   // from Chainlink schema — not used directly but required for abi.decode offset alignment
         uint32  expiresAt;
         int192  price; // exchange rate, scaled 1e18
     }

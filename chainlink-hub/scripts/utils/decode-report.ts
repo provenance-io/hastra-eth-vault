@@ -9,11 +9,11 @@ import * as crypto from "crypto";
  * Usage:
  *   CHAINLINK_CLIENT_ID=<id> \
  *   CHAINLINK_CLIENT_SECRET=<secret> \
- *   npx hardhat run scripts/decode-report.ts --network sepolia
+ *   npx hardhat run scripts/utils/decode-report.ts --network sepolia
  *
  * Or decode a raw hex blob directly:
  *   FULL_REPORT=0x... \
- *   npx hardhat run scripts/decode-report.ts --network sepolia
+ *   npx hardhat run scripts/utils/decode-report.ts --network sepolia
  */
 
 // this is the sepolia testnet feed_id

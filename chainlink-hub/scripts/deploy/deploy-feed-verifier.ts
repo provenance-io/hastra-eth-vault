@@ -6,9 +6,12 @@ import * as path from "path";
 /**
  * Deploy FeedVerifier.sol (UUPS proxy) to Sepolia or Hoodi.
  *
+ * Saves a deployment artifact at chainlink-hub/deployment_feed_verifier_<network>.json
+ * containing proxy address, implementation address, verifierProxy, feedId, and deployer.
+ *
  * Usage:
- *   npx hardhat run scripts/deploy-feed-verifier.ts --network sepolia
- *   npx hardhat run scripts/deploy-feed-verifier.ts --network hoodi
+ *   npx hardhat run scripts/deploy/deploy-feed-verifier.ts --network sepolia
+ *   npx hardhat run scripts/deploy/deploy-feed-verifier.ts --network hoodi
  *
  * Required .env:
  *   PRIVATE_KEY, SEPOLIA_RPC_URL (or HOODI_RPC_URL), ETHERSCAN_API_KEY
@@ -55,7 +58,7 @@ async function main() {
   console.log(`✅ Proxy deployed:          ${proxyAddress}`);
   console.log(`✅ Implementation deployed: ${implAddress}`);
 
-  const deploymentFile = path.join(__dirname, `../deployment_feed_verifier_${net}.json`);
+  const deploymentFile = path.join(__dirname, `../../deployment_feed_verifier_${net}.json`);
   fs.writeFileSync(deploymentFile, JSON.stringify({
     network: net,
     feedVerifier: proxyAddress,

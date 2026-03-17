@@ -192,22 +192,4 @@ https://holesky.etherscan.io/address/0xec8a23c912397B7971595774ac1bD08FC5Efe39C
 - **Rate mismatch**: Compare NavEngine rate with Hub rate
 - **Stale data**: Check update intervals and staleness thresholds
 
-## Production Deployment
 
-### Bot (Systemd)
-```bash
-sudo systemctl enable nav-bot
-sudo systemctl start nav-bot
-```
-
-### Monitoring
-- Set up alerts for failed updates
-- Monitor gas costs
-- Track rate changes
-- Log DON readings
-
-### Security
-- Rotate private keys regularly
-- Use hardware wallet for deployer key
-- Monitor for unusual rate changes
-- Set up emergency pause procedures

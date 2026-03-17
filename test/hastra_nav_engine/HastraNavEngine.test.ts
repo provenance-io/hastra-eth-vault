@@ -121,7 +121,7 @@ describe("HastraNavEngine", function () {
     it("Should revert if total supply is zero", async function () {
       await expect(
         navEngine.connect(updater).updateRate(0, totalTVL)
-      ).to.be.revertedWith("Total supply is zero");
+      ).to.be.revertedWithCustomError(navEngine, "TotalSupplyIsZero");
     });
 
     it("Should revert if TVL is zero", async function () {
