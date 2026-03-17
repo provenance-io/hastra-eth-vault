@@ -513,6 +513,61 @@ describe("StakingVault", function () {
       
       expect(balanceAfter - balanceBefore).to.equal(depositAmount);
     });
+
+    it("Should succeed even if permit signature was already consumed (front-run griefing)", async function () {
+      const { stakingVault, yieldVault, user1, user2 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const depositAmount = ethers.parseUnits("100", 6);
+      const deadline = ethers.MaxUint256;
+
+      const domain = {
+        name: await yieldVault.name(),
+        version: "1",
+        chainId: (await ethers.provider.getNetwork()).chainId,
+        verifyingContract: await yieldVault.getAddress()
+      };
+
+      const types = {
+        Permit: [
+          { name: "owner", type: "address" },
+          { name: "spender", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" }
+        ]
+      };
+
+      const nonce = await yieldVault.nonces(user1.address);
+      const value = {
+        owner: user1.address,
+        spender: await stakingVault.getAddress(),
+        value: depositAmount,
+        nonce: nonce,
+        deadline: deadline
+      };
+
+      const signature = await user1.signTypedData(domain, types, value);
+      const sig = ethers.Signature.from(signature);
+
+      // Attacker front-runs: consumes the permit signature directly
+      await yieldVault.connect(user2).permit(
+        user1.address, await stakingVault.getAddress(),
+        depositAmount, deadline, sig.v, sig.r, sig.s
+      );
+
+      // Permit nonce is now used — calling permit() again would revert.
+      // depositWithPermit() must still succeed because allowance is already set.
+      const balanceBefore = await stakingVault.balanceOf(user1.address);
+      await expect(
+        stakingVault.connect(user1).depositWithPermit(
+          depositAmount, user1.address, deadline, sig.v, sig.r, sig.s
+        )
+      ).to.not.be.reverted;
+
+      const balanceAfter = await stakingVault.balanceOf(user1.address);
+      expect(balanceAfter - balanceBefore).to.equal(depositAmount);
+    });
   });
 
   describe("View Functions", function () {
