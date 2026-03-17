@@ -11,6 +11,42 @@ ERC-4626 tokenized vaults with two-step redemptions, merkle-based rewards, and U
 - **[Compliance Features](docs/COMPLIANCE.md)** - Freeze/thaw and regulatory controls
 - **[Error Codes](docs/ERROR_CODES.md)** - Troubleshooting transaction failures
 
+## Chainlink NAV Integration
+
+The StakingVault share price is driven by an on-chain **Net Asset Value (NAV)** engine that
+consumes verified price reports from [Chainlink Data Streams](https://docs.chain.link/data-streams).
+
+```
+Chainlink Data Streams
+        │  (signed report)
+        ▼
+  [FeedVerifier] ──── verifies report via Chainlink VerifierProxy
+        │  (stores verified price)
+        ▼
+  [HastraNavEngine] ── calculates rate = TVL / totalSupply
+        │  (int192 rate, 1e18 scaled)
+        ▼
+  [StakingVault] ──── uses rate for share ↔ asset conversions
+```
+
+**Subproject:** [`chainlink-hub/`](./chainlink-hub/) — FeedVerifier contract, off-chain bot, tests, and docs.
+
+**Key docs:**
+- [FeedVerifier contract reference](./chainlink-hub/docs/FeedVerifier.md) — roles, functions, errors, fee model
+- [Chainlink hub README](./chainlink-hub/README.md) — setup, deployment, scripts
+- [Chainlink Data Streams overview](https://docs.chain.link/data-streams) — how signed price reports work
+- [Chainlink Data Streams API reference](https://docs.chain.link/data-streams/reference/interfaces) — verifier interfaces
+- [Chainlink llo-feeds contracts](https://github.com/smartcontractkit/chainlink/tree/develop/contracts/src/v0.8/llo-feeds) — upstream contract source
+
+**Testnet deployments (Sepolia):**
+
+| Contract | Address |
+|----------|---------|
+| FeedVerifier (Proxy) | [`0xCd9DC3EFaE333Be42d9CbAc0B4F8A4af8f3C8f3D`](https://sepolia.etherscan.io/address/0xCd9DC3EFaE333Be42d9CbAc0B4F8A4af8f3C8f3D) |
+| HastraNavEngine (Proxy) | [`0xBc494b33Cd67e8033644608876b10BB84d0eDF55`](https://sepolia.etherscan.io/address/0xBc494b33Cd67e8033644608876b10BB84d0eDF55) |
+
+---
+
 ## Overview
 
 The Hastra Ethereum Vault Protocol consists of two ERC-4626 vaults:
@@ -44,6 +80,18 @@ Stake wYLDS and receive PRIME tokens with share value appreciation.
 - ✅ No unbonding period
 
 ## 🌐 Deployment
+
+### Testnet (Sepolia)
+
+View deployment info: [`deployment_testnet_sepolia.json`](./deployment_testnet_sepolia.json)
+
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| YieldVault (Proxy) | `0x0258787Eb97DD01436B562943D8ca85B772D7b98` | [View →](https://sepolia.etherscan.io/address/0x0258787Eb97DD01436B562943D8ca85B772D7b98) |
+| StakingVault (Proxy) | `0xFf22361Ca2590761A2429D4127b7FF25E79fdC04` | [View →](https://sepolia.etherscan.io/address/0xFf22361Ca2590761A2429D4127b7FF25E79fdC04) |
+| USDC (Test) | `0xBA88e76F1F98037dd9fDFd6837bDda0225d92dcB` | [View →](https://sepolia.etherscan.io/address/0xBA88e76F1F98037dd9fDFd6837bDda0225d92dcB) |
+
+**Network:** Sepolia Testnet (Chain ID: 11155111)
 
 ### Testnet (Hoodi) - **ACTIVE**
 
