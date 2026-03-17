@@ -1,3 +1,10 @@
+/**
+ * [UTIL] Demonstrate that storage gaps must be present from initial deployment.
+ * Shows that adding a __gap slot in an upgrade is not possible (layout incompatible).
+ *
+ * Usage:
+ *   npx hardhat run scripts/utils/test_storage_gap_upgrade.ts --network localhost
+ */
 import { ethers, upgrades } from "hardhat";
 
 async function main() {

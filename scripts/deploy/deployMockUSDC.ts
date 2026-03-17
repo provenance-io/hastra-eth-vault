@@ -1,3 +1,10 @@
+/**
+ * [DEPLOY] Deploy a standalone MockUSDC contract for testing.
+ *
+ * Usage:
+ *   npx hardhat run scripts/deploy/deployMockUSDC.ts --network sepolia
+ *   npx hardhat run scripts/deploy/deployMockUSDC.ts --network hoodi
+ */
 // @ts-ignore
 import { ethers } from "hardhat";
 

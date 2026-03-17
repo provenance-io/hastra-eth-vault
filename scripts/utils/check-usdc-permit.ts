@@ -1,3 +1,11 @@
+/**
+ * [UTIL] Check whether USDC on a given network supports EIP-2612 permit (DOMAIN_SEPARATOR).
+ * Falls back to public mainnet RPC if no network API key is configured.
+ *
+ * Usage:
+ *   npx hardhat run scripts/utils/check-usdc-permit.ts --network mainnet
+ *   USDC_ADDRESS=0x... npx hardhat run scripts/utils/check-usdc-permit.ts --network sepolia
+ */
 import { ethers } from "hardhat";
 
 async function main() {

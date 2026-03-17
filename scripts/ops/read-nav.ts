@@ -1,7 +1,5 @@
 /**
- * read-nav.ts
- *
- * Reads the latest verified NAV from FeedVerifier and shows:
+ * [OPS] Reads the latest verified NAV from FeedVerifier and shows:
  *   - Current verified exchange rate (per feedId)
  *   - StakingVault totalAssets / totalSupply
  *   - What redeeming/depositing looks like at the verified NAV
@@ -11,16 +9,16 @@
  *   - Old: lastDecodedPrice / lastObservationsTimestamp (single slot)
  *
  * Usage:
- *   npx hardhat run scripts/read-nav.ts --network sepolia
- *   FEED_VERIFIER_ADDRESS=<addr> npx hardhat run scripts/read-nav.ts --network sepolia
- *   FEED_ID=0x... npx hardhat run scripts/read-nav.ts --network sepolia
+ *   npx hardhat run scripts/ops/read-nav.ts --network sepolia
+ *   FEED_VERIFIER_ADDRESS=<addr> npx hardhat run scripts/ops/read-nav.ts --network sepolia
+ *   FEED_ID=0x... npx hardhat run scripts/ops/read-nav.ts --network sepolia
  */
 
 // @ts-ignore
 import { ethers, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
-import { getDeploymentFile } from "./utils/getDeploymentFile";
+import { getDeploymentFile } from "../utils/getDeploymentFile";
 
 const NEW_ABI = [
   "function priceOf(bytes32 feedId) view returns (int192)",
@@ -60,7 +58,7 @@ async function main() {
 
   // ── 2. Resolve vault addresses ────────────────────────────────────────────
   const deployFile = getDeploymentFile(net);
-  const deployment = JSON.parse(fs.readFileSync(path.join(__dirname, "../", deployFile), "utf8"));
+  const deployment = JSON.parse(fs.readFileSync(path.join(__dirname, "../../", deployFile), "utf8"));
   const contracts = deployment.contracts ?? deployment;
   console.log(`StakingVault: ${contracts.stakingVault}`);
   console.log(`YieldVault:   ${contracts.yieldVault}`);

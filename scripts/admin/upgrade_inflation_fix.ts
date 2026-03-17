@@ -1,8 +1,17 @@
+/**
+ * [ADMIN] Upgrade StakingVault proxy to fix the inflation attack vulnerability.
+ * Deploys new implementation with internal accounting (_totalManagedAssets).
+ * Requires UPGRADER_ROLE on the StakingVault proxy.
+ *
+ * Usage:
+ *   npx hardhat run scripts/admin/upgrade_inflation_fix.ts --network sepolia
+ *   npx hardhat run scripts/admin/upgrade_inflation_fix.ts --network hoodi
+ */
 // @ts-ignore
 import { ethers, upgrades } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
-import { getDeploymentFile } from "./utils/getDeploymentFile";
+import { getDeploymentFile } from "../utils/getDeploymentFile";
 
 async function main() {
   console.log("\n🚀 UPGRADING STAKING VAULT - INFLATION ATTACK FIX");
@@ -19,7 +28,7 @@ async function main() {
   console.log("Using deployment file:", deploymentFile);
 
   // Load existing deployment
-  const deploymentPath = path.join(__dirname, "..", deploymentFile);
+  const deploymentPath = path.join(__dirname, "../..", deploymentFile);
   if (!fs.existsSync(deploymentPath)) {
     throw new Error(`Deployment file not found: ${deploymentFile}`);
   }

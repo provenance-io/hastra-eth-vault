@@ -1,13 +1,21 @@
+/**
+ * [OPS] Read the StakingVault NAV oracle configuration and attempt getVerifiedNav().
+ * Useful for verifying Chainlink feed integration post-deploy.
+ *
+ * Usage:
+ *   npx hardhat run scripts/ops/check-nav-oracle.ts --network sepolia
+ *   npx hardhat run scripts/ops/check-nav-oracle.ts --network hoodi
+ */
 // @ts-ignore
 import { ethers } from "hardhat";
-import { getDeploymentFile } from "./utils/getDeploymentFile";
+import { getDeploymentFile } from "../utils/getDeploymentFile";
 import * as fs from "fs";
 import * as path from "path";
 
 async function main() {
   const network = await ethers.provider.getNetwork();
   const deploymentFile = getDeploymentFile(network.name);
-  const deployment = JSON.parse(fs.readFileSync(path.join(__dirname, "..", deploymentFile), "utf8"));
+  const deployment = JSON.parse(fs.readFileSync(path.join(__dirname, "../..", deploymentFile), "utf8"));
   const proxy = deployment.contracts.stakingVault;
 
   console.log(`StakingVault NAV Oracle state (${network.name}):`);

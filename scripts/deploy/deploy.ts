@@ -1,3 +1,16 @@
+/**
+ * [DEPLOY] Deploy the full Hastra Vault Protocol (MockUSDC, YieldVault, StakingVault).
+ * Sets up all roles and approvals for the configured network.
+ *
+ * Usage:
+ *   npx hardhat run scripts/deploy/deploy.ts --network sepolia
+ *   npx hardhat run scripts/deploy/deploy.ts --network hoodi
+ *   DRY_RUN=true npx hardhat run scripts/deploy/deploy.ts --network sepolia
+ *
+ * Optional env vars: USDC_ADDRESS, REDEEM_VAULT_ADDRESS, FREEZE_ADMIN_ADDRESS,
+ *   REWARDS_ADMIN_ADDRESS, WHITELIST_ADMIN_ADDRESS, WITHDRAWAL_ADMIN_ADDRESS,
+ *   NAV_ORACLE_UPDATER_ADDRESS
+ */
 // @ts-ignore
 import {ethers, upgrades} from "hardhat";
 import * as fs from "fs";

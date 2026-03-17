@@ -1,22 +1,19 @@
 // @ts-ignore
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
-import { getDeploymentFile } from "./utils/getDeploymentFile";
+import { getDeploymentFile } from "../utils/getDeploymentFile";
 
 /**
- * Upgrade YieldVault proxy to the latest implementation.
+ * [ADMIN] Upgrade StakingVault proxy to the latest implementation.
+ * Requires UPGRADER_ROLE on the proxy.
  *
- * Usage (admin):
- *   npx hardhat run scripts/upgrade_yield_vault.ts --network sepolia
- *   npx hardhat run scripts/upgrade_yield_vault.ts --network hoodi
- *
- * Caller must hold UPGRADER_ROLE on the proxy.
- * Deploys the new implementation directly (bypasses OZ manifest) then calls
- * upgradeToAndCall on the proxy, matching the pattern in upgrade_staking_vault.ts.
+ * Usage:
+ *   npx hardhat run scripts/admin/upgrade_staking_vault.ts --network sepolia
+ *   npx hardhat run scripts/admin/upgrade_staking_vault.ts --network hoodi
  */
 async function main() {
-  console.log("\n🚀 UPGRADING YIELD VAULT");
+  console.log("\n🚀 UPGRADING STAKING VAULT");
   console.log("=".repeat(70));
 
   const [deployer] = await ethers.getSigners();
@@ -26,58 +23,56 @@ async function main() {
   const deploymentFile = getDeploymentFile(network.name);
   console.log("Network:", network.name, "(Chain ID:", network.chainId.toString() + ")");
 
-  const deploymentPath = path.join(__dirname, "..", deploymentFile);
+  const deploymentPath = path.join(__dirname, "../..", deploymentFile);
   if (!fs.existsSync(deploymentPath)) {
     throw new Error(`Deployment file not found: ${deploymentFile}`);
   }
 
   const deployment = JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
-  const yieldVaultProxy = deployment.contracts.yieldVault;
-  if (!yieldVaultProxy) throw new Error("yieldVault address not found in deployment file");
+  const stakingVaultProxy = deployment.contracts.stakingVault;
 
-  console.log("\n📍 PROXY ADDRESS:", yieldVaultProxy);
+  console.log("\n📍 PROXY ADDRESS:", stakingVaultProxy);
 
-  const proxy = await ethers.getContractAt("YieldVault", yieldVaultProxy);
-
-  // Read ERC1967 implementation slot directly (no OZ manifest needed)
-  const ERC1967_IMPL_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
-  const rawSlot = await ethers.provider.getStorage(yieldVaultProxy, ERC1967_IMPL_SLOT);
-  const oldImpl = ethers.getAddress("0x" + rawSlot.slice(-40));
+  const oldImpl = await upgrades.erc1967.getImplementationAddress(stakingVaultProxy);
   console.log("Current implementation:", oldImpl);
 
   // Snapshot state before upgrade
+  const vault = await ethers.getContractAt("StakingVault", stakingVaultProxy);
   const [totalSupply, totalAssets, asset, paused] = await Promise.all([
-    proxy.totalSupply(),
-    proxy.totalAssets(),
-    proxy.asset(),
-    proxy.paused(),
+    vault.totalSupply(),
+    vault.totalAssets(),
+    vault.asset(),
+    vault.paused(),
   ]);
 
   console.log("\n📊 STATE BEFORE UPGRADE:");
-  console.log("  Total Supply:", ethers.formatUnits(totalSupply, 6), "shares");
-  console.log("  Total Assets:", ethers.formatUnits(totalAssets, 6), "USDC");
-  console.log("  Asset (USDC):", asset);
+  console.log("  Total Supply:", ethers.formatUnits(totalSupply, 6), "PRIME");
+  console.log("  Total Assets:", ethers.formatUnits(totalAssets, 6), "wYLDS");
+  console.log("  Asset (wYLDS):", asset);
   console.log("  Paused:", paused);
 
   console.log("\n🔄 DEPLOYING NEW IMPLEMENTATION...");
-  const YieldVaultNew = await ethers.getContractFactory("YieldVault");
+  const StakingVaultNew = await ethers.getContractFactory("StakingVault");
 
-  // Deploy using plain deploy() so address is nonce-based (not bytecode-cached).
-  const implContract = await YieldVaultNew.deploy();
+  // Deploy using plain deploy() so address is nonce-based (not CREATE2/bytecode-cached).
+  const implContract = await StakingVaultNew.deploy();
   await implContract.waitForDeployment();
   const newImpl = await implContract.getAddress();
   console.log("New implementation deployed:", newImpl);
 
-  const upgradeTx = await (proxy as any).upgradeToAndCall(newImpl, "0x");
+  const upgraded = await ethers.getContractAt("StakingVault", stakingVaultProxy);
+  const upgradeTx = await (upgraded as any).upgradeToAndCall(newImpl, "0x");
   await upgradeTx.wait();
+
   console.log("✅ Upgraded successfully");
+  console.log("New implementation:", newImpl);
 
   // Verify state preserved
   const [supplyAfter, assetsAfter, assetAfter, pausedAfter] = await Promise.all([
-    proxy.totalSupply(),
-    proxy.totalAssets(),
-    proxy.asset(),
-    proxy.paused(),
+    upgraded.totalSupply(),
+    upgraded.totalAssets(),
+    upgraded.asset(),
+    upgraded.paused(),
   ]);
 
   console.log("\n🔍 STATE VERIFICATION:");
@@ -100,12 +95,12 @@ async function main() {
   }
 
   // Update deployment file
-  deployment.contracts.yieldVaultImplementation = newImpl;
+  deployment.contracts.stakingVaultImplementation = newImpl;
   deployment.lastUpgrade = { timestamp: new Date().toISOString(), oldImpl, newImpl };
   fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
 
   console.log("\n✅ UPGRADE COMPLETE!");
-  console.log("  Proxy (unchanged):  ", yieldVaultProxy);
+  console.log("  Proxy (unchanged):  ", stakingVaultProxy);
   console.log("  Implementation:     ", oldImpl, "→", newImpl);
   console.log("  Deployment file:    ", deploymentFile, "(updated)");
 }

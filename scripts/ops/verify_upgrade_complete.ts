@@ -1,3 +1,11 @@
+/**
+ * [OPS] Comprehensive post-upgrade verification for YieldVault and StakingVault.
+ * Checks contract versions, balance sync, share price, and double-init protection.
+ *
+ * Usage:
+ *   npx hardhat run scripts/ops/verify_upgrade_complete.ts --network sepolia
+ *   npx hardhat run scripts/ops/verify_upgrade_complete.ts --network hoodi
+ */
 import { ethers } from "hardhat";
 
 async function main() {

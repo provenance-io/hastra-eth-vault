@@ -1,3 +1,9 @@
+/**
+ * [UTIL] Calculate the ERC-7201 namespaced storage slot for HastraNavEngine.
+ *
+ * Usage:
+ *   npx hardhat run scripts/utils/calculateStorageSlot.ts
+ */
 import { ethers } from "hardhat";
 
 async function main() {

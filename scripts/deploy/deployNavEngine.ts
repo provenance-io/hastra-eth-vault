@@ -1,3 +1,11 @@
+/**
+ * [DEPLOY] Deploy the HastraNavEngine UUPS proxy with initial configuration.
+ * Saves deployment artifacts to deployment_nav_testnet_<network>.json.
+ *
+ * Usage:
+ *   npx hardhat run scripts/deploy/deployNavEngine.ts --network sepolia
+ *   npx hardhat run scripts/deploy/deployNavEngine.ts --network hoodi
+ */
 // @ts-ignore
 import {ethers, upgrades, network, run} from "hardhat";
 import fs from "fs";

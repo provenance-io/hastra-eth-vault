@@ -1,3 +1,11 @@
+/**
+ * [OPS] Check the deployed contract version (V1 vs V2) and implementation addresses.
+ * Useful for verifying upgrade success.
+ *
+ * Usage:
+ *   npx hardhat run scripts/ops/check_version.ts --network sepolia
+ *   npx hardhat run scripts/ops/check_version.ts --network hoodi
+ */
 // @ts-ignore
 import { ethers, network } from "hardhat";
 import * as fs from "fs";
