@@ -1,20 +1,16 @@
+/**
+ * [DEMO] Interactive script demonstrating the full user flow end-to-end.
+ * Loads contract addresses from deployment.json.
+ *
+ * Usage:
+ *   npx hardhat run scripts/demo/interact.ts --network sepolia
+ *   npx hardhat run scripts/demo/interact.ts --network hoodi
+ *
+ * Requires: deployment.json at project root with deployed contract addresses.
+ */
 import { ethers } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
-
-/**
- * Interactive script demonstrating the full user flow
- *
- * Flow:
- * 1. User deposits USDC → receives wYLDS
- * 2. User stakes wYLDS → receives PRIME
- * 3. User earns rewards (PRIME value increases)
- * 4. Rewards distributed to stakers
- * 5. User redeems PRIME → receives wYLDS (specify shares to burn)
- * 6. User withdraws from PRIME → receives wYLDS (specify assets to receive)
- * 7. User requests redemption (wYLDS → USDC)
- * 8. Admin completes redemption → user receives USDC
- */
 
 interface DeploymentInfo {
   contracts: {
@@ -25,7 +21,7 @@ interface DeploymentInfo {
 }
 
 function loadDeploymentInfo(): DeploymentInfo {
-  const deploymentPath = path.join(__dirname, "..", "deployment.json");
+  const deploymentPath = path.join(__dirname, "../..", "deployment.json");
 
   if (!fs.existsSync(deploymentPath)) {
     console.error("\n❌ ERROR: deployment.json not found!");

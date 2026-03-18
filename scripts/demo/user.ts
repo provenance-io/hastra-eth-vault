@@ -1,17 +1,13 @@
+/**
+ * [DEMO] User operations for YieldVault and StakingVault — deposit, stake, redeem, claim.
+ * Contract addresses are read from USDC_ADDRESS, YIELD_VAULT_ADDRESS, STAKING_VAULT_ADDRESS env vars.
+ *
+ * Usage:
+ *   npx hardhat run scripts/demo/user.ts --network sepolia
+ *   npx hardhat run scripts/demo/user.ts --network hoodi
+ */
 // @ts-ignore
 import { ethers } from "hardhat";
-import * as fs from "fs";
-
-/**
- * User operations for interacting with YieldVault and StakingVault
- * 
- * This script provides functions for common user operations:
- * - Depositing USDC to get wYLDS
- * - Requesting and canceling redemptions
- * - Claiming rewards
- * - Staking wYLDS to get PRIME
- * - Unbonding and completing unbonding
- */
 
 // Contract addresses (update these after deployment)
 const USDC_ADDRESS = process.env.USDC_ADDRESS || "";

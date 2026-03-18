@@ -1,3 +1,11 @@
+/**
+ * [OPS] Read proxy and implementation addresses for all deployed contracts.
+ * Displays bytecode verification status and block explorer links.
+ *
+ * Usage:
+ *   npx hardhat run scripts/ops/get_implementations.ts --network sepolia
+ *   npx hardhat run scripts/ops/get_implementations.ts --network hoodi
+ */
 import { ethers } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";

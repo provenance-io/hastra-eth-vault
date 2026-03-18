@@ -1,5 +1,5 @@
 /**
- * Test pausability and upgradeability of HastraNavEngine on Hoodi.
+ * [OPS] Test pausability and upgradeability of HastraNavEngine on Hoodi.
  *
  * Tests:
  * 1. Pause contract → updateRate() reverts
@@ -7,7 +7,7 @@
  * 3. Deploy new implementation → upgradeProxy → state preserved
  *
  * Usage:
- *   npx hardhat run scripts/testHoodiUpgradeAndPause.ts --network hoodi
+ *   npx hardhat run scripts/ops/testHoodiUpgradeAndPause.ts --network hoodi
  */
 import { ethers, upgrades, run } from "hardhat";
 

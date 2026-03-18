@@ -1,15 +1,16 @@
 /**
- * Upgrades an existing HastraNavEngine proxy to a new implementation.
+ * [ADMIN] Upgrades an existing HastraNavEngine proxy to a new implementation.
  * All storage (updater, rates, TVL, latestRate) is preserved — same legacy slot is used.
  *
  * After upgrade, the script temporarily widens maxDifferencePercent to 100% so the
  * first updateRate call can sync state to the current real TVL, then restores it to 10%.
  *
  * Usage:
- *   PROXY_ADDRESS=0x... npx hardhat run scripts/upgradeNavEngine.ts --network sepolia
+ *   PROXY_ADDRESS=0x... npx hardhat run scripts/admin/upgradeNavEngine.ts --network sepolia
  *
  * Defaults to the legacy Sepolia proxy if PROXY_ADDRESS is not set.
  * Set TOTAL_SUPPLY and TOTAL_TVL env vars to provide initial rate values (in wei).
+ * Requires: owner of the HastraNavEngine proxy.
  */
 import { ethers, run } from "hardhat";
 import * as fs from "fs";
@@ -93,7 +94,7 @@ async function main() {
     implementation: newImpl,
     upgradedAt: new Date().toISOString(),
   };
-  const artifactPath = path.join(__dirname, `../deployment_nav_upgrade_${network.name}.json`);
+  const artifactPath = path.join(__dirname, `../../deployment_nav_upgrade_${network.name}.json`);
   fs.writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
   console.log(`Artifact saved: ${artifactPath}`);
   console.log("\n✅ Done.");

@@ -1,3 +1,11 @@
+/**
+ * [OPS] Query the HastraNavEngine contract for the current rate and all on-chain state.
+ * Reads from deployment_nav_testnet.json or NAV_ENGINE_ADDRESS env var.
+ *
+ * Usage:
+ *   npx hardhat run scripts/ops/queryNavEngine.ts --network sepolia
+ *   NAV_ENGINE_ADDRESS=0x... npx hardhat run scripts/ops/queryNavEngine.ts --network hoodi
+ */
 import { ethers, network } from "hardhat";
 import fs from "fs";
 

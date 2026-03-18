@@ -1,6 +1,6 @@
 /**
- * Manually test updateRate() reverts when contract is paused on Hoodi.
- * Usage: npx hardhat run scripts/testPauseRevert.ts --network hoodi
+ * [OPS] Manually test that updateRate() reverts when HastraNavEngine is paused on Hoodi.
+ * Usage: npx hardhat run scripts/ops/testPauseRevert.ts --network hoodi
  */
 // @ts-ignore
 import { ethers } from "hardhat";
