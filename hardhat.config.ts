@@ -52,9 +52,20 @@ const config: HardhatUserConfig = {
     outputFile: "gas-report.txt",
     noColors: true,
   },
+  sourcify: {
+    enabled: false,
+  },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY || "",
     customChains: [
+      {
+        network: "sepolia",
+        chainId: 11155111,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=11155111",
+          browserURL: "https://sepolia.etherscan.io"
+        }
+      },
       {
         network: "hoodi",
         chainId: 560048,

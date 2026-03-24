@@ -10,8 +10,8 @@
         │ updateRate(supply, TVL)
         ▼
 ┌─────────────────────────────────────┐
-│ HastraNavEngine                     │ ← Deployed on Holesky
-│ 0xec8a23c912397B7971595774ac1bD08FC5Efe39C │
+│ HastraNavEngine                     │ ← Deployed on Sepolia
+│                                     │
 │ - Calculates rate                   │
 │ - Returns int192 (Schema v7)        │
 └───────┬─────────────────────────────┘
@@ -31,7 +31,7 @@
         │ submitReport()
         ▼
 ┌─────────────────────────────────────┐
-│ FeedVerifier                        │ ← Deployed
+│ FeedVerifier                        │ ← Deployed to Sepolia
 │ - Verifies signature                │
 │ - Stores verified rate              │
 └───────┬─────────────────────────────┘

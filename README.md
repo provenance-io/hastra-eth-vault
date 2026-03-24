@@ -107,7 +107,7 @@ View deployment info: [`deployment_testnet.json`](./deployment_testnet.json)
 
 ```bash
 # Check deployed versions
-npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
+npx hardhat run scripts/ops/check_version.ts --network hoodi
 ```
 
 ### Mainnet
@@ -133,7 +133,7 @@ npm install && npx hardhat compile
 npm test
 
 # Deploy to testnet
-npx hardhat run scripts/deploy.ts --network hoodi
+npx hardhat run scripts/deploy/deploy.ts --network hoodi
 ```
 
 ## Usage Examples
@@ -260,7 +260,7 @@ yarn test:all
 
 ### Test Suites
 
-- **Unit Tests** (`test/*.test.ts`) - 203 tests covering all functions
+- **Unit Tests** (`test/*.test.ts`) - 292 tests covering all functions
 - **Fuzz Tests** (`test/foundry/*.t.sol`) - Property-based testing with Foundry
   - Tests deposits from $1 to $1 BILLION (whale-sized)
   - 8,000+ scenarios validated across 1000 runs per test
@@ -270,9 +270,10 @@ yarn test:all
 See [FUZZ_TESTING.md](docs/FUZZ_TESTING.md) for fuzz testing guide.
 
 Coverage:
-- Statements: 99.25%
+- Statements: 100%
+- Branches: 90.83%
 - Functions: 100%
-- Lines: 98.72%
+- Lines: 100%
 ```
 
 **Key Test Suites:**
@@ -295,20 +296,6 @@ Common issues:
 
 ## Security
 
-### ⚠️ Critical Security Requirements
-
-1. **Multisig Protection** - Transfer `DEFAULT_ADMIN_ROLE` to multisig before production
-   ```bash
-   # See docs/MULTISIG_SETUP.md for setup guide
-   MULTISIG_ADDRESS=0x... npx hardhat run scripts/setup-multisig-admin.ts --network mainnet
-   ```
-
-2. **Private Keys** - Never commit private keys to version control
-
-3. **Audits** - Get professional security audits before mainnet deployment
-
-4. **Testing** - Thoroughly test all operations on testnet first
-
 ### Security Features
 
 - ✅ **Role-based access control** - OpenZeppelin AccessControl
@@ -325,46 +312,46 @@ Common issues:
 ### Deployment
 ```bash
 # Deploy to testnet
-npx hardhat run scripts/deploy.ts --network hoodi
+npx hardhat run scripts/deploy/deploy.ts --network hoodi
 
 # Deploy to mainnet
-npx hardhat run scripts/deploy.ts --network mainnet
+npx hardhat run scripts/deploy/deploy.ts --network mainnet
 ```
 
 ### Admin Operations
 ```bash
 # Grant/revoke roles
-npx hardhat run scripts/admin.ts --network hoodi
+npx hardhat run scripts/admin/admin.ts --network hoodi
 
 # Manage whitelist
-npx hardhat run scripts/manage-whitelist.ts --network hoodi
+npx hardhat run scripts/admin/manage-whitelist.ts --network hoodi
 
 # Distribute rewards
-npx hardhat run scripts/distribute-rewards.ts --network hoodi
+npx hardhat run scripts/demo/distribute-rewards.ts --network hoodi
 ```
 
 ### User Operations
 ```bash
 # Deposit USDC
-npx hardhat run scripts/deposit-usdc.ts --network hoodi
+npx hardhat run scripts/demo/deposit-usdc.ts --network hoodi
 
 # Stake wYLDS
-npx hardhat run scripts/stake-wylds.ts --network hoodi
+npx hardhat run scripts/demo/stake-wylds.ts --network hoodi
 
 # Request redemption
-npx hardhat run scripts/unstake-and-redeem.ts --network hoodi
+npx hardhat run scripts/demo/unstake-and-redeem.ts --network hoodi
 ```
 
 ### Upgrade & Maintenance
 ```bash
 # Check version
-npx hardhat run scripts/upgrade_test/check_version.ts --network hoodi
+npx hardhat run scripts/ops/check_version.ts --network hoodi
 
-# Upgrade to V2
-npx hardhat run scripts/upgrade_to_v2.ts --network hoodi
+# Upgrade YieldVault
+npx hardhat run scripts/admin/upgrade_yield_vault.ts --network hoodi
 
-# Check multisig status
-npx hardhat run scripts/check-multisig-status.ts --network hoodi
+# Upgrade StakingVault
+npx hardhat run scripts/admin/upgrade_staking_vault.ts --network hoodi
 ```
 
 ## Local Development

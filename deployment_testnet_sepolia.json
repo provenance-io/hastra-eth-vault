@@ -7,7 +7,7 @@
     "yieldVault": "0x0258787Eb97DD01436B562943D8ca85B772D7b98",
     "stakingVault": "0xFf22361Ca2590761A2429D4127b7FF25E79fdC04",
     "stakingVaultImplementation": "0xf8538e8DeA8145e10C891391d5a2506662532A92",
-    "yieldVaultImplementation": "0xd8C5dDC9b024c2E86442e95a60D39310D5793750"
+    "yieldVaultImplementation": "0x92C9c1d3c6fcf55CA40F7C2FC6a6D91940246983"
   },
   "transactions": {
     "usdc": "existing",
@@ -24,8 +24,8 @@
   },
   "config": {},
   "lastUpgrade": {
-    "timestamp": "2026-03-17T22:39:01.146Z",
-    "oldImpl": "0x29757Cf358914FF163B27d7DAd166B24f06bc8AF",
-    "newImpl": "0xf8538e8DeA8145e10C891391d5a2506662532A92"
+    "timestamp": "2026-03-24T17:20:01.833Z",
+    "oldImpl": "0xEd40e50d9bD125f57c01F9450e6Ed5add76f9d3d",
+    "newImpl": "0x92C9c1d3c6fcf55CA40F7C2FC6a6D91940246983"
   }
 }
