@@ -260,7 +260,7 @@ yarn test:all
 
 ### Test Suites
 
-- **Unit Tests** (`test/*.test.ts`) - 292 tests covering all functions
+- **Unit Tests** (`test/**/*.test.ts`) - 292 tests covering all functions
 - **Fuzz Tests** (`test/foundry/*.t.sol`) - Property-based testing with Foundry
   - Tests deposits from $1 to $1 BILLION (whale-sized)
   - 8,000+ scenarios validated across 1000 runs per test
@@ -277,12 +277,12 @@ Coverage:
 ```
 
 **Key Test Suites:**
-- `YieldVault.test.ts` - Core vault functionality
-- `StakingVault.test.ts` - Staking and rewards
-- `YieldVault_Ratio.test.ts` - 1:1 ratio enforcement
-- `*_Upgrade.test.ts` - UUPS upgrade mechanics
-- `*_Compliance.test.ts` - Freeze/thaw features
-- `FullSystemFlow.test.ts` - End-to-end integration
+- `test/yield_vault/YieldVault.test.ts` - Core vault functionality
+- `test/staking_vault/StakingVault.test.ts` - Staking and rewards
+- `test/yield_vault/YieldVault_Ratio.test.ts` - 1:1 ratio enforcement
+- `test/yield_vault/YieldVault_Upgrade.test.ts`, `test/staking_vault/StakingVault_Upgrade.test.ts` - UUPS upgrade mechanics
+- `test/yield_vault/YieldVault_Compliance.test.ts` - Freeze/thaw features
+- `test/FullSystemFlow.test.ts` - End-to-end integration
 
 ## Troubleshooting
 
