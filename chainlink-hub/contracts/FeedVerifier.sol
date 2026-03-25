@@ -178,8 +178,9 @@ contract FeedVerifier is
     }
 
     /**
-     * @notice Set the default maximum age (seconds) applied to all feeds without an explicit override.
-     * @dev    Set to 0 to disable default staleness enforcement.
+     * @notice Set the default maximum age (seconds) applied to all feeds without a per-feed override.
+     * @dev    Default is 3600 (1 h). Setting to 0 disables staleness enforcement for feeds
+     *         that have no per-feed override configured via setMaxStalenessByFeed().
      */
     function setMaxStaleness(uint32 maxStaleness_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         emit MaxStalenessUpdated(defaultMaxStaleness, maxStaleness_);

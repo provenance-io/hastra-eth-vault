@@ -75,7 +75,7 @@ contract StakingVault is
     /// @notice Chainlink feedId this vault reads NAV from (set alongside navOracle)
     bytes32 public navFeedId;
 
-    /// @dev Storage gap for future upgrades (reserves 45 storage slots — 3 consumed above)
+    /// @dev Storage gap for future upgrades (reserves 46 storage slots — 6 consumed above)
     uint256[46] private __gap;
     
     // ============ Events ============
