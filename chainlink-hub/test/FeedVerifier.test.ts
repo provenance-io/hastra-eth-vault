@@ -391,9 +391,9 @@ describe("FeedVerifier", function () {
       await feedVerifier.connect(updater).verifyReport(unverifiedReport);
     }
 
-    it("returns price when within default 24h maxStaleness window", async function () {
+    it("returns price when within default 1h maxStaleness window", async function () {
       const { feedVerifier, mockProxy, updater, unverifiedReport } = await loadFixture(deployFixture);
-      const obsTs = Math.floor(Date.now() / 1000) - 120; // 2 min old — well within 24h
+      const obsTs = Math.floor(Date.now() / 1000) - 120; // 2 min old — well within 1h
       await storeReport(feedVerifier, mockProxy, updater, unverifiedReport, obsTs);
       expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV);
     });
@@ -419,12 +419,114 @@ describe("FeedVerifier", function () {
       const { feedVerifier, admin } = await loadFixture(deployFixture);
       await expect(feedVerifier.connect(admin).setMaxStaleness(1800))
         .to.emit(feedVerifier, "MaxStalenessUpdated")
-        .withArgs(86400, 1800);
+        .withArgs(3600, 1800);
     });
 
     it("setMaxStaleness reverts for non-admin", async function () {
       const { feedVerifier, other } = await loadFixture(deployFixture);
       await expect(feedVerifier.connect(other).setMaxStaleness(3600))
+        .to.be.revertedWith(/AccessControl:/);
+    });
+  });
+
+  // ── per-feed staleness override ───────────────────────────────────────────
+
+  describe("per-feed staleness (setMaxStalenessByFeed)", function () {
+    const FEED_ID_B = ethers.encodeBytes32String("FEED_B");
+
+    async function storeReportForFeed(
+      feedVerifier: FeedVerifier,
+      mockProxy: MockVerifierProxy,
+      updater: any,
+      unverifiedReport: string,
+      feedId: string,
+      price: bigint,
+      obsTs: number
+    ) {
+      await mockProxy.setVerifiedResponse(buildVerifiedReport(feedId, price, obsTs, obsTs + 86400));
+      await feedVerifier.connect(updater).verifyReport(unverifiedReport);
+    }
+
+    it("per-feed override takes precedence over defaultMaxStaleness", async function () {
+      const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+      // Store feed A 30 min ago — within 1h per-feed limit
+      const obsTs = Math.floor(Date.now() / 1000) - 1800;
+      await storeReportForFeed(feedVerifier, mockProxy, updater, unverifiedReport, FEED_ID, ONE_NAV, obsTs);
+
+      await feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID, 3600);
+      expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV);
+    });
+
+    it("per-feed override enforces tighter staleness than default", async function () {
+      const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+      // 2h old — stale under 1h per-feed limit but fine under 24h default
+      const obsTs = Math.floor(Date.now() / 1000) - 7200;
+      await storeReportForFeed(feedVerifier, mockProxy, updater, unverifiedReport, FEED_ID, ONE_NAV, obsTs);
+
+      await feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID, 3600);
+      await expect(feedVerifier.priceOf(FEED_ID))
+        .to.be.revertedWithCustomError(feedVerifier, "StalePrice");
+    });
+
+    it("two feeds can have independent staleness windows simultaneously", async function () {
+      const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+
+      await feedVerifier.connect(admin).setAllowedFeedId(ethers.ZeroHash);
+
+      const now = Math.floor(Date.now() / 1000);
+      await storeReportForFeed(feedVerifier, mockProxy, updater, unverifiedReport, FEED_ID,   ONE_NAV,   now - 1800);       // 30 min old
+      await storeReportForFeed(feedVerifier, mockProxy, updater, unverifiedReport, FEED_ID_B, ONE_NAV_5, now - 3600 * 20); // 20h old
+
+      await feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID,   3600);  // 1h limit — feed A passes
+      await feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID_B, 86400); // 24h limit — feed B passes
+
+      expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV);
+      expect(await feedVerifier.priceOf(FEED_ID_B)).to.equal(ONE_NAV_5);
+    });
+
+    it("two feeds: feed A stale under its tight window while feed B still valid", async function () {
+      const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+
+      await feedVerifier.connect(admin).setAllowedFeedId(ethers.ZeroHash);
+
+      const now = Math.floor(Date.now() / 1000);
+      await storeReportForFeed(feedVerifier, mockProxy, updater, unverifiedReport, FEED_ID,   ONE_NAV,   now - 7200);      // 2h old — stale under 1h
+      await storeReportForFeed(feedVerifier, mockProxy, updater, unverifiedReport, FEED_ID_B, ONE_NAV_5, now - 3600 * 20); // 20h old — fine under 24h
+
+      await feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID,   3600);  // 1h — tight
+      await feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID_B, 86400); // 24h — loose
+
+      await expect(feedVerifier.priceOf(FEED_ID))
+        .to.be.revertedWithCustomError(feedVerifier, "StalePrice");
+      expect(await feedVerifier.priceOf(FEED_ID_B)).to.equal(ONE_NAV_5);
+    });
+
+    it("clearing per-feed override (set to 0) falls back to defaultMaxStaleness", async function () {
+      const { feedVerifier, mockProxy, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const obsTs = Math.floor(Date.now() / 1000) - 1800; // 30 min old
+
+      await storeReportForFeed(feedVerifier, mockProxy, updater, unverifiedReport, FEED_ID, ONE_NAV, obsTs);
+
+      // Set tight override (10 min) — should revert since price is 30 min old
+      await feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID, 600);
+      await expect(feedVerifier.priceOf(FEED_ID))
+        .to.be.revertedWithCustomError(feedVerifier, "StalePrice");
+
+      // Clear override — falls back to default 1h, 30 min old price passes
+      await feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID, 0);
+      expect(await feedVerifier.priceOf(FEED_ID)).to.equal(ONE_NAV);
+    });
+
+    it("setMaxStalenessByFeed emits MaxStalenessByFeedUpdated", async function () {
+      const { feedVerifier, admin } = await loadFixture(deployFixture);
+      await expect(feedVerifier.connect(admin).setMaxStalenessByFeed(FEED_ID, 3600))
+        .to.emit(feedVerifier, "MaxStalenessByFeedUpdated")
+        .withArgs(FEED_ID, 0, 3600);
+    });
+
+    it("setMaxStalenessByFeed reverts for non-admin", async function () {
+      const { feedVerifier, other } = await loadFixture(deployFixture);
+      await expect(feedVerifier.connect(other).setMaxStalenessByFeed(FEED_ID, 3600))
         .to.be.revertedWith(/AccessControl:/);
     });
   });

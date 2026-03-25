@@ -94,6 +94,7 @@ contract FeedVerifier is
     );
     event FeedIdUpdated(bytes32 indexed oldFeedId, bytes32 indexed newFeedId);
     event MaxStalenessUpdated(uint32 oldMaxStaleness, uint32 newMaxStaleness);
+    event MaxStalenessByFeedUpdated(bytes32 indexed feedId, uint32 oldMaxStaleness, uint32 newMaxStaleness);
 
     // ── State ─────────────────────────────────────────────────────────────────
     IVerifierProxy public verifierProxy;
@@ -110,12 +111,15 @@ contract FeedVerifier is
     /// @notice When non-zero, only reports with this feedId are accepted.
     bytes32 public allowedFeedId;
 
-    /// @notice Maximum age (seconds) a stored price may be when read via priceOf().
-    ///         Defaults to 86400 (24 h). Set to 0 to disable.
-    uint32 public maxStaleness;
+    /// @notice Default maximum age (seconds) applied to all feeds without an explicit override.
+    ///         Defaults to 86400 (24 h). Set to 0 to disable default enforcement.
+    uint32 public defaultMaxStaleness;
+
+    /// @notice Per-feed staleness override. When non-zero, takes precedence over defaultMaxStaleness.
+    mapping(bytes32 => uint32) public maxStalenessByFeed;
 
     // slither-disable-next-line unused-state
-    uint256[43] private __gap;
+    uint256[42] private __gap;
 
     // Occupies the last slot of the original __gap[44] — storage footprint unchanged,
     // safe for upgrading an existing proxy. OZ v4 ReentrancyGuardUpgradeable cannot be
@@ -160,7 +164,7 @@ contract FeedVerifier is
         _grantRole(UPGRADER_ROLE,      admin_);
         _grantRole(UPDATER_ROLE,       updater_);
         verifierProxy = IVerifierProxy(verifierProxy_);
-        maxStaleness = 86400; // 24 h default; override with setMaxStaleness
+        defaultMaxStaleness = 3600; // 1 h default; matches Solana vault-stake price_max_staleness
     }
 
     // ── Core ──────────────────────────────────────────────────────────────────
@@ -174,12 +178,22 @@ contract FeedVerifier is
     }
 
     /**
-     * @notice Set the maximum age (seconds) a stored price may be when read via latestPrice().
-     * @dev    Set to 0 to disable staleness enforcement (default).
+     * @notice Set the default maximum age (seconds) applied to all feeds without an explicit override.
+     * @dev    Set to 0 to disable default staleness enforcement.
      */
     function setMaxStaleness(uint32 maxStaleness_) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        emit MaxStalenessUpdated(maxStaleness, maxStaleness_);
-        maxStaleness = maxStaleness_;
+        emit MaxStalenessUpdated(defaultMaxStaleness, maxStaleness_);
+        defaultMaxStaleness = maxStaleness_;
+    }
+
+    /**
+     * @notice Set a per-feed staleness override for a specific feedId.
+     * @dev    When non-zero, this takes precedence over defaultMaxStaleness for that feed.
+     *         Set to 0 to remove the override and fall back to defaultMaxStaleness.
+     */
+    function setMaxStalenessByFeed(bytes32 feedId, uint32 maxStaleness_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        emit MaxStalenessByFeedUpdated(feedId, maxStalenessByFeed[feedId], maxStaleness_);
+        maxStalenessByFeed[feedId] = maxStaleness_;
     }
 
     function _setAllowedFeedId(bytes32 feedId_) internal {
@@ -219,11 +233,13 @@ contract FeedVerifier is
 
     /// @notice Latest verified price for a specific feedId.
     /// @dev    Reverts PriceNotInitialized if no report has been stored yet.
-    ///         Reverts StalePrice if maxStaleness is set and the stored price is too old.
+    ///         Reverts StalePrice if the effective staleness limit is exceeded.
+    ///         maxStalenessByFeed[feedId] takes precedence over defaultMaxStaleness when non-zero.
     function priceOf(bytes32 feedId) external view returns (int192) {
         uint32 timestamp = timestampByFeed[feedId];
         if (timestamp == 0) revert PriceNotInitialized(feedId);
-        if (maxStaleness > 0 && block.timestamp - timestamp > maxStaleness)
+        uint32 effective = maxStalenessByFeed[feedId] > 0 ? maxStalenessByFeed[feedId] : defaultMaxStaleness;
+        if (effective > 0 && block.timestamp - timestamp > effective)
             revert StalePrice(feedId, timestamp, uint32(block.timestamp));
         int192 price = priceByFeed[feedId];
         if (price <= 0) revert ZeroPriceInReport(feedId);
