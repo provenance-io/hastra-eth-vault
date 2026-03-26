@@ -18,7 +18,7 @@
  *   AUTO_TOKEN_SYMBOL       - Symbol of the staked token (default: "AUTO")
  */
 // @ts-ignore
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, network, run } from "hardhat";
 import * as fs from "fs";
 
 async function main() {
@@ -185,6 +185,24 @@ async function main() {
 
   fs.writeFileSync(outputFile, JSON.stringify(deploymentInfo, null, 2));
   console.log(`\nDeployment info saved to ${outputFile}`);
+
+  // ============ Verify Contracts ============
+
+  if (network.name !== "localhost" && network.name !== "hardhat") {
+    console.log("\n⏳ Waiting 30 seconds before verification...");
+    await new Promise(resolve => setTimeout(resolve, 30000));
+    console.log("\n🔍 Verifying AutoStakingVault on block explorer...");
+    try {
+      await run("verify:verify", { address: autoVaultAddress, constructorArguments: [] });
+      console.log("  ✅ AutoStakingVault verified!");
+    } catch (error: any) {
+      if (error.message.includes("Already Verified")) {
+        console.log("  ℹ️  Already verified");
+      } else {
+        console.log("  ⚠️  Verification failed:", error.message);
+      }
+    }
+  }
 }
 
 main().catch((err) => {
