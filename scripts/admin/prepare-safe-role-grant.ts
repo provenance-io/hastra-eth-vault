@@ -78,7 +78,7 @@ async function main() {
   console.log(`\n${"=".repeat(60)}`);
   console.log(`📋 SAFE TRANSACTION — ${action.toUpperCase()} ${roleName}`);
   console.log(`${"=".repeat(60)}`);
-  console.log(`Safe UI: https://app.safe.global/sep:0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4`);
+  console.log(`Safe UI: ${process.env.SAFE_ADDRESS ? `https://app.safe.global/sep:${process.env.SAFE_ADDRESS}` : "(set SAFE_ADDRESS env var for link)"}`);
   console.log(`\nTo (proxy):  ${proxyAddress}`);
   console.log(`Value:       0`);
   console.log(`Method:      ${fnName}(bytes32, address)`);
