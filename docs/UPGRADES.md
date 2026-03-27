@@ -497,7 +497,7 @@ Prints `newImplementation` address and raw `upgradeToAndCall` calldata.
 
 ### Step 3 — Execute via Safe UI
 
-1. Go to `https://app.safe.global/sep:<safe_address>`
+yes
 2. New transaction → Transaction Builder → Custom data
 3. **To** = proxy | **Value** = `0` | **Data** = calldata from Step 2
 4. Sign & Execute
