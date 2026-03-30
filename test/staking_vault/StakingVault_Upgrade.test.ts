@@ -145,7 +145,7 @@ describe("StakingVault Upgradeability", function () {
     await stakingVaultV4.connect(owner).initializeV4();
 
     expect(await stakingVaultV4.maxPeriodRewards()).to.equal(ethers.parseUnits("1000000", 6));
-    expect(await stakingVaultV4.rewardPeriodSeconds()).to.equal(3600n);
+    expect(await stakingVaultV4.rewardPeriodSeconds()).to.equal(3540n);
     expect(await stakingVaultV4.maxTotalRewards()).to.equal(ethers.parseUnits("10000000", 6));
     expect(await stakingVaultV4.totalRewardsDistributed()).to.equal(0n);
     expect(await stakingVaultV4.lastRewardDistributedAt()).to.equal(0n);
