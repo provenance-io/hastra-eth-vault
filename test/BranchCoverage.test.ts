@@ -409,6 +409,11 @@ describe("Branch Coverage Tests", function () {
         .to.be.reverted;
     });
 
+    it("should prevent non-FREEZE_ADMIN from thawing account", async function () {
+      await expect(yieldVault.connect(user1).thawAccount(user2.address))
+        .to.be.reverted;
+    });
+
     it("should prevent non-WHITELIST_ADMIN from adding to whitelist", async function () {
       await expect(yieldVault.connect(user1).addToWhitelist(user2.address))
         .to.be.reverted;
@@ -446,8 +451,18 @@ describe("Branch Coverage Tests", function () {
         .to.be.reverted;
     });
 
+    it("should prevent non-FREEZE_ADMIN from thawing account", async function () {
+      await expect(stakingVault.connect(user1).thawAccount(user2.address))
+        .to.be.reverted;
+    });
+
     it("should prevent non-PAUSER from pausing", async function () {
       await expect(stakingVault.connect(user1).pause())
+        .to.be.reverted;
+    });
+
+    it("should prevent non-PAUSER from unpausing", async function () {
+      await expect(stakingVault.connect(user1).unpause())
         .to.be.reverted;
     });
 
@@ -503,14 +518,14 @@ describe("Branch Coverage Tests", function () {
       const WHITELIST_ADMIN_ROLE = await yieldVault.WHITELIST_ADMIN_ROLE();
       await yieldVault.grantRole(WHITELIST_ADMIN_ROLE, admin.address);
 
-      // Add multiple addresses
+      // Add multiple addresses — whitelist becomes [admin, user1, user2]
       await yieldVault.addToWhitelist(user1.address);
       await yieldVault.addToWhitelist(user2.address);
 
-      // Remove the first one (admin) - this tests the loop
-      await expect(yieldVault.removeFromWhitelist(admin.address))
+      // Remove user1 (not at index 0): loop must iterate past admin (else branch) before matching
+      await expect(yieldVault.removeFromWhitelist(user1.address))
         .to.emit(yieldVault, "AddressRemovedFromWhitelist")
-        .withArgs(admin.address);
+        .withArgs(user1.address);
     });
   });
 

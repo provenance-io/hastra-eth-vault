@@ -126,12 +126,99 @@ describe("StakingVault - Reward Delta Guard", function () {
         .to.emit(stakingVault, "RewardsDistributed");
     });
 
-    it("first reward into empty vault skips check (totalAssets = 0)", async function () {
-      // No stake, so totalAssets = 0 — any reward amount should pass
+    it("second call within cooldown reverts with RewardCooldownNotElapsed", async function () {
       const { stakingVault, rewardsAdmin } = await loadFixture(deployFixture);
-      const bigReward = ethers.parseUnits("999999", 6);
-      await expect(stakingVault.connect(rewardsAdmin).distributeRewards(bigReward))
+      const reward = ethers.parseUnits("100", 6);
+      await stakingVault.connect(rewardsAdmin).distributeRewards(reward);
+      await expect(stakingVault.connect(rewardsAdmin).distributeRewards(reward))
+        .to.be.revertedWithCustomError(stakingVault, "RewardCooldownNotElapsed");
+    });
+
+    it("second call after cooldown elapses succeeds", async function () {
+      const { stakingVault, rewardsAdmin } = await loadFixture(deployFixture);
+      const reward = ethers.parseUnits("100", 6);
+      await stakingVault.connect(rewardsAdmin).distributeRewards(reward);
+      await time.increase(3600);
+      await expect(stakingVault.connect(rewardsAdmin).distributeRewards(reward))
         .to.emit(stakingVault, "RewardsDistributed");
+    });
+
+    it("amount above maxPeriodRewards reverts with ExceedsPeriodRewardCap", async function () {
+      const { stakingVault, rewardsAdmin } = await loadFixture(deployFixture);
+      const overCap = ethers.parseUnits("1000001", 6); // 1M + 1
+      await expect(stakingVault.connect(rewardsAdmin).distributeRewards(overCap))
+        .to.be.revertedWithCustomError(stakingVault, "ExceedsPeriodRewardCap");
+    });
+
+    it("amount above maxTotalRewards reverts with ExceedsLifetimeRewardCap", async function () {
+      const { stakingVault, owner, rewardsAdmin } = await loadFixture(deployFixture);
+      const cap = ethers.parseUnits("500", 6);
+      await stakingVault.connect(owner).setMaxTotalRewards(cap);
+      const reward = ethers.parseUnits("501", 6);
+      await expect(stakingVault.connect(rewardsAdmin).distributeRewards(reward))
+        .to.be.revertedWithCustomError(stakingVault, "ExceedsLifetimeRewardCap");
+    });
+
+    it("totalRewardsDistributed accumulates correctly", async function () {
+      const { stakingVault, rewardsAdmin } = await loadFixture(deployFixture);
+      const reward = ethers.parseUnits("100", 6);
+      await stakingVault.connect(rewardsAdmin).distributeRewards(reward);
+      await time.increase(3600);
+      await stakingVault.connect(rewardsAdmin).distributeRewards(reward);
+      expect(await stakingVault.totalRewardsDistributed()).to.equal(reward * 2n);
+    });
+
+    it("setMaxPeriodRewards updates cap and emits event", async function () {
+      const { stakingVault, owner } = await loadFixture(deployFixture);
+      const newCap = ethers.parseUnits("500000", 6);
+      await expect(stakingVault.connect(owner).setMaxPeriodRewards(newCap))
+        .to.emit(stakingVault, "MaxPeriodRewardsUpdated");
+      expect(await stakingVault.maxPeriodRewards()).to.equal(newCap);
+    });
+
+    it("setRewardPeriodSeconds updates cooldown and emits event", async function () {
+      const { stakingVault, owner } = await loadFixture(deployFixture);
+      await expect(stakingVault.connect(owner).setRewardPeriodSeconds(7200))
+        .to.emit(stakingVault, "RewardPeriodSecondsUpdated");
+      expect(await stakingVault.rewardPeriodSeconds()).to.equal(7200n);
+    });
+
+    it("setMaxTotalRewards below distributed reverts", async function () {
+      const { stakingVault, owner, rewardsAdmin } = await loadFixture(deployFixture);
+      const reward = ethers.parseUnits("100", 6);
+      await stakingVault.connect(rewardsAdmin).distributeRewards(reward);
+      await expect(stakingVault.connect(owner).setMaxTotalRewards(ethers.parseUnits("99", 6)))
+        .to.be.revertedWithCustomError(stakingVault, "InvalidAmount");
+    });
+
+    it("setMaxPeriodRewards(0) reverts", async function () {
+      const { stakingVault, owner } = await loadFixture(deployFixture);
+      await expect(stakingVault.connect(owner).setMaxPeriodRewards(0))
+        .to.be.revertedWithCustomError(stakingVault, "InvalidAmount");
+    });
+
+    it("non-admin cannot call setMaxPeriodRewards", async function () {
+      const { stakingVault, user1 } = await loadFixture(deployFixture);
+      await expect(stakingVault.connect(user1).setMaxPeriodRewards(1))
+        .to.be.reverted;
+    });
+
+    it("setRewardPeriodSeconds(0) reverts", async function () {
+      const { stakingVault, owner } = await loadFixture(deployFixture);
+      await expect(stakingVault.connect(owner).setRewardPeriodSeconds(0))
+        .to.be.revertedWithCustomError(stakingVault, "InvalidAmount");
+    });
+
+    it("non-admin cannot call setRewardPeriodSeconds", async function () {
+      const { stakingVault, user1 } = await loadFixture(deployFixture);
+      await expect(stakingVault.connect(user1).setRewardPeriodSeconds(1))
+        .to.be.reverted;
+    });
+
+    it("non-admin cannot call setMaxTotalRewards", async function () {
+      const { stakingVault, user1 } = await loadFixture(deployFixture);
+      await expect(stakingVault.connect(user1).setMaxTotalRewards(1))
+        .to.be.reverted;
     });
   });
 });
