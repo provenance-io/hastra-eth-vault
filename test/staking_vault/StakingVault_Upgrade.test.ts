@@ -136,4 +136,42 @@ describe("StakingVault Upgradeability", function () {
     const totalAssetsAfterDeposit = await stakingVaultV2.totalAssets();
     expect(totalAssetsAfterDeposit).to.equal(amount * 2n);
   });
+
+  it("Should set reward-cap defaults via initializeV4 on upgrade", async function () {
+    const { stakingVault, owner } = await loadFixture(deployFixture);
+
+    const StakingVaultV4 = await ethers.getContractFactory("StakingVaultV4");
+    const stakingVaultV4 = await upgrades.upgradeProxy(await stakingVault.getAddress(), StakingVaultV4);
+    await stakingVaultV4.connect(owner).initializeV4();
+
+    expect(await stakingVaultV4.maxPeriodRewards()).to.equal(ethers.parseUnits("1000000", 6));
+    expect(await stakingVaultV4.rewardPeriodSeconds()).to.equal(3600n);
+    expect(await stakingVaultV4.maxTotalRewards()).to.equal(ethers.parseUnits("10000000", 6));
+    expect(await stakingVaultV4.totalRewardsDistributed()).to.equal(0n);
+    expect(await stakingVaultV4.lastRewardDistributedAt()).to.equal(0n);
+    expect(await stakingVaultV4.version()).to.equal(4n);
+  });
+
+  it("Should prevent non-UPGRADER from calling initializeV4", async function () {
+    const { stakingVault, userA } = await loadFixture(deployFixture);
+
+    const StakingVaultV4 = await ethers.getContractFactory("StakingVaultV4");
+    const stakingVaultV4 = await upgrades.upgradeProxy(await stakingVault.getAddress(), StakingVaultV4);
+
+    await expect(
+      stakingVaultV4.connect(userA).initializeV4()
+    ).to.be.reverted;
+  });
+
+  it("Should prevent calling initializeV4 twice", async function () {
+    const { stakingVault, owner } = await loadFixture(deployFixture);
+
+    const StakingVaultV4 = await ethers.getContractFactory("StakingVaultV4");
+    const stakingVaultV4 = await upgrades.upgradeProxy(await stakingVault.getAddress(), StakingVaultV4);
+    await stakingVaultV4.connect(owner).initializeV4();
+
+    await expect(
+      stakingVaultV4.connect(owner).initializeV4()
+    ).to.be.revertedWithCustomError(stakingVaultV4, "InvalidInitialization");
+  });
 });

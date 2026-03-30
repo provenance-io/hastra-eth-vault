@@ -89,7 +89,8 @@ contract StakingVault is
     /// @notice Minimum seconds that must elapse between successive distributeRewards calls.
     /// @dev Cooldown that prevents a compromised REWARDS_ADMIN_ROLE key from looping the per-call
     ///      cap — e.g. calling distributeRewards(1M) every block would otherwise drain the lifetime
-    ///      budget in seconds. Default: 3600 (1 hour). Settable via setRewardPeriodSeconds (DEFAULT_ADMIN_ROLE).
+    ///      budget in seconds. Default: 3540 (59 min — 1 min buffer before the hourly boundary to
+    ///      avoid block-timestamp drift causing spurious reverts). Settable via setRewardPeriodSeconds (DEFAULT_ADMIN_ROLE).
     uint256 public rewardPeriodSeconds;
 
     /// @notice Block timestamp of the last successful distributeRewards call.
@@ -186,7 +187,7 @@ contract StakingVault is
         yieldVault = yieldVault_;
         maxRewardPercent = 0.0075e18;        // 75 BPS per call
         maxPeriodRewards = 1_000_000e6;      // 1M wYLDS absolute cap per call
-        rewardPeriodSeconds = 3600;          // 1 hour cooldown
+        rewardPeriodSeconds = 3540;          // 59 min — 1 min buffer before hourly boundary to avoid block-timestamp drift
         maxTotalRewards = 10_000_000e6;      // 10M wYLDS lifetime cap (10× the per-call max); update via admin multisig
     }
     
