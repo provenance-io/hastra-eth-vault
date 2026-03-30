@@ -11,7 +11,7 @@ import "../StakingVault.sol";
  *
  *      New state initialized here:
  *        - maxPeriodRewards       absolute per-call cap (1M wYLDS)
- *        - rewardPeriodSeconds    cooldown between calls (1 hour)
+ *        - rewardPeriodSeconds    cooldown between calls (59 min)
  *        - maxTotalRewards        lifetime ceiling (10M wYLDS)
  *
  *      lastRewardDistributedAt and totalRewardsDistributed intentionally remain at 0:
@@ -27,7 +27,7 @@ contract StakingVaultV4 is StakingVault {
 
     function initializeV4() public reinitializer(4) onlyRole(UPGRADER_ROLE) {
         maxPeriodRewards    = 1_000_000e6;   // 1M wYLDS absolute cap per call
-        rewardPeriodSeconds = 3600;           // 1 hour cooldown
+        rewardPeriodSeconds = 3540;           // 59 min — 1 min buffer before hourly boundary
         maxTotalRewards     = 10_000_000e6;  // 10M wYLDS lifetime cap
     }
 
