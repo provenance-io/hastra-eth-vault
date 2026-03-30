@@ -62,8 +62,12 @@ contract StakingVault is
     /// @dev Tracks only legitimate deposits, ignoring direct transfers to contract
     uint256 private _totalManagedAssets;
 
-    /// @notice Maximum reward increase as a percent of current totalAssets, in 1e18 units
-    /// @dev 75 bps = 0.75% = 0.0075e18 = 7500000000000000. Prevents fat-finger or malicious reward calls.
+    /// @notice Maximum reward increase as a fraction of this vault's current totalAssets, in 1e18 units.
+    /// @dev Relative per-chain TVL guard. YLDS is multi-chain: a rewards admin may compute reward
+    ///      amounts against total protocol TVL (Ethereum + Solana + …), but this contract only holds
+    ///      the Ethereum-chain slice. Without this check, an amount that looks like "1% of $100M total"
+    ///      could be "10% of $10M local" — over-inflating Ethereum stakers' share.
+    ///      75 bps = 0.75% = 0.0075e18. Settable via setMaxRewardPercent (DEFAULT_ADMIN_ROLE).
     uint256 public maxRewardPercent;
 
     /// @notice Chainlink FeedVerifier NAV oracle address (optional — zero means no oracle)
@@ -75,24 +79,33 @@ contract StakingVault is
     /// @notice Chainlink feedId this vault reads NAV from (set alongside navOracle)
     bytes32 public navFeedId;
 
-    /// @notice Absolute cap on rewards per distributeRewards call, in asset token units.
-    /// @dev Prevents cross-chain TVL confusion — this contract can only distribute against
-    ///      its own chain's TVL, not an inflated figure from another chain (e.g. Solana).
-    ///      Example: 1_000_000e6 = 1M wYLDS max per call.
+    /// @notice Absolute per-call ceiling on distributeRewards, in asset token units.
+    /// @dev Secondary cross-chain TVL guard (absolute, not relative). Caps the raw token amount
+    ///      regardless of vault size. Limits single-call blast radius if REWARDS_ADMIN_ROLE is
+    ///      compromised or a cross-chain accounting error produces a grossly inflated figure.
+    ///      Default: 1_000_000e6 (1M wYLDS). Settable via setMaxPeriodRewards (DEFAULT_ADMIN_ROLE).
     uint256 public maxPeriodRewards;
 
     /// @notice Minimum seconds that must elapse between successive distributeRewards calls.
-    /// @dev Prevents a compromised key from bypassing the per-call cap through rapid repeated calls.
+    /// @dev Cooldown that prevents a compromised REWARDS_ADMIN_ROLE key from looping the per-call
+    ///      cap — e.g. calling distributeRewards(1M) every block would otherwise drain the lifetime
+    ///      budget in seconds. Default: 3600 (1 hour). Settable via setRewardPeriodSeconds (DEFAULT_ADMIN_ROLE).
     uint256 public rewardPeriodSeconds;
 
-    /// @notice Timestamp of the last successful distributeRewards call.
+    /// @notice Block timestamp of the last successful distributeRewards call.
+    /// @dev Used with rewardPeriodSeconds to enforce the cooldown. Zero on fresh deployment (first
+    ///      call is always allowed).
     uint256 public lastRewardDistributedAt;
 
-    /// @notice Hard lifetime ceiling on total rewards ever distributed through this vault.
-    /// @dev Defaults to 10M wYLDS (10× the per-call max). Admin can raise via setMaxTotalRewards.
+    /// @notice Hard lifetime ceiling on cumulative rewards ever distributed through this vault.
+    /// @dev Final backstop — survives key compromise and repeated calls within the cooldown window.
+    ///      Raising this requires a multisig (DEFAULT_ADMIN_ROLE) transaction, giving governance
+    ///      visibility into any attempt to increase the reward budget.
+    ///      Default: 10_000_000e6 (10M wYLDS, 10× the per-call max). Settable via setMaxTotalRewards.
     uint256 public maxTotalRewards;
 
-    /// @notice Cumulative total rewards distributed to date.
+    /// @notice Cumulative total rewards minted through this vault since deployment.
+    /// @dev Monotonically increasing. Checked against maxTotalRewards on every distributeRewards call.
     uint256 public totalRewardsDistributed;
 
     /// @dev Storage gap — reduced by 5 for the vars above (46 → 41).
