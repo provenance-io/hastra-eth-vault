@@ -50,7 +50,7 @@ async function main() {
   const currentBps = (currentPercent * 10000n) / 10n ** 18n;
 
   console.log("\n📊 CURRENT:");
-  console.log("  maxRewardPercent:", currentPercent.toString(), `(${currentBps} BPS / ${Number(currentPercent) / 1e18 * 100}%)`);
+  console.log("  maxRewardPercent:", currentPercent.toString(), `(${currentBps} BPS / ${ethers.formatUnits(currentPercent, 16)}%)`);
 
   console.log("\n🎯 TARGET:");
   console.log("  maxRewardPercent:", NEW_MAX_REWARD_PERCENT.toString(), `(${TARGET_BPS} BPS / 0.75%)`);
