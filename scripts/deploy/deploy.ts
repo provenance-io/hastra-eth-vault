@@ -54,7 +54,7 @@ async function main() {
   // ============ Deploy USDC (or use existing) ============
   
   let usdcAddress: string;
-  const network = await ethers.provider.getNetwork();
+  const providerNetwork = await ethers.provider.getNetwork();
   const isLocalNetwork = network.name === "localhost" || network.name === "hardhat";
   
   // Only use existing USDC on mainnet/production, always deploy fresh for localhost/testing
@@ -235,7 +235,7 @@ async function main() {
   console.log("\nSetting up approvals...");
   
   // Reuse network variable from earlier
-  const isMainnet = network.chainId === 1n;
+  const isMainnet = providerNetwork.chainId === 1n;
   
   if (!process.env.USDC_ADDRESS) {
     if (isDryRun) {
@@ -311,7 +311,7 @@ async function main() {
 
   // ============ Save Deployment Info ============
   
-  const networkName = (await ethers.provider.getNetwork()).name;
+  const networkName = network.name;
   // Default to deployment.json for local/mainnet (gitignored)
   let filename = "deployment.json";
   
@@ -322,7 +322,7 @@ async function main() {
 
   const deploymentInfo = {
     network: networkName,
-    chainId: (await ethers.provider.getNetwork()).chainId.toString(),
+    chainId: providerNetwork.chainId.toString(),
     timestamp: new Date().toISOString(),
     contracts: {
       usdc: usdcAddress,
@@ -359,16 +359,19 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 30000));
     console.log("\n🔍 Verifying contracts on block explorer...");
 
-    for (const [name, address] of [["YieldVault", yieldVaultAddress], ["StakingVault", stakingVaultAddress]]) {
+    for (const [name, proxyAddress] of [["YieldVault", yieldVaultAddress], ["StakingVault", stakingVaultAddress]]) {
       try {
-        console.log(`  Verifying ${name} proxy...`);
-        await run("verify:verify", { address, constructorArguments: [] });
-        console.log(`  ✅ ${name} verified!`);
+        console.log(`  Resolving ${name} implementation for proxy at ${proxyAddress}...`);
+        const implementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
+        console.log(`  Verifying ${name} implementation at ${implementationAddress}...`);
+        await run("verify:verify", { address: implementationAddress });
+        console.log(`  ✅ ${name} implementation verified!`);
       } catch (error: any) {
-        if (error.message.includes("Already Verified")) {
-          console.log(`  ℹ️  ${name} already verified`);
+        const message = error?.message ?? String(error);
+        if (message.includes("Already Verified")) {
+          console.log(`  ℹ️  ${name} implementation already verified`);
         } else {
-          console.log(`  ⚠️  ${name} verification failed:`, error.message);
+          console.log(`  ⚠️  ${name} implementation verification failed:`, message);
         }
       }
     }
