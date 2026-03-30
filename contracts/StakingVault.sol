@@ -63,7 +63,7 @@ contract StakingVault is
     uint256 private _totalManagedAssets;
 
     /// @notice Maximum reward increase as a percent of current totalAssets, in 1e18 units
-    /// @dev 20% = 0.2e18 = 200000000000000000. Prevents fat-finger or malicious reward calls.
+    /// @dev 75 bps = 0.75% = 0.0075e18 = 7500000000000000. Prevents fat-finger or malicious reward calls.
     uint256 public maxRewardPercent;
 
     /// @notice Chainlink FeedVerifier NAV oracle address (optional — zero means no oracle)
@@ -145,7 +145,7 @@ contract StakingVault is
         //   - NAV_ORACLE_UPDATER can call setNavOracle to point to a Chainlink FeedVerifier
         
         yieldVault = yieldVault_;
-        maxRewardPercent = 0.2e18; // 20%
+        maxRewardPercent = 0.0075e18; // 75 bps (0.75%)
     }
     
     // ============ UUPS Required Override ============
@@ -315,7 +315,7 @@ contract StakingVault is
 
     /**
      * @notice Update the maximum reward percent allowed in a single distributeRewards call
-     * @param newPercent New maximum in 1e18 units (e.g. 0.2e18 = 20%). Must be > 0 and <= 1e18.
+     * @param newPercent New maximum in 1e18 units (e.g. 0.0075e18 = 75 bps). Must be > 0 and <= 1e18.
      */
     function setMaxRewardPercent(uint256 newPercent) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newPercent == 0 || newPercent > 1e18) revert InvalidAmount();

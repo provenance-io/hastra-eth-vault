@@ -49,9 +49,9 @@ describe("StakingVault - Reward Delta Guard", function () {
   }
 
   describe("maxRewardPercent default", function () {
-    it("defaults to 20% (0.2e18)", async function () {
+    it("defaults to 75 bps (0.0075e18)", async function () {
       const { stakingVault } = await loadFixture(deployFixture);
-      expect(await stakingVault.maxRewardPercent()).to.equal(ethers.parseEther("0.2"));
+      expect(await stakingVault.maxRewardPercent()).to.equal(ethers.parseEther("0.0075"));
     });
   });
 
@@ -61,7 +61,7 @@ describe("StakingVault - Reward Delta Guard", function () {
       const newPercent = ethers.parseEther("0.1"); // 10%
       await expect(stakingVault.connect(owner).setMaxRewardPercent(newPercent))
         .to.emit(stakingVault, "MaxRewardPercentUpdated")
-        .withArgs(ethers.parseEther("0.2"), newPercent);
+        .withArgs(ethers.parseEther("0.0075"), newPercent);
       expect(await stakingVault.maxRewardPercent()).to.equal(newPercent);
     });
 
@@ -94,23 +94,23 @@ describe("StakingVault - Reward Delta Guard", function () {
       return { ...f, stakeAmount };
     }
 
-    it("reward at exactly 20% succeeds", async function () {
+    it("reward at exactly 75 bps succeeds", async function () {
       const { stakingVault, rewardsAdmin, stakeAmount } = await loadFixture(fixtureWithStake);
-      // 20% of 10000e6 = 2000e6
-      const reward = stakeAmount * 20n / 100n;
+      // 75 bps of 10000e6 = 75e6
+      const reward = stakeAmount * 75n / 10000n;
       await expect(stakingVault.connect(rewardsAdmin).distributeRewards(reward))
         .to.emit(stakingVault, "RewardsDistributed");
     });
 
-    it("reward above 20% reverts with RewardExceedsMaxDelta", async function () {
+    it("reward above 75 bps reverts with RewardExceedsMaxDelta", async function () {
       const { stakingVault, rewardsAdmin, stakeAmount } = await loadFixture(fixtureWithStake);
-      // 20% + 1 wei
-      const reward = stakeAmount * 20n / 100n + 1n;
+      // 75 bps + 1 wei
+      const reward = stakeAmount * 75n / 10000n + 1n;
       await expect(stakingVault.connect(rewardsAdmin).distributeRewards(reward))
         .to.be.revertedWithCustomError(stakingVault, "RewardExceedsMaxDelta");
     });
 
-    it("reward well above 20% reverts", async function () {
+    it("reward well above 75 bps reverts", async function () {
       const { stakingVault, rewardsAdmin, stakeAmount } = await loadFixture(fixtureWithStake);
       // 50% of totalAssets
       const reward = stakeAmount * 50n / 100n;

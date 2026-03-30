@@ -82,6 +82,8 @@ describe("Full System Flow: Deposit -> Stake -> Rewards -> Profit", function () 
     // ==========================================
     // Step 3: Admin Distributes Rewards (The Magic)
     // ==========================================
+    // Raise cap to 20% for this test (default is 75 bps; test exercises full appreciation flow, not the cap)
+    await stakingVault.connect(owner).setMaxRewardPercent(ethers.parseEther("0.2"));
     const rewardAmount = ethers.parseUnits("10", 6);
     await stakingVault.connect(owner).distributeRewards(rewardAmount);
 

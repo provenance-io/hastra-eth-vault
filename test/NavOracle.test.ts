@@ -173,6 +173,8 @@ describe("StakingVault — NAV Oracle", function () {
 
       const valueBefore = await stakingVault.getTotalValueAtNav();
 
+      // Raise cap to 20% for this test (default is 75 bps; test exercises NAV value math, not the cap)
+      await stakingVault.connect(owner).setMaxRewardPercent(ethers.parseEther("0.2"));
       // Distribute 50 wYLDS reward (~5%)
       const reward = ethers.parseUnits("50", 6);
       await stakingVault.distributeRewards(reward);

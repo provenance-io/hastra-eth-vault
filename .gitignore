@@ -76,3 +76,5 @@ bot/
 
 AGENTS.md
 .env.bak
+# Copilot agent workspace
+.agents/

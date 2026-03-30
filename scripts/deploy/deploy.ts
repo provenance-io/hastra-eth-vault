@@ -12,7 +12,7 @@
  *   NAV_ORACLE_UPDATER_ADDRESS
  */
 // @ts-ignore
-import {ethers, upgrades} from "hardhat";
+import {ethers, upgrades, network, run} from "hardhat";
 import * as fs from "fs";
 
 /**
@@ -351,6 +351,28 @@ async function main() {
   
   // Save deployment info to file
   fs.writeFileSync(filename, JSON.stringify(deploymentInfo, null, 2));
+
+  // ============ Verify Contracts ============
+
+  if (network.name !== "localhost" && network.name !== "hardhat") {
+    console.log("\n⏳ Waiting 30 seconds before verification...");
+    await new Promise(resolve => setTimeout(resolve, 30000));
+    console.log("\n🔍 Verifying contracts on block explorer...");
+
+    for (const [name, address] of [["YieldVault", yieldVaultAddress], ["StakingVault", stakingVaultAddress]]) {
+      try {
+        console.log(`  Verifying ${name} proxy...`);
+        await run("verify:verify", { address, constructorArguments: [] });
+        console.log(`  ✅ ${name} verified!`);
+      } catch (error: any) {
+        if (error.message.includes("Already Verified")) {
+          console.log(`  ℹ️  ${name} already verified`);
+        } else {
+          console.log(`  ⚠️  ${name} verification failed:`, error.message);
+        }
+      }
+    }
+  }
 
   return deploymentInfo;
 }
