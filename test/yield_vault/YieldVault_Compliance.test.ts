@@ -129,4 +129,53 @@ describe("YieldVault Compliance (Freeze/Thaw)", function () {
 
     expect(await yieldVault.balanceOf(owner.address)).to.equal(initialOwnerBalance + amount);
   });
+
+  it("Should block completeRedeem payout to a frozen account", async function () {
+    // Regression for P1: frozen check must appear in completeRedeem, not just _update,
+    // because requestRedeem already moved shares into the contract before the freeze.
+    const { yieldVault, usdc, freezeAdmin, userA, owner } = await loadFixture(deployFixture);
+
+    const REWARDS_ADMIN_ROLE = await yieldVault.REWARDS_ADMIN_ROLE();
+    await yieldVault.grantRole(REWARDS_ADMIN_ROLE, owner.address);
+    const PAUSER_ROLE = await yieldVault.PAUSER_ROLE();
+    await yieldVault.grantRole(PAUSER_ROLE, owner.address);
+
+    // userA has 1000 wYLDS from fixture; fund the redeemVault (owner) with USDC for payout
+    const redeemAmount = ethers.parseUnits("1000", 6);
+    await usdc.mint(owner.address, redeemAmount);
+    await usdc.connect(owner).approve(await yieldVault.getAddress(), redeemAmount);
+
+    // userA requests redemption — shares move to contract, outside _update protection
+    const shares = await yieldVault.balanceOf(userA.address);
+    await yieldVault.connect(userA).requestRedeem(shares);
+
+    // Freeze userA AFTER the request
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+
+    // completeRedeem must now revert even though shares are already escrowed
+    await expect(yieldVault.connect(owner).completeRedeem(userA.address))
+      .to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
+  });
+
+  it("Should block withdrawUSDC when vault is paused", async function () {
+    // Regression for P2a: pause must also stop privileged treasury withdrawals.
+    const { yieldVault, usdc, owner } = await loadFixture(deployFixture);
+
+    const PAUSER_ROLE = await yieldVault.PAUSER_ROLE();
+    await yieldVault.grantRole(PAUSER_ROLE, owner.address);
+    const WITHDRAWAL_ADMIN_ROLE = await yieldVault.WITHDRAWAL_ADMIN_ROLE();
+    await yieldVault.grantRole(WITHDRAWAL_ADMIN_ROLE, owner.address);
+    const WHITELIST_ADMIN_ROLE = await yieldVault.WHITELIST_ADMIN_ROLE();
+    await yieldVault.grantRole(WHITELIST_ADMIN_ROLE, owner.address);
+
+    // Fund vault and whitelist the target
+    const amount = ethers.parseUnits("500", 6);
+    await usdc.mint(await yieldVault.getAddress(), amount);
+    await yieldVault.addToWhitelist(owner.address);
+
+    // Pause and confirm withdrawUSDC is blocked
+    await yieldVault.pause();
+    await expect(yieldVault.connect(owner).withdrawUSDC(owner.address, amount))
+      .to.be.revertedWithCustomError(yieldVault, "EnforcedPause");
+  });
 });

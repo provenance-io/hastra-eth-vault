@@ -234,6 +234,11 @@ contract YieldVault is
         onlyRole(REWARDS_ADMIN_ROLE)
         nonReentrant 
     {
+        // Frozen accounts cannot receive USDC even through a pending redemption.
+        // requestRedeem already moved shares into the contract, so _update no longer
+        // guards this payout path — we must check explicitly here.
+        if (frozen[user]) revert AccountIsFrozen();
+
         PendingRedemption memory redemption = pendingRedemptions[user];
         if (redemption.shares == 0) revert NoRedemptionPending();
         
@@ -411,6 +416,7 @@ contract YieldVault is
     function withdrawUSDC(address to, uint256 amount)
         external
         onlyRole(WITHDRAWAL_ADMIN_ROLE)
+        whenNotPaused
         nonReentrant
     {
         if (to == address(0)) revert InvalidAddress();

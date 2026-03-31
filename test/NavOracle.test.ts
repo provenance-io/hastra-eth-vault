@@ -53,9 +53,6 @@ describe("StakingVault — NAV Oracle", function () {
     await yieldVault.connect(user).approve(await stakingVault.getAddress(), wyldsAmt);
     await stakingVault.connect(user).deposit(wyldsAmt, user.address);
 
-    // Clear the oracle so individual tests can set their own state
-    await stakingVault.setNavOracle(ethers.ZeroAddress, ethers.ZeroHash);
-
     return { stakingVault, yieldVault, usdc, oracle, owner, user };
   }
 
@@ -64,11 +61,12 @@ describe("StakingVault — NAV Oracle", function () {
   describe("setNavOracle", function () {
     it("admin can set oracle and emit event", async function () {
       const { stakingVault, oracle } = await loadFixture(deployFixture);
-      await expect(stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID))
+      const oracleAddr = await oracle.getAddress();
+      await expect(stakingVault.setNavOracle(oracleAddr, FEED_ID))
         .to.emit(stakingVault, "NavOracleUpdated")
-        .withArgs(ethers.ZeroAddress, await oracle.getAddress(), FEED_ID);
+        .withArgs(oracleAddr, oracleAddr, FEED_ID);
 
-      expect(await stakingVault.navOracle()).to.equal(await oracle.getAddress());
+      expect(await stakingVault.navOracle()).to.equal(oracleAddr);
     });
 
     it("non-admin cannot set oracle", async function () {
@@ -78,11 +76,14 @@ describe("StakingVault — NAV Oracle", function () {
       ).to.be.reverted;
     });
 
-    it("can clear oracle by setting address(0)", async function () {
-      const { stakingVault, oracle, owner } = await loadFixture(deployFixture);
+    it("cannot clear oracle by setting address(0) — blocks liveness attack", async function () {
+      // Regression for P2b: a compromised NAV_ORACLE_UPDATER must not be able to
+      // brick all vault conversions by zeroing the oracle.
+      const { stakingVault, oracle } = await loadFixture(deployFixture);
       await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
-      await stakingVault.setNavOracle(ethers.ZeroAddress, ethers.ZeroHash);
-      expect(await stakingVault.navOracle()).to.equal(ethers.ZeroAddress);
+      await expect(
+        stakingVault.setNavOracle(ethers.ZeroAddress, ethers.ZeroHash)
+      ).to.be.revertedWithCustomError(stakingVault, "InvalidAddress");
     });
   });
 
@@ -130,10 +131,15 @@ describe("StakingVault — NAV Oracle", function () {
     });
 
     it("reverts InvalidAddress when oracle not set", async function () {
-      const { stakingVault } = await loadFixture(deployFixture);
-      // navOracle is address(0) by default
-      await expect(stakingVault.getVerifiedNav()).to.be.revertedWithCustomError(
-        stakingVault, "InvalidAddress"
+      const { yieldVault } = await loadFixture(deployFixture);
+      const [owner] = await ethers.getSigners();
+      // Deploy a fresh vault with no oracle configured (navOracle stays address(0))
+      const StakingVault = await ethers.getContractFactory("StakingVault");
+      const freshVault = await upgrades.deployProxy(StakingVault, [
+        await yieldVault.getAddress(), "PRIME2", "PRIME2", owner.address, await yieldVault.getAddress()
+      ], { kind: "uups" }) as unknown as StakingVault;
+      await expect(freshVault.getVerifiedNav()).to.be.revertedWithCustomError(
+        freshVault, "InvalidAddress"
       );
     });
   });
@@ -253,20 +259,25 @@ describe("StakingVault — NAV Oracle", function () {
     });
 
     it("without oracle: deposit reverts with InvalidAddress()", async function () {
-      const { stakingVault, yieldVault, usdc, user } = await loadFixture(deployFixture);
-      // navOracle is address(0) — getVerifiedNav() reverts with InvalidAddress()
-      const depositAmt = ethers.parseUnits("100", 6);
-      const [, , , depositor] = await ethers.getSigners();
+      const { yieldVault, usdc } = await loadFixture(deployFixture);
+      const [owner, , , depositor] = await ethers.getSigners();
 
+      // Deploy a fresh StakingVault with no oracle configured
+      const StakingVault = await ethers.getContractFactory("StakingVault");
+      const freshVault = await upgrades.deployProxy(StakingVault, [
+        await yieldVault.getAddress(), "PRIME2", "PRIME2", owner.address, await yieldVault.getAddress()
+      ], { kind: "uups" }) as unknown as StakingVault;
+
+      const depositAmt = ethers.parseUnits("100", 6);
       await usdc.mint(depositor.address, depositAmt);
       await usdc.connect(depositor).approve(await yieldVault.getAddress(), depositAmt);
       await yieldVault.connect(depositor).deposit(depositAmt, depositor.address);
-      await yieldVault.connect(depositor).approve(await stakingVault.getAddress(), depositAmt);
+      await yieldVault.connect(depositor).approve(await freshVault.getAddress(), depositAmt);
 
-      // Now reverts with InvalidAddress() because oracle is required
+      // navOracle is address(0) — getVerifiedNav() reverts with InvalidAddress()
       await expect(
-        stakingVault.connect(depositor).deposit(depositAmt, depositor.address)
-      ).to.be.revertedWithCustomError(stakingVault, "InvalidAddress");
+        freshVault.connect(depositor).deposit(depositAmt, depositor.address)
+      ).to.be.revertedWithCustomError(freshVault, "InvalidAddress");
     });
   });
 });
