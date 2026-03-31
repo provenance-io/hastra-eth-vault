@@ -420,8 +420,6 @@ contract StakingVault is
      * @param feedId Chainlink feedId this vault should read NAV from.
      */
     function setNavOracle(address oracle, bytes32 feedId) external onlyRole(NAV_ORACLE_UPDATER_ROLE) {
-        // Disallow clearing the oracle — address(0) would brick all conversions.
-        // Removing the oracle entirely requires DEFAULT_ADMIN intervention.
         if (oracle == address(0)) revert InvalidAddress();
         address old = navOracle;
         navOracle = oracle;
