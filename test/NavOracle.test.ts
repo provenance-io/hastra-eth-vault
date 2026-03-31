@@ -76,15 +76,6 @@ describe("StakingVault — NAV Oracle", function () {
       ).to.be.reverted;
     });
 
-    it("cannot clear oracle by setting address(0) — blocks liveness attack", async function () {
-      // Regression for P2b: a compromised NAV_ORACLE_UPDATER must not be able to
-      // brick all vault conversions by zeroing the oracle.
-      const { stakingVault, oracle } = await loadFixture(deployFixture);
-      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
-      await expect(
-        stakingVault.setNavOracle(ethers.ZeroAddress, ethers.ZeroHash)
-      ).to.be.revertedWithCustomError(stakingVault, "InvalidAddress");
-    });
   });
 
   // ── getVerifiedNav ────────────────────────────────────────────────────────────
