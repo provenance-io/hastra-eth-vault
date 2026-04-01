@@ -1,7 +1,7 @@
 import {expect} from "chai";
 import pkg from "hardhat";
 const { ethers, upgrades } = pkg;
-import type { MockUSDC, YieldVault } from "../../typechain-types";
+import type { MockUSDC, YieldVault, YieldVaultV2 } from "../../typechain-types";
 import {loadFixture} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("YieldVault Compliance (Freeze/Thaw)", function () {
@@ -177,5 +177,34 @@ describe("YieldVault Compliance (Freeze/Thaw)", function () {
     await yieldVault.pause();
     await expect(yieldVault.connect(owner).withdrawUSDC(owner.address, amount))
       .to.be.revertedWithCustomError(yieldVault, "EnforcedPause");
+  });
+
+  it("Should revert with AddressNotFoundInWhitelistArray on mapping/array desync", async function () {
+    // Regression: removeFromWhitelist must revert (not silently succeed) when the mapping
+    // says the account is whitelisted but the array does not contain it — e.g. due to a
+    // future storage bug or direct mapping manipulation.
+    const { yieldVault, usdc, owner } = await loadFixture(deployFixture);
+
+    // Upgrade to YieldVaultV2 which exposes forceWhitelistMappingOnly()
+    const YieldVaultV2Factory = await ethers.getContractFactory("YieldVaultV2");
+    const vaultV2 = await upgrades.upgradeProxy(
+      await yieldVault.getAddress(),
+      YieldVaultV2Factory
+    ) as unknown as YieldVaultV2;
+
+    const WHITELIST_ADMIN_ROLE = await vaultV2.WHITELIST_ADMIN_ROLE();
+    await vaultV2.grantRole(WHITELIST_ADMIN_ROLE, owner.address);
+
+    // Add two real addresses so array length > 1 (avoids CannotRemoveLastWhitelistedAddress)
+    const [, , , , desynced, realAddr, realAddr2] = await ethers.getSigners();
+    await vaultV2.addToWhitelist(realAddr.address);  // array = [realAddr]
+    await vaultV2.addToWhitelist(realAddr2.address); // array = [realAddr, realAddr2]
+
+    // Force desynced into the mapping only — array never gets this address
+    await vaultV2.forceWhitelistMappingOnly(desynced.address);
+
+    // _whitelistArray = [realAddr, realAddr2], mapping says desynced=true but array omits it
+    await expect(vaultV2.removeFromWhitelist(desynced.address))
+      .to.be.revertedWithCustomError(vaultV2, "AddressNotFoundInWhitelistArray");
   });
 });

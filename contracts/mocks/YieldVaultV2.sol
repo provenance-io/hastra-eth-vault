@@ -21,4 +21,10 @@ contract YieldVaultV2 is YieldVault {
     function version() external pure returns (uint256) {
         return VERSION;
     }
+
+    /// @dev TEST ONLY — adds account to the mapping without updating the array,
+    ///      creating the desync condition that AddressNotFoundInWhitelistArray guards against.
+    function forceWhitelistMappingOnly(address account) external {
+        whitelistedAddresses[account] = true;
+    }
 }

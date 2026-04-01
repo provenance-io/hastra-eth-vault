@@ -45,7 +45,7 @@ contract YieldVault is
     mapping(address => bool) public frozen;
     uint256 public currentEpochIndex;
     mapping(address => bool) public whitelistedAddresses;
-    address[] private _whitelistArray;
+    address[] internal _whitelistArray;
     
     /// @dev Storage gap for future upgrades (allows adding up to 42 new state variables)
     /// @dev 50 slots total - 8 used = 42 available
