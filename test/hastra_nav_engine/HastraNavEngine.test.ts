@@ -149,6 +149,30 @@ describe("HastraNavEngine", function () {
         .to.be.revertedWithCustomError(navEngine, "TVLDifferenceExceeded");
     });
 
+    it("Should revert if TVL decreases too much", async function () {
+      await navEngine.connect(updater).updateRate(totalSupply, totalTVL); // baseline 1500
+      const newTVL = ethers.parseEther("1300"); // ~13.3% drop from 1500 > 10% maxDiff
+      await expect(navEngine.connect(updater).updateRate(totalSupply, newTVL))
+        .to.be.revertedWithCustomError(navEngine, "TVLDifferenceExceeded");
+    });
+
+    it("Should apply the same threshold symmetrically for increases and decreases", async function () {
+      // Baseline: 1500
+      await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
+
+      // +9% increase (1500 → 1635): (135/1500) = 9% < 10% — should pass
+      const up = ethers.parseEther("1635");
+      await navEngine.connect(updater).updateRate(totalSupply, up);
+
+      // Reset baseline to 1500 by going back within threshold from 1635
+      await navEngine.connect(updater).updateRate(totalSupply, ethers.parseEther("1500"));
+
+      // -9% decrease (1500 → 1365): (135/1500) = 9% < 10% — should also pass
+      const down = ethers.parseEther("1365");
+      await navEngine.connect(updater).updateRate(totalSupply, down);
+      expect(await navEngine.getRate()).to.equal(ethers.parseEther("1.365"));
+    });
+
     it("Should allow TVL change within threshold", async function () {
       // First update
       await navEngine.connect(updater).updateRate(totalSupply, totalTVL);
