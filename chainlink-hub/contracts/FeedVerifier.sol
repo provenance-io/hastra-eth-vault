@@ -112,7 +112,7 @@ contract FeedVerifier is
     bytes32 public allowedFeedId;
 
     /// @notice Default maximum age (seconds) applied to all feeds without an explicit override.
-    ///         Defaults to 86400 (24 h). Set to 0 to disable default enforcement.
+    ///         Defaults to 3600 (1 h). Set to 0 to disable default enforcement.
     uint32 public defaultMaxStaleness;
 
     /// @notice Per-feed staleness override. When non-zero, takes precedence over defaultMaxStaleness.

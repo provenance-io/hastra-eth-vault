@@ -415,7 +415,7 @@ contract StakingVault is
 
     /**
      * @notice Set the Chainlink FeedVerifier NAV oracle address and feed ID.
-     * @param oracle Address of the deployed FeedVerifier contract. Must be non-zero.
+     * @param oracle Address of the deployed FeedVerifier contract. Use address(0) to clear/disable the oracle.
      * @param feedId Chainlink feedId this vault should read NAV from.
      */
     function setNavOracle(address oracle, bytes32 feedId) external onlyRole(NAV_ORACLE_UPDATER_ROLE) {
