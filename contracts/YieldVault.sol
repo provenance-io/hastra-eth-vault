@@ -385,15 +385,18 @@ contract YieldVault is
         if (_whitelistArray.length <= 1) revert CannotRemoveLastWhitelistedAddress();
         
         whitelistedAddresses[account] = false;
-        
+
+        bool found = false;
         for (uint256 i = 0; i < _whitelistArray.length; i++) {
             if (_whitelistArray[i] == account) {
                 _whitelistArray[i] = _whitelistArray[_whitelistArray.length - 1];
                 _whitelistArray.pop();
+                found = true;
                 break;
             }
         }
-        
+        if (!found) revert AddressNotFoundInWhitelistArray();
+
         emit AddressRemovedFromWhitelist(account);
     }
     
