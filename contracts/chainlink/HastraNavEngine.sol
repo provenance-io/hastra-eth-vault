@@ -89,12 +89,9 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
         }
 
         if ($.latestUpdateTime != 0) {
-            uint256 difference;
-            if ($.latestTVL > totalTVL_) {
-                difference = Math.mulDiv($.latestTVL - totalTVL_, RATE_PRECISION, $.latestTVL);
-            } else {
-                difference = Math.mulDiv(totalTVL_ - $.latestTVL, RATE_PRECISION, totalTVL_);
-            }
+            uint256 oldTVL = $.latestTVL;
+            uint256 absDiff = totalTVL_ > oldTVL ? totalTVL_ - oldTVL : oldTVL - totalTVL_;
+            uint256 difference = Math.mulDiv(absDiff, RATE_PRECISION, oldTVL);
             if (difference > $.maxDifferencePercent) {
                 revert TVLDifferenceExceeded($.latestTVL, totalTVL_, difference, $.maxDifferencePercent);
             }
