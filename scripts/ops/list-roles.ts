@@ -1,5 +1,5 @@
 // @ts-ignore
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
