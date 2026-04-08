@@ -41,9 +41,9 @@ async function main() {
     console.log("\nDeployment Parameters:");
     console.log("  Owner:", OWNER);
     console.log("  Updater:", UPDATER);
-    console.log("  Max Difference:", MAX_DIFFERENCE_PERCENT.toString(), "(10%)");
-    console.log("  Min Rate:", MIN_RATE.toString(), "(0.5)");
-    console.log("  Max Rate:", MAX_RATE.toString(), "(3.0)");
+    console.log("  Max Difference:", MAX_DIFFERENCE_PERCENT.toString(), `(${Number(MAX_DIFFERENCE_PERCENT) / 1e18 * 100}%)`);
+    console.log("  Min Rate:", MIN_RATE.toString(), `(${Number(MIN_RATE) / 1e18})`);
+    console.log("  Max Rate:", MAX_RATE.toString(), `(${Number(MAX_RATE) / 1e18})`);
 
     // Deploy proxy
     const HastraNavEngine = await ethers.getContractFactory("HastraNavEngine");

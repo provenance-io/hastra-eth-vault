@@ -79,3 +79,4 @@ AGENTS.md
 # Copilot agent workspace
 .agents/
 .codex/
+deployment_nav_testnet_hardhat.json

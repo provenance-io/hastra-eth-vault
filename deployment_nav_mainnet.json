@@ -1,0 +1,21 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "timestamp": "2026-04-08T21:12:14.499Z",
+  "contracts": {
+    "navEngine": "0xfEd839B6BA09c1aBf4C768abA0ECA50746E4eca9",
+    "navEngineImplementation": "0x1376de100324d42337F1a2C08351d7242f30C3A7"
+  },
+  "transactions": {
+    "navEngine": "0xa30141c3c54c466e21759a859bf4bf7cd385dfe1e30ee88369572c03c3cf674a"
+  },
+  "roles": {
+    "owner": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "updater": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3"
+  },
+  "config": {
+    "maxDifferencePercent": "100000000000000000",
+    "minRate": "1000000000000000000",
+    "maxRate": "3000000000000000000"
+  }
+}
