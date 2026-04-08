@@ -8,6 +8,7 @@
  */
 // @ts-ignore
 import { ethers } from "hardhat";
+import * as fs from "fs";
 
 // Contract addresses (update these after deployment)
 const USDC_ADDRESS = process.env.USDC_ADDRESS || "";
@@ -129,8 +130,9 @@ async function claimRewards(epochIndex: number, distributionFile: string) {
   
   const distribution = JSON.parse(fs.readFileSync(distributionFile, "utf-8"));
   
-  // Find user's reward
-  const userReward = distribution.rewards.find(
+  // Supports both build-rewards-merkle.ts output (recipients) and legacy (rewards)
+  const rewardsList = distribution.recipients ?? distribution.rewards ?? [];
+  const userReward = rewardsList.find(
     (r: any) => r.address.toLowerCase() === user.address.toLowerCase()
   );
   
@@ -275,44 +277,52 @@ async function viewBalances() {
 }
 
 /**
- * Main function for CLI usage
+ * Main function for CLI usage.
+ * Hardhat doesn't support positional args — use env vars:
+ *
+ *   COMMAND=claim-rewards EPOCH=0 PROOFS_FILE=<path> \
+ *     npx hardhat run scripts/demo/user.ts --network sepolia
+ *
+ *   COMMAND=deposit AMOUNT=100 npx hardhat run scripts/demo/user.ts --network sepolia
+ *   COMMAND=balances npx hardhat run scripts/demo/user.ts --network sepolia
  */
 async function main() {
-  const args = process.argv.slice(2);
-  const command = args[0];
+  const command    = process.env.COMMAND    ?? "";
+  const amount     = process.env.AMOUNT     ?? "";
+  const epoch      = process.env.EPOCH      ?? "";
+  const proofsFile = process.env.PROOFS_FILE ?? "";
 
   switch (command) {
     case "deposit":
-      await depositToYieldVault(args[1]);
+      await depositToYieldVault(amount);
       break;
     case "request-redeem":
-      await requestRedemption(args[1]);
+      await requestRedemption(amount);
       break;
     case "cancel-redeem":
       await cancelRedemption();
       break;
     case "claim-rewards":
-      await claimRewards(parseInt(args[1]), args[2]);
+      await claimRewards(parseInt(epoch), proofsFile);
       break;
     case "stake":
-      await stakeWYLDS(args[1]);
+      await stakeWYLDS(amount);
       break;
     case "unbond":
-      await unbondPRIME(args[1]);
+      await unbondPRIME(amount);
       break;
     case "balances":
       await viewBalances();
       break;
     default:
-      console.log("Unknown command");
-      console.log("\nAvailable commands:");
-      console.log("  deposit <amount>              - Deposit USDC to get wYLDS");
-      console.log("  request-redeem <amount>       - Request redemption of wYLDS");
-      console.log("  cancel-redeem                 - Cancel pending redemption");
-      console.log("  claim-rewards <epoch> <file>  - Claim rewards");
-      console.log("  stake <amount>                - Stake wYLDS to get PRIME");
-      console.log("  unbond <amount>               - Redeem PRIME for wYLDS (instant)");
-      console.log("  balances                      - View all balances");
+      console.log("Set COMMAND env var to one of:");
+      console.log("  COMMAND=deposit        AMOUNT=<n>");
+      console.log("  COMMAND=request-redeem AMOUNT=<n>");
+      console.log("  COMMAND=cancel-redeem");
+      console.log("  COMMAND=claim-rewards  EPOCH=<n>  PROOFS_FILE=<path>");
+      console.log("  COMMAND=stake          AMOUNT=<n>");
+      console.log("  COMMAND=unbond         AMOUNT=<n>");
+      console.log("  COMMAND=balances");
   }
 }
 
