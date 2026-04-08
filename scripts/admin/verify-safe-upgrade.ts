@@ -69,7 +69,7 @@ async function main() {
 
   if (!implMatch) {
     console.log(`\n❌ Upgrade not confirmed. Has the Safe transaction been executed?`);
-    console.log(`   Check: https://app.safe.global/sep:0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4`);
+    console.log(`   Check: ${process.env.SAFE_ADDRESS ? `https://app.safe.global/sep:${process.env.SAFE_ADDRESS}` : "(set SAFE_ADDRESS env var for link)"}`);
     process.exitCode = 1;
   } else {
     console.log(`\n✅ Upgrade confirmed. Safe has successfully upgraded the proxy.`);

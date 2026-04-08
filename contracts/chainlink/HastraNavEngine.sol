@@ -36,6 +36,9 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
     error RateOutOfBounds(int192 rate, int192 minRate, int192 maxRate);
     error TotalSupplyIsZero();
     error RateOverflow(uint256 calculatedRate);
+    error InvalidUpdater();
+    error InvalidRate();
+    error InvalidMaxDifferencePercent();
     event UpdaterSet(address indexed updater);
     event MinRateSet(int192 minRate);
     event MaxRateSet(int192 maxRate);
@@ -89,12 +92,9 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
         }
 
         if ($.latestUpdateTime != 0) {
-            uint256 difference;
-            if ($.latestTVL > totalTVL_) {
-                difference = Math.mulDiv($.latestTVL - totalTVL_, RATE_PRECISION, $.latestTVL);
-            } else {
-                difference = Math.mulDiv(totalTVL_ - $.latestTVL, RATE_PRECISION, totalTVL_);
-            }
+            uint256 oldTVL = $.latestTVL;
+            uint256 absDiff = totalTVL_ > oldTVL ? totalTVL_ - oldTVL : oldTVL - totalTVL_;
+            uint256 difference = Math.mulDiv(absDiff, RATE_PRECISION, oldTVL);
             if (difference > $.maxDifferencePercent) {
                 revert TVLDifferenceExceeded($.latestTVL, totalTVL_, difference, $.maxDifferencePercent);
             }
@@ -141,29 +141,29 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
     }
 
     function _setUpdater(address updater_) internal {
-        require(updater_ != address(0), "Invalid updater");
+        if (updater_ == address(0)) revert InvalidUpdater();
         _getStorage().updater = updater_;
         emit UpdaterSet(updater_);
     }
 
     function _setMinRate(int192 minRate_) internal {
-        require(minRate_ > 0, "Invalid min rate");
+        if (minRate_ <= 0) revert InvalidRate();
         NavEngineStorage storage $ = _getStorage();
-        if ($.maxRate != 0) require(minRate_ <= $.maxRate, "minRate > maxRate");
+        if ($.maxRate != 0 && minRate_ > $.maxRate) revert InvalidRate();
         $.minRate = minRate_;
         emit MinRateSet(minRate_);
     }
 
     function _setMaxRate(int192 maxRate_) internal {
-        require(maxRate_ > 0, "Invalid max rate");
+        if (maxRate_ <= 0) revert InvalidRate();
         NavEngineStorage storage $ = _getStorage();
-        if ($.minRate != 0) require(maxRate_ >= $.minRate, "maxRate < minRate");
+        if ($.minRate != 0 && maxRate_ < $.minRate) revert InvalidRate();
         $.maxRate = maxRate_;
         emit MaxRateSet(maxRate_);
     }
 
     function _setMaxDifferencePercent(uint256 maxDifferencePercent_) internal {
-        require(maxDifferencePercent_ > 0 && maxDifferencePercent_ <= RATE_PRECISION, "Invalid max difference percent");
+        if (maxDifferencePercent_ == 0 || maxDifferencePercent_ > RATE_PRECISION) revert InvalidMaxDifferencePercent();
         _getStorage().maxDifferencePercent = maxDifferencePercent_;
         emit MaxDifferencePercentSet(maxDifferencePercent_);
     }

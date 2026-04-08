@@ -177,7 +177,7 @@ describe("HastraNavEngine - int192 Type Safety Tests", function () {
       // Try to set maxRate below minRate - should fail
       await expect(
         navEngine.connect(owner).setMaxRate(ethers.parseEther("0.5"))
-      ).to.be.revertedWith("maxRate < minRate");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidRate");
       
       // Set maxRate above minRate - should succeed
       await navEngine.connect(owner).setMaxRate(ethers.parseEther("2.0"));
@@ -185,14 +185,14 @@ describe("HastraNavEngine - int192 Type Safety Tests", function () {
       // Try to set minRate above maxRate - should fail
       await expect(
         navEngine.connect(owner).setMinRate(ethers.parseEther("2.5"))
-      ).to.be.revertedWith("minRate > maxRate");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidRate");
     });
 
     it("Should validate maxDifferencePercent upper bound", async function () {
       // Try to set > 100% (> 1e18) - should fail
       await expect(
         navEngine.connect(owner).setMaxDifferencePercent(ethers.parseEther("1.5"))
-      ).to.be.revertedWith("Invalid max difference percent");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidMaxDifferencePercent");
       
       // Set exactly 100% - should succeed
       await navEngine.connect(owner).setMaxDifferencePercent(ethers.parseEther("1.0"));
@@ -200,31 +200,31 @@ describe("HastraNavEngine - int192 Type Safety Tests", function () {
       // Set to 0 - should fail
       await expect(
         navEngine.connect(owner).setMaxDifferencePercent(0)
-      ).to.be.revertedWith("Invalid max difference percent");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidMaxDifferencePercent");
     });
 
     it("Should revert when setting minRate to zero", async function () {
       await expect(
         navEngine.connect(owner).setMinRate(0)
-      ).to.be.revertedWith("Invalid min rate");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidRate");
     });
 
     it("Should revert when setting minRate to negative", async function () {
       await expect(
         navEngine.connect(owner).setMinRate(-1)
-      ).to.be.revertedWith("Invalid min rate");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidRate");
     });
 
     it("Should revert when setting maxRate to zero", async function () {
       await expect(
         navEngine.connect(owner).setMaxRate(0)
-      ).to.be.revertedWith("Invalid max rate");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidRate");
     });
 
     it("Should revert when setting maxRate to negative", async function () {
       await expect(
         navEngine.connect(owner).setMaxRate(-1)
-      ).to.be.revertedWith("Invalid max rate");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidRate");
     });
 
     it("Should allow setting maxRate when minRate is zero (not set)", async function () {
@@ -310,7 +310,7 @@ describe("HastraNavEngine - int192 Type Safety Tests", function () {
           ],
           { initializer: "initialize", kind: "uups" }
         )
-      ).to.be.revertedWith("Invalid min rate");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidRate");
       
       // So we can't actually test the false branch because the contract
       // properly validates that minRate must be > 0

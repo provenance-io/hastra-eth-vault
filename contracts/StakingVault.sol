@@ -62,8 +62,12 @@ contract StakingVault is
     /// @dev Tracks only legitimate deposits, ignoring direct transfers to contract
     uint256 private _totalManagedAssets;
 
-    /// @notice Maximum reward increase as a percent of current totalAssets, in 1e18 units
-    /// @dev 20% = 0.2e18 = 200000000000000000. Prevents fat-finger or malicious reward calls.
+    /// @notice Maximum reward increase as a fraction of this vault's current totalAssets, in 1e18 units.
+    /// @dev Relative per-chain TVL guard. YLDS is multi-chain: a rewards admin may compute reward
+    ///      amounts against total protocol TVL (Ethereum + Solana + …), but this contract only holds
+    ///      the Ethereum-chain slice. Without this check, an amount that looks like "1% of $100M total"
+    ///      could be "10% of $10M local" — over-inflating Ethereum stakers' share.
+    ///      75 bps = 0.75% = 0.0075e18. Settable via setMaxRewardPercent (DEFAULT_ADMIN_ROLE).
     uint256 public maxRewardPercent;
 
     /// @notice Chainlink FeedVerifier NAV oracle address (optional — zero means no oracle)
@@ -75,17 +79,49 @@ contract StakingVault is
     /// @notice Chainlink feedId this vault reads NAV from (set alongside navOracle)
     bytes32 public navFeedId;
 
-    /// @dev Storage gap for future upgrades (reserves 45 storage slots — 3 consumed above)
-    uint256[46] private __gap;
-    
+    /// @notice Absolute per-call ceiling on distributeRewards, in asset token units.
+    /// @dev Secondary cross-chain TVL guard (absolute, not relative). Caps the raw token amount
+    ///      regardless of vault size. Limits single-call blast radius if REWARDS_ADMIN_ROLE is
+    ///      compromised or a cross-chain accounting error produces a grossly inflated figure.
+    ///      Default: 1_000_000e6 (1M wYLDS). Settable via setMaxPeriodRewards (DEFAULT_ADMIN_ROLE).
+    uint256 public maxPeriodRewards;
+
+    /// @notice Minimum seconds that must elapse between successive distributeRewards calls.
+    /// @dev Cooldown that prevents a compromised REWARDS_ADMIN_ROLE key from looping the per-call
+    ///      cap — e.g. calling distributeRewards(1M) every block would otherwise drain the lifetime
+    ///      budget in seconds. Default: 3540 (59 min — 1 min buffer before the hourly boundary to
+    ///      avoid block-timestamp drift causing spurious reverts). Settable via setRewardPeriodSeconds (DEFAULT_ADMIN_ROLE).
+    uint256 public rewardPeriodSeconds;
+
+    /// @notice Block timestamp of the last successful distributeRewards call.
+    /// @dev Used with rewardPeriodSeconds to enforce the cooldown. Zero on fresh deployment (first
+    ///      call is always allowed).
+    uint256 public lastRewardDistributedAt;
+
+    /// @notice Hard lifetime ceiling on cumulative rewards ever distributed through this vault.
+    /// @dev Final backstop — survives key compromise and repeated calls within the cooldown window.
+    ///      Raising this requires a multisig (DEFAULT_ADMIN_ROLE) transaction, giving governance
+    ///      visibility into any attempt to increase the reward budget.
+    ///      Default: 10_000_000e6 (10M wYLDS, 10× the per-call max). Settable via setMaxTotalRewards.
+    uint256 public maxTotalRewards;
+
+    /// @notice Cumulative total rewards minted through this vault since deployment.
+    /// @dev Monotonically increasing. Checked against maxTotalRewards on every distributeRewards call.
+    uint256 public totalRewardsDistributed;
+
+    /// @dev Storage gap — reduced by 5 for the vars above (46 → 41).
+    uint256[41] private __gap;
     // ============ Events ============
-    
+
     event RewardsDistributed(uint256 amount, uint256 timestamp);
     event AccountFrozen(address indexed account);
     event AccountThawed(address indexed account);
     event YieldVaultUpdated(address oldVault, address newVault);
     event MaxRewardPercentUpdated(uint256 oldValue, uint256 newValue);
     event NavOracleUpdated(address oldOracle, address newOracle, bytes32 feedId);
+    event MaxPeriodRewardsUpdated(uint256 oldValue, uint256 newValue);
+    event RewardPeriodSecondsUpdated(uint256 oldValue, uint256 newValue);
+    event MaxTotalRewardsUpdated(uint256 oldValue, uint256 newValue);
 
     // ============ Errors ============
 
@@ -96,6 +132,9 @@ contract StakingVault is
     error ZeroAmount();
     error RewardExceedsMaxDelta(uint256 amount, uint256 maxAllowed);
     error NavInvalid();
+    error RewardCooldownNotElapsed(uint256 nextAllowedAt);
+    error ExceedsPeriodRewardCap(uint256 amount, uint256 cap);
+    error ExceedsLifetimeRewardCap(uint256 amount, uint256 remaining);
     
     // ============ Constructor ============
     
@@ -145,7 +184,10 @@ contract StakingVault is
         //   - NAV_ORACLE_UPDATER can call setNavOracle to point to a Chainlink FeedVerifier
         
         yieldVault = yieldVault_;
-        maxRewardPercent = 0.2e18; // 20%
+        maxRewardPercent = 0.0075e18;        // 75 BPS per call
+        maxPeriodRewards = 1_000_000e6;      // 1M wYLDS absolute cap per call
+        rewardPeriodSeconds = 3540;          // 59 min — 1 min buffer before hourly boundary to avoid block-timestamp drift
+        maxTotalRewards = 10_000_000e6;      // 10M wYLDS lifetime cap (10× the per-call max); update via admin multisig
     }
     
     // ============ UUPS Required Override ============
@@ -293,21 +335,35 @@ contract StakingVault is
     function distributeRewards(uint256 amount)
         external
         onlyRole(REWARDS_ADMIN_ROLE)
+        whenNotPaused
         nonReentrant
     {
         if (amount == 0) revert InvalidAmount();
 
-        // Skip delta check when vault is empty (no existing NAV to protect)
+        // Cooldown: enforce minimum time between distributions
+        uint256 nextAllowed = lastRewardDistributedAt + rewardPeriodSeconds;
+        if (block.timestamp < nextAllowed) revert RewardCooldownNotElapsed(nextAllowed);
+
+        // Absolute per-call cap: prevent cross-chain TVL confusion and key-compromise amplification
+        if (amount > maxPeriodRewards) revert ExceedsPeriodRewardCap(amount, maxPeriodRewards);
+
+        // Lifetime cap: hard ceiling on total rewards ever minted through this vault
+        uint256 remaining = maxTotalRewards - totalRewardsDistributed;
+        if (amount > remaining) revert ExceedsLifetimeRewardCap(amount, remaining);
+
+        // BPS cap: chain-local TVL proportionality check (skip when vault is empty)
         uint256 currentAssets = _totalManagedAssets;
         if (currentAssets > 0 && totalSupply() > 0) {
             uint256 maxAllowed = currentAssets.mulDiv(maxRewardPercent, 1e18);
             if (amount > maxAllowed) revert RewardExceedsMaxDelta(amount, maxAllowed);
         }
 
-        // Effects: Track the new assets internally BEFORE external call
+        // Effects: update state before external call
+        lastRewardDistributedAt = block.timestamp;
+        totalRewardsDistributed += amount;
         _totalManagedAssets += amount;
 
-        // Interactions: Mint wYLDS rewards to this vault
+        // Interactions: mint wYLDS rewards to this vault
         IYieldVault(yieldVault).mintRewards(address(this), amount);
 
         emit RewardsDistributed(amount, block.timestamp);
@@ -315,7 +371,7 @@ contract StakingVault is
 
     /**
      * @notice Update the maximum reward percent allowed in a single distributeRewards call
-     * @param newPercent New maximum in 1e18 units (e.g. 0.2e18 = 20%). Must be > 0 and <= 1e18.
+     * @param newPercent New maximum in 1e18 units (e.g. 0.0075e18 = 75 bps). Must be > 0 and <= 1e18.
      */
     function setMaxRewardPercent(uint256 newPercent) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newPercent == 0 || newPercent > 1e18) revert InvalidAmount();
@@ -325,8 +381,41 @@ contract StakingVault is
     }
 
     /**
+     * @notice Update the absolute per-call rewards cap.
+     * @param newCap New cap in asset token units (e.g. 1_000_000e6 = 1M wYLDS). Must be > 0.
+     */
+    function setMaxPeriodRewards(uint256 newCap) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newCap == 0) revert InvalidAmount();
+        uint256 old = maxPeriodRewards;
+        maxPeriodRewards = newCap;
+        emit MaxPeriodRewardsUpdated(old, newCap);
+    }
+
+    /**
+     * @notice Update the cooldown between reward distributions.
+     * @param newSeconds Minimum seconds between calls. Must be > 0.
+     */
+    function setRewardPeriodSeconds(uint256 newSeconds) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newSeconds == 0) revert InvalidAmount();
+        uint256 old = rewardPeriodSeconds;
+        rewardPeriodSeconds = newSeconds;
+        emit RewardPeriodSecondsUpdated(old, newSeconds);
+    }
+
+    /**
+     * @notice Update the lifetime rewards ceiling.
+     * @param newMax New maximum total rewards in asset token units. Must be >= totalRewardsDistributed.
+     */
+    function setMaxTotalRewards(uint256 newMax) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newMax < totalRewardsDistributed) revert InvalidAmount();
+        uint256 old = maxTotalRewards;
+        maxTotalRewards = newMax;
+        emit MaxTotalRewardsUpdated(old, newMax);
+    }
+
+    /**
      * @notice Set the Chainlink FeedVerifier NAV oracle address and feed ID.
-     * @param oracle Address of the deployed FeedVerifier contract, or address(0) to disable.
+     * @param oracle Address of the deployed FeedVerifier contract. Use address(0) to clear/disable the oracle.
      * @param feedId Chainlink feedId this vault should read NAV from.
      */
     function setNavOracle(address oracle, bytes32 feedId) external onlyRole(NAV_ORACLE_UPDATER_ROLE) {

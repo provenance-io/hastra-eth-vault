@@ -1,10 +1,17 @@
 /**
  * [DEPLOY] Deploy the HastraNavEngine UUPS proxy with initial configuration.
- * Saves deployment artifacts to deployment_nav_testnet_<network>.json.
+ * Saves deployment artifacts to deployment_nav_testnet_<network>.json (or deployment_nav_mainnet.json).
  *
  * Usage:
  *   npx hardhat run scripts/deploy/deployNavEngine.ts --network sepolia
- *   npx hardhat run scripts/deploy/deployNavEngine.ts --network hoodi
+ *   npx hardhat run scripts/deploy/deployNavEngine.ts --network mainnet
+ *
+ * Env vars (all optional — defaults to deployer address / Sepolia values):
+ *   OWNER_ADDRESS            - Initial owner (use deployer, then hand off to Safe)
+ *   UPDATER_ADDRESS          - Bot wallet that calls updateRate()
+ *   MAX_DIFFERENCE_PERCENT   - Max TVL change per update in wei (default: 100000000000000000 = 10%)
+ *   MIN_RATE                 - Minimum NAV rate as int192 (default: 500000000000000000 = 0.5)
+ *   MAX_RATE                 - Maximum NAV rate as int192 (default: 3000000000000000000 = 3.0)
  */
 // @ts-ignore
 import {ethers, upgrades, network, run} from "hardhat";
@@ -18,12 +25,18 @@ async function main() {
     console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
     console.log("Network:", network.name);
 
-    // Deployment parameters
-    const OWNER = deployer.address;  // Change to your admin address
-    const UPDATER = deployer.address;  // Change to your bot address
-    const MAX_DIFFERENCE_PERCENT = ethers.parseEther("0.1");  // 10%
-    const MIN_RATE = BigInt("500000000000000000");  // 0.5 as int192
-    const MAX_RATE = BigInt("3000000000000000000");  // 3.0 as int192
+    // Deployment parameters — override via env vars for mainnet
+    const OWNER   = process.env.OWNER_ADDRESS   || deployer.address;
+    const UPDATER = process.env.UPDATER_ADDRESS || deployer.address;
+    const MAX_DIFFERENCE_PERCENT = process.env.MAX_DIFFERENCE_PERCENT
+        ? BigInt(process.env.MAX_DIFFERENCE_PERCENT)
+        : ethers.parseEther("0.1");  // default 10%
+    const MIN_RATE = process.env.MIN_RATE
+        ? BigInt(process.env.MIN_RATE)
+        : BigInt("500000000000000000");  // default 0.5
+    const MAX_RATE = process.env.MAX_RATE
+        ? BigInt(process.env.MAX_RATE)
+        : BigInt("3000000000000000000");  // default 3.0
 
     console.log("\nDeployment Parameters:");
     console.log("  Owner:", OWNER);

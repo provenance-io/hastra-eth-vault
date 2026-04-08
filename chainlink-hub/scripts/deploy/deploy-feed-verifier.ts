@@ -4,21 +4,27 @@ import * as fs from "fs";
 import * as path from "path";
 
 /**
- * Deploy FeedVerifier.sol (UUPS proxy) to Sepolia or Hoodi.
+ * Deploy FeedVerifier.sol (UUPS proxy).
  *
  * Saves a deployment artifact at chainlink-hub/deployment_feed_verifier_<network>.json
  * containing proxy address, implementation address, verifierProxy, feedId, and deployer.
  *
- * Usage:
+ * Usage (run from chainlink-hub/):
  *   npx hardhat run scripts/deploy/deploy-feed-verifier.ts --network sepolia
- *   npx hardhat run scripts/deploy/deploy-feed-verifier.ts --network hoodi
+ *   npx hardhat run scripts/deploy/deploy-feed-verifier.ts --network mainnet
  *
- * Required .env:
- *   PRIVATE_KEY, SEPOLIA_RPC_URL (or HOODI_RPC_URL), ETHERSCAN_API_KEY
+ * Required env vars:
+ *   PRIVATE_KEY        — deployer private key
+ *   ETHERSCAN_API_KEY  — for implementation verification
+ *   FEED_ID            — bytes32 feed ID from Chainlink (network-specific)
+ *                        Sepolia: 0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3
  *
- * Optional .env:
- *   ADMIN_ADDRESS    — defaults to deployer
- *   UPDATER_ADDRESS  — defaults to deployer (set to bot wallet in production)
+ * Optional env vars:
+ *   ADMIN_ADDRESS    — defaults to deployer (hand off to Safe after deploy)
+ *   UPDATER_ADDRESS  — defaults to deployer (set to bot wallet for production)
+ *
+ * Mainnet blockers (fill in VERIFIER_PROXY map below before deploying):
+ *   mainnet VerifierProxy — get from Chainlink Data Streams docs
  */
 
 const VERIFIER_PROXY: Record<string, string> = {
@@ -36,12 +42,16 @@ async function main() {
 
   const admin   = process.env.ADMIN_ADDRESS   || deployer.address;
   const updater = process.env.UPDATER_ADDRESS || deployer.address;
+  // Sepolia default: 0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3
+  const feedId  = process.env.FEED_ID || "";
+  if (!feedId) throw new Error("FEED_ID env var required (bytes32 feed ID from Chainlink)");
 
   console.log(`Network:         ${net}`);
   console.log(`Deployer:        ${deployer.address}`);
   console.log(`Admin:           ${admin}`);
   console.log(`Updater (bot):   ${updater}`);
   console.log(`VerifierProxy:   ${verifierProxy}`);
+  console.log(`Feed ID:         ${feedId}`);
   console.log("");
 
   console.log("🚀 Deploying FeedVerifier (UUPS proxy)...");
@@ -64,7 +74,7 @@ async function main() {
     feedVerifier: proxyAddress,
     feedVerifierImplementation: implAddress,
     verifierProxy,
-    feedId: "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3",
+    feedId: feedId,
     deployer: deployer.address,
     admin,
     updater,

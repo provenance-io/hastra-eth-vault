@@ -175,13 +175,16 @@ describe("StakingVault", function () {
 
   describe("Rewards Distribution", function () {
     it("Should distribute rewards and increase share value", async function () {
-      const { stakingVault, yieldVault, rewardsAdmin, user1, oracle, FEED_ID } = 
+      const { stakingVault, yieldVault, rewardsAdmin, user1, owner, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       const stakeAmount = ethers.parseUnits("1000", 6);
       await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
       
       const rewardAmount = ethers.parseUnits("100", 6);
+      
+      // Raise cap to 20% for this test (default is 75 bps; test exercises reward accrual, not the cap)
+      await stakingVault.connect(owner).setMaxRewardPercent(ethers.parseEther("0.2"));
       
       const sharesBefore = await stakingVault.balanceOf(user1.address);
       const assetsBefore = await stakingVault.convertToAssets(sharesBefore);
@@ -210,7 +213,7 @@ describe("StakingVault", function () {
     });
 
     it("Should distribute rewards proportionally to all stakers", async function () {
-      const { stakingVault, rewardsAdmin, user1, user2, oracle, FEED_ID } = 
+      const { stakingVault, rewardsAdmin, user1, user2, owner, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       const stake1 = ethers.parseUnits("1000", 6);
@@ -220,6 +223,9 @@ describe("StakingVault", function () {
       await stakingVault.connect(user2).deposit(stake2, user2.address);
       
       const rewardAmount = ethers.parseUnits("300", 6); // 300 wYLDS
+      
+      // Raise cap to 20% for this test (default is 75 bps; test exercises proportional distribution, not the cap)
+      await stakingVault.connect(owner).setMaxRewardPercent(ethers.parseEther("0.2"));
       
       const shares1Before = await stakingVault.balanceOf(user1.address);
       const shares2Before = await stakingVault.balanceOf(user2.address);
@@ -320,7 +326,7 @@ describe("StakingVault", function () {
     });
 
     it("Should update conversion after rewards", async function () {
-      const { stakingVault, rewardsAdmin, user1, oracle, FEED_ID } = 
+      const { stakingVault, rewardsAdmin, user1, owner, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       const stakeAmount = ethers.parseUnits("1000", 6);
@@ -332,7 +338,8 @@ describe("StakingVault", function () {
       let assets = await stakingVault.convertToAssets(shares);
       expect(assets).to.equal(shares);
       
-      // Add rewards
+      // Add rewards — raise cap to 20% (default is 75 bps; test exercises share pricing, not the cap)
+      await stakingVault.connect(owner).setMaxRewardPercent(ethers.parseEther("0.2"));
       const rewardAmount = ethers.parseUnits("100", 6);
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
 
@@ -375,12 +382,12 @@ describe("StakingVault", function () {
       const stakeAmount = ethers.parseUnits("1000", 6);
       await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
       
-      // 2. Receive rewards
-      const rewardAmount = ethers.parseUnits("100", 6);
+      // 2. Receive rewards (within 75 bps cap: 75 bps of 1000e6 = 7.5e6)
+      const rewardAmount = ethers.parseUnits("7", 6);
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
 
-      // Update oracle NAV to reflect 10% reward (1000 + 100 / 1000 = 1.1)
-      await oracle.setPrice(FEED_ID, ethers.parseUnits("1.1", 18), await time.latest());
+      // Update oracle NAV to reflect reward (1000 + 7 / 1000 = 1.007)
+      await oracle.setPrice(FEED_ID, ethers.parseUnits("1.007", 18), await time.latest());
       
       // 3. Redeem (Instant Exit)
       const primeBalance = await stakingVault.balanceOf(user1.address);
@@ -680,13 +687,15 @@ describe("StakingVault", function () {
     });
 
     it("Should handle withdraw and redeem with different share/asset ratios after rewards", async function () {
-      const { stakingVault, yieldVault, rewardsAdmin, user1, oracle, FEED_ID } = 
+      const { stakingVault, yieldVault, rewardsAdmin, user1, owner, oracle, FEED_ID } = 
         await loadFixture(deployStakingVaultFixture);
       
       const depositAmount = ethers.parseUnits("1000", 6);
       await stakingVault.connect(user1).deposit(depositAmount, user1.address);
       
-      const rewardAmount = ethers.parseUnits("100", 6); // 10% of deposit, within 20% delta
+      // Raise cap to 20% for this test (default is 75 bps; test exercises share/asset ratio, not the cap)
+      await stakingVault.connect(owner).setMaxRewardPercent(ethers.parseEther("0.2"));
+      const rewardAmount = ethers.parseUnits("100", 6); // 10% of deposit
       await stakingVault.connect(rewardsAdmin).distributeRewards(rewardAmount);
 
       // Update oracle NAV to reflect 10% reward (1000 + 100 / 1000 = 1.1)
