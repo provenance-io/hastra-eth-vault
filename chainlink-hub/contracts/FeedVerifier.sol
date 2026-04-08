@@ -95,6 +95,7 @@ contract FeedVerifier is
     event FeedIdUpdated(bytes32 indexed oldFeedId, bytes32 indexed newFeedId);
     event MaxStalenessUpdated(uint32 oldMaxStaleness, uint32 newMaxStaleness);
     event MaxStalenessByFeedUpdated(bytes32 indexed feedId, uint32 oldMaxStaleness, uint32 newMaxStaleness);
+    event EthWithdrawn(address indexed beneficiary, uint256 amount);
 
     // ── State ─────────────────────────────────────────────────────────────────
     IVerifierProxy public verifierProxy;
@@ -261,8 +262,10 @@ contract FeedVerifier is
     /// @dev    .transfer() caps the call at 2300 gas so reentrance is physically impossible;
     ///         nonReentrant is added as defence-in-depth in case this is ever changed to .call().
     function withdrawEth(address payable beneficiary) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        if (beneficiary == address(0)) revert ZeroAddress();
         uint256 amount = address(this).balance;
         if (amount == 0) revert NothingToWithdraw();
+        emit EthWithdrawn(beneficiary, amount);
         beneficiary.transfer(amount);
     }
 

@@ -202,7 +202,7 @@ describe("HastraNavEngine", function () {
     it("Should revert when setting updater to zero address", async function () {
       await expect(
         navEngine.connect(owner).setUpdater(ethers.ZeroAddress)
-      ).to.be.revertedWith("Invalid updater");
+      ).to.be.revertedWithCustomError(navEngine, "InvalidUpdater");
     });
 
     it("Should allow owner to update bounds", async function () {

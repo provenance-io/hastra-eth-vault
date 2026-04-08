@@ -584,6 +584,23 @@ describe("FeedVerifier", function () {
         feedVerifier.connect(other).withdrawEth(other.address)
       ).to.be.revertedWith(/AccessControl:/);
     });
+
+    it("reverts with ZeroAddress when beneficiary is zero address", async function () {
+      const { feedVerifier, admin } = await loadFixture(deployFixture);
+      await admin.sendTransaction({ to: await feedVerifier.getAddress(), value: 1n });
+      await expect(
+        feedVerifier.connect(admin).withdrawEth(ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(feedVerifier, "ZeroAddress");
+    });
+
+    it("emits EthWithdrawn event with beneficiary and amount", async function () {
+      const { feedVerifier, admin, other } = await loadFixture(deployFixture);
+      const amount = ethers.parseEther("0.1");
+      await admin.sendTransaction({ to: await feedVerifier.getAddress(), value: amount });
+      await expect(feedVerifier.connect(admin).withdrawEth(other.address))
+        .to.emit(feedVerifier, "EthWithdrawn")
+        .withArgs(other.address, amount);
+    });
   });
 
 
