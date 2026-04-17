@@ -1,5 +1,6 @@
 {
   "network": "sepolia",
+  "chainId": "11155111",
   "feedVerifier": "0xCd9DC3EFaE333Be42d9CbAc0B4F8A4af8f3C8f3D",
   "feedVerifierImplementation": "0x89bac7154F3424c9081E377c2924EcE4857491cE",
   "verifierProxy": "0x4e9935be37302B9C97Ff4ae6868F1b566ade26d2",

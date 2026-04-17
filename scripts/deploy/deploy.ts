@@ -102,7 +102,7 @@ async function main() {
   if (isDryRun) {
       console.log("[Dry Run] Would deploy YieldVault (UUPS Proxy) with args:");
       console.log(`  - Asset: ${usdcAddress}`);
-      console.log(`  - Name: "Wrapped YLDS"`);
+      console.log(`  - Name: "Hastra wYLDS"`);
       console.log(`  - Symbol: "wYLDS"`);
       console.log(`  - Admin: ${deployer.address}`);
       console.log(`  - RedeemVault: ${redeemVaultAddress}`);
@@ -112,7 +112,7 @@ async function main() {
       const YieldVault = await ethers.getContractFactory("YieldVault");
       yieldVault = await upgrades.deployProxy(YieldVault, [
         usdcAddress,
-        "Wrapped YLDS",
+        "Hastra wYLDS",
         "wYLDS",
         deployer.address, // admin
         redeemVaultAddress, // redeem vault address
@@ -133,7 +133,7 @@ async function main() {
   if (isDryRun) {
       console.log("[Dry Run] Would deploy StakingVault with args:");
       console.log(`  - Asset: ${yieldVaultAddress}`);
-      console.log(`  - Name: "Prime Staked YLDS"`);
+      console.log(`  - Name: "Hastra PRIME"`);
       console.log(`  - Symbol: "PRIME"`);
       console.log(`  - Admin: ${deployer.address}`);
       console.log(`  - YieldVault: ${yieldVaultAddress}`);
@@ -142,7 +142,7 @@ async function main() {
       const StakingVault = await ethers.getContractFactory("StakingVault");
       stakingVault = await upgrades.deployProxy(StakingVault, [
         yieldVaultAddress, // asset
-        "Prime Staked YLDS", // name
+        "Hastra PRIME", // name
         "PRIME", // symbol
         deployer.address, // admin
         yieldVaultAddress // yieldVault address
@@ -263,23 +263,14 @@ async function main() {
   } else if (isMainnet) {
     console.log("Using existing USDC at:", usdcAddress);
     if (isDryRun) {
-        console.log(`[Dry Run] Would check USDC balance of ${deployer.address}`);
-        console.log(`[Dry Run] If balance > 0, would approve YieldVault (${yieldVaultAddress}) for USDC`);
+        console.log(`[Dry Run] Would approve YieldVault (${yieldVaultAddress}) for MaxUint256 USDC`);
+        console.log(`[Dry Run] (deployer is redeemVault — approval needed for completeRedemption)`);
     } else {
-        // Mainnet with existing USDC - do approvals
+        // Deployer is redeemVault — approve YieldVault to pull USDC for redemptions (unconditional)
         const usdc = await ethers.getContractAt("IERC20", usdcAddress);
-        const maxApproval = ethers.MaxUint256;
-        
-        const balance = await usdc.balanceOf(deployer.address);
-        console.log("Deployer USDC balance:", ethers.formatUnits(balance, 6));
-        
-        if (balance > 0n) {
-          const tx7 = await usdc.approve(yieldVaultAddress, maxApproval);
-          await tx7.wait();
-          console.log("Deployer approved YieldVault for USDC");
-        } else {
-          console.log("No USDC balance - skipping approval");
-        }
+        const tx7 = await usdc.approve(yieldVaultAddress, ethers.MaxUint256);
+        await tx7.wait();
+        console.log("Deployer approved YieldVault for USDC (MaxUint256) ✅");
     }
   } else {
     // Testnet with existing USDC - skip approvals
@@ -312,22 +303,61 @@ async function main() {
   // ============ Save Deployment Info ============
   
   const networkName = network.name;
-  // Default to deployment.json for local/mainnet (gitignored)
-  let filename = "deployment.json";
-  
-  // Check if network is a testnet
+  let filename: string;
+
   if (["sepolia", "hoodi", "goerli", "testnet"].includes(networkName)) {
     filename = `deployment_testnet_${networkName}.json`;
+  } else if (networkName === "mainnet") {
+    filename = "deployment_mainnet.json";
+  } else {
+    filename = "deployment.json";
+  }
+
+  const yieldVaultImpl = await upgrades.erc1967.getImplementationAddress(yieldVaultAddress);
+  const stakingVaultImpl = await upgrades.erc1967.getImplementationAddress(stakingVaultAddress);
+
+  // Resolve navOracle: explicit env var → auto-load from FeedVerifier artifact → empty
+  let navOracleAddress = process.env.NAV_ORACLE_ADDRESS ?? "";
+  let navFeedId = process.env.NAV_FEED_ID ?? "";
+  if (!navOracleAddress) {
+    const feedVerifierArtifactPath = `chainlink-hub/deployment_feed_verifier_${networkName}.json`;
+    if (fs.existsSync(feedVerifierArtifactPath)) {
+      const artifact = JSON.parse(fs.readFileSync(feedVerifierArtifactPath, "utf8"));
+      if (artifact.feedVerifier) {
+        navOracleAddress = artifact.feedVerifier;
+        console.log(`\nAuto-loaded navOracle from ${feedVerifierArtifactPath}: ${navOracleAddress}`);
+      }
+      if (!navFeedId && artifact.feedId) {
+        navFeedId = artifact.feedId;
+        console.log(`Auto-loaded feedId from ${feedVerifierArtifactPath}: ${navFeedId}`);
+      }
+    }
+  }
+  if (navOracleAddress && navFeedId) {
+    console.log(`\nSetting navOracle to ${navOracleAddress} with feedId ${navFeedId}...`);
+    const tx = await stakingVault.setNavOracle(navOracleAddress, navFeedId);
+    await tx.wait();
+    console.log("navOracle set ✅");
+  } else {
+    if (navOracleAddress && !navFeedId) {
+      console.log("\n⚠️  NAV_ORACLE_ADDRESS set but NAV_FEED_ID missing — skipping setNavOracle()");
+    } else {
+      console.log("\n⚠️  NAV_ORACLE_ADDRESS not set — remember to call setNavOracle() on StakingVault after deploy");
+    }
   }
 
   const deploymentInfo = {
     network: networkName,
     chainId: providerNetwork.chainId.toString(),
-    timestamp: new Date().toISOString(),
+    deployedAt: new Date().toISOString(),
     contracts: {
       usdc: usdcAddress,
       yieldVault: yieldVaultAddress,
+      yieldVaultImplementation: yieldVaultImpl,
       stakingVault: stakingVaultAddress,
+      stakingVaultImplementation: stakingVaultImpl,
+      navOracle: navOracleAddress || null,
+      navFeedId: navFeedId || null,
     },
     transactions: {
       usdc: !process.env.USDC_ADDRESS ? (await (await ethers.getContractAt("MockUSDC", usdcAddress)).deploymentTransaction())?.hash : "existing",
@@ -341,9 +371,7 @@ async function main() {
       rewardsAdmin: rewardsAdminAddress,
       whitelistAdmin: whitelistAdminAddress,
       withdrawalAdmin: withdrawalAdminAddress,
-    },
-    config: {
-      // unbondingPeriod removed
+      navOracleUpdater: navOracleUpdaterAddress,
     },
   };
 
@@ -354,7 +382,7 @@ async function main() {
 
   // ============ Verify Contracts ============
 
-  if (network.name !== "localhost" && network.name !== "hardhat") {
+  if (network.name !== "localhost" && network.name !== "hardhat" && process.env.ETHERSCAN_API_KEY) {
     console.log("\n⏳ Waiting 30 seconds before verification...");
     await new Promise(resolve => setTimeout(resolve, 30000));
     console.log("\n🔍 Verifying contracts on block explorer...");
