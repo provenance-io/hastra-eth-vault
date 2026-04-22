@@ -1,0 +1,12 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "feedVerifier": "0xdF4ab20fA7752Be52E41e42F1FD667f37964d6a3",
+  "feedVerifierImplementation": "0xbC6023cb49F8E8cA6cef563d5FD97ba4C6A5D937",
+  "verifierProxy": "0x5A1634A86e9b7BfEf33F0f3f3EA3b1aBBc4CC85F",
+  "feedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3",
+  "deployer": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+  "admin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+  "updater": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+  "deployedAt": "2026-04-16T17:54:52.957Z"
+}
