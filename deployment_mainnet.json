@@ -9,7 +9,7 @@
     "stakingVault": "0x19ebb35279A16207Ec4ba82799CC64715065F7F6",
     "stakingVaultImplementation": "0x90fd843c68db38e2de0618AcBB39341CbA5A5abD",
     "navOracle": "0xdF4ab20fA7752Be52E41e42F1FD667f37964d6a3",
-    "navFeedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3"
+    "navFeedId": "0x0007c8ed155d952e003b1e15ce7666fea785cfbe216577d578fce3920e997271"
   },
   "roles": {
     "admin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
