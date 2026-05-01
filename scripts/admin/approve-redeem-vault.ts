@@ -9,6 +9,7 @@
  *   MAINNET_RPC_URL=https://...
  *   YIELD_VAULT_ADDRESS=0x6aD038cA6C04e885630851278ca0a856Ad9a66Cc   # optional override
  *   USDC_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48          # optional override
+ *   DRY_RUN=true                       # optional: simulate without sending tx
  *     npx hardhat run scripts/admin/approve-redeem-vault.ts --network mainnet
  */
 
@@ -28,6 +29,7 @@ const YIELD_VAULT_ABI = [
 ];
 
 async function main() {
+  const dryRun = process.env.DRY_RUN === "true";
   const [signer] = await ethers.getSigners();
   const network = await ethers.provider.getNetwork();
   const networkName = network.name === "unknown" ? "mainnet" : network.name;
@@ -64,6 +66,7 @@ async function main() {
   console.log(`YieldVault:    ${yieldVaultAddress}`);
   console.log(`USDC:          ${usdcAddress}`);
   console.log(`redeemVault:   ${redeemVaultAddress}`);
+  if (dryRun) console.log(`Mode:          DRY RUN (no tx will be sent)`);
 
   if (signer.address.toLowerCase() !== redeemVaultAddress.toLowerCase()) {
     console.warn(
@@ -93,6 +96,10 @@ async function main() {
   }
 
   console.log("Approving YieldVault to spend USDC from redeemVault...");
+  if (dryRun) {
+    console.log("✅ DRY RUN — would approve YieldVault with MaxUint256. No tx sent.");
+    return;
+  }
   const tx = await usdc.approve(yieldVaultAddress, ethers.MaxUint256);
   console.log(`Tx submitted: ${tx.hash}`);
   await tx.wait();
