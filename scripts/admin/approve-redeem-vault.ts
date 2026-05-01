@@ -56,9 +56,8 @@ async function main() {
     signer
   );
 
-  // Resolve USDC address from contract
-  const usdcAddress =
-    process.env.USDC_ADDRESS || (await yieldVault.asset());
+  // Hardcoded mainnet USDC — never read from .env to avoid mock overrides
+  const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
   const redeemVaultAddress = await yieldVault.redeemVault();
 
   console.log(`\nNetwork:       ${networkName}`);
