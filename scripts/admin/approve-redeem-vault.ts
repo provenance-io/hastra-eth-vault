@@ -1,0 +1,105 @@
+/**
+ * approve-redeem-vault.ts
+ *
+ * One-time setup: the redeemVault EOA approves the YieldVault to pull USDC on its behalf.
+ * Must be run by whoever controls the redeemVault address (e.g. 0xA8C3...).
+ *
+ * Usage:
+ *   PRIVATE_KEY=0x...                  # redeemVault EOA private key
+ *   MAINNET_RPC_URL=https://...
+ *   YIELD_VAULT_ADDRESS=0x6aD038cA6C04e885630851278ca0a856Ad9a66Cc   # optional override
+ *   USDC_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48          # optional override
+ *     npx hardhat run scripts/admin/approve-redeem-vault.ts --network mainnet
+ */
+
+import { ethers } from "hardhat";
+import fs from "fs";
+import path from "path";
+
+const IERC20_ABI = [
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function allowance(address owner, address spender) external view returns (uint256)",
+  "function symbol() external view returns (string)",
+];
+
+const YIELD_VAULT_ABI = [
+  "function asset() external view returns (address)",
+  "function redeemVault() external view returns (address)",
+];
+
+async function main() {
+  const [signer] = await ethers.getSigners();
+  const network = await ethers.provider.getNetwork();
+  const networkName = network.name === "unknown" ? "mainnet" : network.name;
+
+  // Resolve YieldVault address
+  const deploymentFile = path.join(
+    __dirname,
+    `../../deployment_${networkName}.json`
+  );
+  let yieldVaultAddress = process.env.YIELD_VAULT_ADDRESS || "";
+  if (!yieldVaultAddress && fs.existsSync(deploymentFile)) {
+    const deployment = JSON.parse(fs.readFileSync(deploymentFile, "utf8"));
+    yieldVaultAddress = deployment.contracts?.yieldVault || "";
+  }
+  if (!yieldVaultAddress) {
+    throw new Error(
+      "YieldVault address not found. Set YIELD_VAULT_ADDRESS env var."
+    );
+  }
+
+  const yieldVault = new ethers.Contract(
+    yieldVaultAddress,
+    YIELD_VAULT_ABI,
+    signer
+  );
+
+  // Resolve USDC address from contract
+  const usdcAddress =
+    process.env.USDC_ADDRESS || (await yieldVault.asset());
+  const redeemVaultAddress = await yieldVault.redeemVault();
+
+  console.log(`\nNetwork:       ${networkName}`);
+  console.log(`Signer:        ${signer.address}`);
+  console.log(`YieldVault:    ${yieldVaultAddress}`);
+  console.log(`USDC:          ${usdcAddress}`);
+  console.log(`redeemVault:   ${redeemVaultAddress}`);
+
+  if (signer.address.toLowerCase() !== redeemVaultAddress.toLowerCase()) {
+    console.warn(
+      `\n⚠️  Warning: signer (${signer.address}) is not the current redeemVault (${redeemVaultAddress}).`
+    );
+    console.warn(
+      "   The approval will be set from the signer, not the redeemVault."
+    );
+    console.warn(
+      "   Only proceed if you intend to pre-approve from this address.\n"
+    );
+  }
+
+  const usdc = new ethers.Contract(usdcAddress, IERC20_ABI, signer);
+
+  const currentAllowance = await usdc.allowance(
+    signer.address,
+    yieldVaultAddress
+  );
+  console.log(
+    `\nCurrent allowance: ${ethers.formatUnits(currentAllowance, 6)} USDC`
+  );
+
+  if (currentAllowance === ethers.MaxUint256) {
+    console.log("✅ Already approved with MaxUint256. Nothing to do.");
+    return;
+  }
+
+  console.log("Approving YieldVault to spend USDC from redeemVault...");
+  const tx = await usdc.approve(yieldVaultAddress, ethers.MaxUint256);
+  console.log(`Tx submitted: ${tx.hash}`);
+  await tx.wait();
+  console.log(`✅ Approved. YieldVault can now pull USDC from ${signer.address}`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
