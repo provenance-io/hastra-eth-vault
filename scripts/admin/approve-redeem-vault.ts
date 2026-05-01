@@ -81,8 +81,8 @@ async function main() {
 
   const usdc = new ethers.Contract(usdcAddress, IERC20_ABI, signer);
 
-  // Default approval: 100,000 USDC. Override with APPROVAL_AMOUNT env var (human-readable).
-  const approvalEnv = process.env.APPROVAL_AMOUNT || "100000";
+  // Default approval: 10,000,000 USDC. Override with APPROVAL_AMOUNT env var (human-readable).
+  const approvalEnv = process.env.APPROVAL_AMOUNT || "10000000";
   const approvalAmount = ethers.parseUnits(approvalEnv, 6);
   const approvalDisplay = `${ethers.formatUnits(approvalAmount, 6)} USDC`;
 
