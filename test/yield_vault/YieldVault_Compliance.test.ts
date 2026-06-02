@@ -137,7 +137,7 @@ describe("YieldVault Compliance (Freeze/Thaw)", function () {
 
     const REWARDS_ADMIN_ROLE = await yieldVault.REWARDS_ADMIN_ROLE();
     await yieldVault.grantRole(REWARDS_ADMIN_ROLE, owner.address);
-    const PAUSER_ROLE = await yieldVault.PAUSER_ROLE();
+const PAUSER_ROLE = await yieldVault.PAUSER_ROLE();
     await yieldVault.grantRole(PAUSER_ROLE, owner.address);
 
     // userA has 1000 wYLDS from fixture; fund the redeemVault (owner) with USDC for payout

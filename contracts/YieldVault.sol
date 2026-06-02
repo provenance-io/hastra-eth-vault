@@ -154,7 +154,7 @@ contract YieldVault is
     }
     
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
-    
+
     // ============ Deposit & Withdraw Overrides ============
     
     function deposit(uint256 assets, address receiver)
@@ -231,6 +231,7 @@ contract YieldVault is
     
     function completeRedeem(address user) 
         external 
+        virtual
         onlyRole(REWARDS_ADMIN_ROLE)
         nonReentrant 
     {
@@ -276,7 +277,7 @@ contract YieldVault is
         uint256 epochIndex,
         bytes32 merkleRoot,
         uint256 totalRewards
-    ) external onlyRole(REWARDS_ADMIN_ROLE) {
+    ) external virtual onlyRole(REWARDS_ADMIN_ROLE) {
         if (epochIndex != currentEpochIndex) revert InvalidEpoch();
         if (merkleRoot == bytes32(0)) revert InvalidAmount();
         
