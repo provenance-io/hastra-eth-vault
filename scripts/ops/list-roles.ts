@@ -41,6 +41,9 @@ const ROLE_DEFS: Record<string, { name: string; hash: string }[]> = {
     { name: "REWARDS_ADMIN_ROLE",    hash: ethers.keccak256(ethers.toUtf8Bytes("REWARDS_ADMIN")) },
     { name: "WHITELIST_ADMIN_ROLE",  hash: ethers.keccak256(ethers.toUtf8Bytes("WHITELIST_ADMIN")) },
     { name: "WITHDRAWAL_ADMIN_ROLE", hash: ethers.keccak256(ethers.toUtf8Bytes("WITHDRAWAL_ADMIN")) },
+    // V2 (role split) — present only on impls >= YieldVaultV2
+    { name: "EPOCH_ADMIN_ROLE",      hash: ethers.keccak256(ethers.toUtf8Bytes("EPOCH_ADMIN")) },
+    { name: "REDEEM_OPERATOR_ROLE",  hash: ethers.keccak256(ethers.toUtf8Bytes("REDEEM_OPERATOR")) },
   ],
   stakingvault: [
     { name: "DEFAULT_ADMIN_ROLE",      hash: ethers.ZeroHash },
