@@ -10,8 +10,10 @@
  *   DRY_RUN=true npx hardhat run scripts/deploy/deployAutoStaking.ts --network sepolia
  *
  * Required env vars (testnet/mainnet):
- *   USDC_ADDRESS            - Address of the underlying USDC token
  *   YIELD_VAULT_ADDRESS     - Address of an already-deployed YieldVault proxy
+ *                             (REQUIRED on any non-local network — script will
+ *                             throw rather than silently deploy fresh test
+ *                             collateral + a new YieldVault).
  *
  * Optional env vars:
  *   FREEZE_ADMIN_ADDRESS    - Who can freeze/thaw accounts (defaults to deployer)
