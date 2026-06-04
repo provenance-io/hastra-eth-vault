@@ -96,7 +96,7 @@ async function main() {
   console.log(`    "grantRole(bytes32,address)" \\`);
   console.log(`    ${REWARDS_ADMIN_ROLE} \\`);
   console.log(`    ${vaultAddress} \\`);
-  console.log(`    --rpc-url "$RPC_URL" --ledger`);
+  console.log(`    --rpc-url "$RPC" --ledger`);
 }
 
 main().catch((err) => {
