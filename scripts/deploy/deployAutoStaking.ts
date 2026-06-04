@@ -86,9 +86,18 @@ export async function deployAutoStakingInstance(opts: DeployAutoStakingOptions):
 
   let yieldVaultAddress: string;
 
-  if (process.env.YIELD_VAULT_ADDRESS && !isLocalNetwork) {
+  if (process.env.YIELD_VAULT_ADDRESS) {
     yieldVaultAddress = process.env.YIELD_VAULT_ADDRESS;
     console.log("\nUsing existing YieldVault at:", yieldVaultAddress);
+  } else if (!isLocalNetwork) {
+    // On sepolia / mainnet we MUST be pointed at a real, pre-existing YieldVault.
+    // Falling back to deploying MockUSDC + a fresh YieldVault on a live network
+    // would burn collateral, fragment vault ownership, and is almost certainly a
+    // mistake — fail fast instead.
+    throw new Error(
+      `YIELD_VAULT_ADDRESS is required on network "${network.name}". ` +
+        `Refusing to silently deploy MockUSDC + a fresh YieldVault on a non-local chain.`
+    );
   } else {
     console.log("\n[Local] Deploying MockUSDC + YieldVault...");
 
@@ -240,6 +249,9 @@ export async function deployAutoStakingInstance(opts: DeployAutoStakingOptions):
     await new Promise(resolve => setTimeout(resolve, 30000));
     console.log(`\n🔍 Verifying ${contractName} on block explorer...`);
     try {
+      // NOTE: @openzeppelin/hardhat-upgrades overrides `verify:verify` to detect
+      // an ERC1967 proxy, resolve its implementation, and verify the impl source.
+      // We pass the PROXY address on purpose — the plugin extracts the impl.
       // Disambiguate from StakingVault — every StakingVault subclass produces
       // identical bytecode; Etherscan can't auto-detect which source to use.
       await run("verify:verify", {

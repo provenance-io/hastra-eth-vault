@@ -14,6 +14,8 @@
  *   MAX_DIFFERENCE_PERCENT   - Max TVL change per update in wei (default: 1e17 = 10%)
  *   MIN_RATE                 - Minimum NAV rate as int192 (default: 5e17 = 0.5)
  *   MAX_RATE                 - Maximum NAV rate as int192 (default: 3e18 = 3.0)
+ *   DRY_RUN                  - If "true", validate impl + print params and exit
+ *                              without broadcasting any tx (no gas spent).
  *
  * Output file naming is overwrite-safe: if the canonical path exists, a
  * unique timestamp + proxy-suffixed file is written so prior records (AUTO,
@@ -54,10 +56,14 @@ export async function deployNavEngineInstance(opts: DeployNavEngineOptions = {})
     const contractName = opts.contractName ?? "HastraNavEngine";
     const verifyContract = opts.verifyContract ?? `contracts/chainlink/${contractName}.sol:${contractName}`;
     const label = opts.label ?? contractName;
+    const isDryRun = process.env.DRY_RUN === "true";
 
     console.log(`Deploying ${label} with account:`, deployer.address);
     console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
     console.log("Network:", network.name);
+    if (isDryRun) {
+        console.log("⚠️  DRY_RUN=true — no transactions will be sent.");
+    }
 
     // Deployment parameters — override via env vars
     const OWNER   = process.env.OWNER_ADDRESS   || deployer.address;
@@ -79,6 +85,18 @@ export async function deployNavEngineInstance(opts: DeployNavEngineOptions = {})
     console.log("  Max Difference:", MAX_DIFFERENCE_PERCENT.toString(), `(${Number(MAX_DIFFERENCE_PERCENT) / 1e18 * 100}%)`);
     console.log("  Min Rate:", MIN_RATE.toString(), `(${Number(MIN_RATE) / 1e18})`);
     console.log("  Max Rate:", MAX_RATE.toString(), `(${Number(MAX_RATE) / 1e18})`);
+
+    // Validate the impl + initializer would deploy without actually broadcasting.
+    // Catches storage-layout / initializer issues, missing roles, etc., before
+    // the user spends any gas.
+    if (isDryRun) {
+        console.log("\n🔍 [DRY_RUN] Validating deployment (no broadcast)...");
+        const Factory = await ethers.getContractFactory(contractName);
+        await upgrades.validateImplementation(Factory, { kind: "uups" });
+        console.log("  ✅ Implementation validates");
+        console.log("\n[DRY_RUN] Stopping before any state-changing tx. Re-run without DRY_RUN to deploy.");
+        return;
+    }
 
     // Deploy proxy
     const Factory = await ethers.getContractFactory(contractName);
@@ -172,6 +190,10 @@ export async function deployNavEngineInstance(opts: DeployNavEngineOptions = {})
 
         try {
             console.log("  Verifying proxy contract...");
+            // NOTE: @openzeppelin/hardhat-upgrades overrides `verify:verify` to detect
+            // an ERC1967 proxy, resolve its implementation, and submit the impl source
+            // for verification. We pass the PROXY address on purpose — the plugin
+            // extracts the impl, verifies it, then links proxy↔impl on Etherscan.
             await run("verify:verify", {
                 address: proxyAddress,
                 constructorArguments: [],

@@ -1,20 +1,19 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
-import type { MockUSDC, YieldVault, AutoStakingVault, MockFeedVerifier } from "../../typechain-types";
+import type { MockUSDC, YieldVault, SMBStakingVault, MockFeedVerifier } from "../../typechain-types";
 
 /**
- * AutoStakingVault is a thin subclass of StakingVault — identical logic, separate
- * deployed address, custom ERC20 name/symbol. The full behavioral test surface lives
- * in test/staking_vault/* and is not duplicated here. These smoke tests prove only
- * that AutoStakingVault:
+ * SMBStakingVault is a thin subclass of StakingVault — identical logic, separate
+ * deployed address, custom ERC20 name/symbol. Full behavioral coverage lives in
+ * test/staking_vault/*. These smoke tests prove only that SMBStakingVault:
  *
  *   1. Deploys behind a UUPS proxy and initializes with the provided name/symbol.
- *   2. Inherits StakingVault behavior end-to-end (deposit + redeem round-trip with
- *      a configured NAV oracle).
- *   3. Is upgradeable to a fresh AutoStakingVault implementation under UUPS rules.
+ *   2. Inherits StakingVault behavior end-to-end (deposit + redeem round-trip).
+ *   3. Is upgradeable to a fresh SMBStakingVault implementation under UUPS rules.
+ *   4. Cannot be re-initialized.
  */
-describe("AutoStakingVault (smoke)", function () {
+describe("SMBStakingVault (smoke)", function () {
   async function deployFixture() {
     const [owner, user] = await ethers.getSigners();
 
@@ -33,14 +32,14 @@ describe("AutoStakingVault (smoke)", function () {
     ], { kind: "uups" }) as unknown as YieldVault;
     await yieldVault.waitForDeployment();
 
-    const AutoStakingVault = await ethers.getContractFactory("AutoStakingVault");
-    const vault = await upgrades.deployProxy(AutoStakingVault, [
+    const SMBStakingVault = await ethers.getContractFactory("SMBStakingVault");
+    const vault = await upgrades.deployProxy(SMBStakingVault, [
       await yieldVault.getAddress(),
-      "Auto Staked YLDS",
-      "AUTO",
+      "SMB Token",
+      "SMB",
       owner.address,
       await yieldVault.getAddress()
-    ], { kind: "uups" }) as unknown as AutoStakingVault;
+    ], { kind: "uups" }) as unknown as SMBStakingVault;
     await vault.waitForDeployment();
 
     const NAV_ORACLE_UPDATER_ROLE = await vault.NAV_ORACLE_UPDATER_ROLE();
@@ -55,7 +54,7 @@ describe("AutoStakingVault (smoke)", function () {
     await yieldVault.connect(user).deposit(wyldsAmount, user.address);
     await yieldVault.connect(user).approve(await vault.getAddress(), ethers.MaxUint256);
 
-    const FEED_ID = ethers.encodeBytes32String("AUTO_FEED");
+    const FEED_ID = ethers.encodeBytes32String("SMB_FEED");
     const MockFeedVerifier = await ethers.getContractFactory("MockFeedVerifier");
     const oracle = await MockFeedVerifier.deploy() as unknown as MockFeedVerifier;
     await oracle.waitForDeployment();
@@ -68,8 +67,8 @@ describe("AutoStakingVault (smoke)", function () {
 
   it("initializes with the provided name and symbol", async function () {
     const { vault } = await loadFixture(deployFixture);
-    expect(await vault.name()).to.equal("Auto Staked YLDS");
-    expect(await vault.symbol()).to.equal("AUTO");
+    expect(await vault.name()).to.equal("SMB Token");
+    expect(await vault.symbol()).to.equal("SMB");
     expect(await vault.decimals()).to.equal(6);
   });
 
@@ -87,15 +86,15 @@ describe("AutoStakingVault (smoke)", function () {
     expect(assetsOut).to.equal(amount);
   });
 
-  it("upgrades to a fresh AutoStakingVault implementation under UUPS", async function () {
+  it("upgrades to a fresh SMBStakingVault implementation under UUPS", async function () {
     const { vault, owner } = await loadFixture(deployFixture);
 
     const UPGRADER_ROLE = await vault.UPGRADER_ROLE();
     await vault.grantRole(UPGRADER_ROLE, owner.address);
 
-    const Factory = await ethers.getContractFactory("AutoStakingVault");
-    const upgraded = await upgrades.upgradeProxy(await vault.getAddress(), Factory) as unknown as AutoStakingVault;
-    expect(await upgraded.symbol()).to.equal("AUTO");
+    const Factory = await ethers.getContractFactory("SMBStakingVault");
+    const upgraded = await upgrades.upgradeProxy(await vault.getAddress(), Factory) as unknown as SMBStakingVault;
+    expect(await upgraded.symbol()).to.equal("SMB");
   });
 
   it("rejects double-init on the proxy", async function () {
@@ -103,8 +102,8 @@ describe("AutoStakingVault (smoke)", function () {
     await expect(
       vault.initialize(
         await yieldVault.getAddress(),
-        "Auto Staked YLDS",
-        "AUTO",
+        "SMB Token",
+        "SMB",
         owner.address,
         await yieldVault.getAddress()
       )

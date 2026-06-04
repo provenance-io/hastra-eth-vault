@@ -26,9 +26,30 @@ import * as path from "path";
  *   # Dry-run (deploys new impl + simulates upgrade, does not broadcast upgrade tx):
  *   DRY_RUN=true PROXY_ADDRESS=0x... npx hardhat run scripts/admin/upgrade_auto_staking_vault.ts --network sepolia
  *
+ *   # Upgrade an SMB proxy — supply CONTRACT_NAME (defaults to AutoStakingVault):
+ *   CONTRACT_NAME=SMBStakingVault PROXY_ADDRESS=0x... \
+ *     npx hardhat run scripts/admin/upgrade_auto_staking_vault.ts --network sepolia
+ *
  *   # Skip Etherscan verification:
  *   SKIP_VERIFY=true PROXY_ADDRESS=0x... npx hardhat run scripts/admin/upgrade_auto_staking_vault.ts --network sepolia
  */
+
+const KNOWN_CONTRACTS: Record<string, string> = {
+  AutoStakingVault: "contracts/AutoStakingVault.sol:AutoStakingVault",
+  SMBStakingVault: "contracts/SMBStakingVault.sol:SMBStakingVault",
+};
+
+function resolveContractName(): { name: string; verifyPath: string } {
+  const name = process.env.CONTRACT_NAME ?? "AutoStakingVault";
+  const verifyPath = process.env.VERIFY_CONTRACT ?? KNOWN_CONTRACTS[name];
+  if (!verifyPath) {
+    throw new Error(
+      `CONTRACT_NAME=${name} is not in KNOWN_CONTRACTS. ` +
+        `Set VERIFY_CONTRACT=contracts/<dir>/<File>.sol:<Contract> explicitly.`
+    );
+  }
+  return { name, verifyPath };
+}
 
 function resolveProxyAddress(networkName: string): { proxy: string; source: string } {
   const direct = process.env.PROXY_ADDRESS;
@@ -80,19 +101,23 @@ async function main() {
   const skipVerify = process.env.SKIP_VERIFY === "true";
 
   const { proxy: proxyAddress, source } = resolveProxyAddress(network.name);
+  const { name: contractName, verifyPath: verifyContract } = resolveContractName();
 
   console.log(`Network:          ${network.name} (chainId ${network.chainId})`);
   console.log(`Deployer:         ${deployer.address}`);
   console.log(`Balance:          ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} ETH`);
   console.log(`Proxy:            ${proxyAddress}`);
   console.log(`Proxy source:     ${source}`);
+  console.log(`Contract:         ${contractName}`);
   console.log(`Dry run:          ${dryRun}`);
 
   // Pre-upgrade checks
   const oldImpl = await upgrades.erc1967.getImplementationAddress(proxyAddress);
   console.log(`Current impl:     ${oldImpl}`);
 
-  const vault = await ethers.getContractAt("AutoStakingVault", proxyAddress);
+  // Use the StakingVault ABI for state reads — every subclass exposes the same surface,
+  // so we don't need separate typechain bindings per brand.
+  const vault = await ethers.getContractAt("StakingVault", proxyAddress);
   const UPGRADER_ROLE = await vault.UPGRADER_ROLE();
   const hasRole = await vault.hasRole(UPGRADER_ROLE, deployer.address);
   if (!hasRole && !dryRun) {
@@ -130,7 +155,7 @@ async function main() {
 
   // OZ upgrade validation (always run, even in dry-run — fails fast on layout incompat)
   console.log("\n🔍 Validating storage layout compatibility (OZ upgrades)...");
-  const Factory = await ethers.getContractFactory("AutoStakingVault");
+  const Factory = await ethers.getContractFactory(contractName);
   await upgrades.validateUpgrade(proxyAddress, Factory, { kind: "uups" });
   console.log("  ✅ Layout compatible");
 
@@ -235,12 +260,12 @@ async function main() {
     console.log("\n⏳ Waiting 20s for Etherscan indexing...");
     await new Promise((r) => setTimeout(r, 20000));
     try {
-      // AutoStakingVault inherits StakingVault wholesale — bytecode is identical,
-      // so Etherscan cannot auto-pick. Disambiguate explicitly.
+      // Each StakingVault subclass produces identical bytecode — Etherscan can't
+      // auto-pick. Use the explicit verify path resolved from CONTRACT_NAME.
       await run("verify:verify", {
         address: newImpl,
         constructorArguments: [],
-        contract: "contracts/AutoStakingVault.sol:AutoStakingVault",
+        contract: verifyContract,
       });
       console.log("  ✅ Verified on Etherscan");
     } catch (e: any) {
@@ -248,7 +273,7 @@ async function main() {
         console.log("  ✅ Already verified");
       } else if (e.message?.includes("rate limit")) {
         console.log("  ⚠️  Etherscan rate limit — retry manually:");
-        console.log(`     npx hardhat verify --contract contracts/AutoStakingVault.sol:AutoStakingVault \\`);
+        console.log(`     npx hardhat verify --contract ${verifyContract} \\`);
         console.log(`       --network ${network.name} ${newImpl}`);
       } else {
         console.warn(`  ⚠️  Verification failed: ${e.message}`);

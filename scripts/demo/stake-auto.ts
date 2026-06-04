@@ -3,9 +3,10 @@ import { ethers } from "hardhat";
 /**
  * Stake wYLDS into AutoStakingVault to receive AUTO tokens.
  *
- * If no NAV oracle is configured on the vault, shares are priced using the
- * on-chain ERC-4626 ratio (totalAssets / totalSupply). Once setNavOracle()
- * is called, the Chainlink feed price is used instead.
+ * NOTE: AutoStakingVault inherits StakingVault's share-pricing path, which
+ * REQUIRES a configured NAV oracle. There is no ERC-4626-ratio fallback —
+ * deposit/redeem will revert if `setNavOracle()` has not been called on the
+ * vault. Run scripts/admin/auto-admin.ts with COMMAND=set-nav-oracle first.
  *
  * Usage:
  *   npx hardhat run scripts/demo/stake-auto.ts --network sepolia
@@ -42,15 +43,23 @@ async function main() {
   // Show oracle status
   const navOracle = await autoVault.navOracle();
   if (navOracle === ethers.ZeroAddress) {
-    console.log("\nℹ️  No NAV oracle configured — using on-chain ERC-4626 ratio");
-  } else {
-    console.log("\n🔗 NAV oracle:", navOracle);
-    try {
-      const nav = await autoVault.getVerifiedNav();
-      console.log("   Current NAV:", ethers.formatUnits(nav, 18), "wYLDS/share");
-    } catch (e: any) {
-      console.log("   NAV unavailable:", e.message);
-    }
+    throw new Error(
+      "AutoStakingVault has no NAV oracle configured (navOracle == 0). " +
+        "deposit() will revert. Wire it first with:\n" +
+        `  CONTRACT_ADDRESS=${autoVaultAddress} COMMAND=set-nav-oracle \\\n` +
+        "    NAV_ORACLE=<feed-verifier> NAV_FEED_ID=<bytes32> \\\n" +
+        "    npx hardhat run scripts/admin/auto-admin.ts --network <network>"
+    );
+  }
+  console.log("\n🔗 NAV oracle:", navOracle);
+  try {
+    const nav = await autoVault.getVerifiedNav();
+    console.log("   Current NAV:", ethers.formatUnits(nav, 18), "wYLDS/share");
+  } catch (e: any) {
+    throw new Error(
+      `NAV oracle configured but getVerifiedNav() reverted: ${e.message}. ` +
+        "Likely stale feed or feedId mismatch — fix before staking."
+    );
   }
 
   // Check wYLDS balance
