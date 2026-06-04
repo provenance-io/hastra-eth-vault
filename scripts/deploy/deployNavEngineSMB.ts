@@ -15,7 +15,8 @@
  *   MIN_RATE                 - Minimum NAV rate as int192 (default: 5e17 = 0.5)
  *   MAX_RATE                 - Maximum NAV rate as int192 (default: 3e18 = 3.0)
  *
- * Writes to deployment_nav_smb_<network>.json (overwrite-safe).
+ * Writes to deployment_nav_smb_mainnet.json (mainnet) or
+ *          deployment_nav_smb_testnet_<network>.json (others), overwrite-safe.
  *
  * Post-deploy:
  *   cast send <SMB_STAKING_VAULT_PROXY> "setNavOracle(address,bytes32)" \

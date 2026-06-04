@@ -43,8 +43,10 @@ export interface DeployNavEngineOptions {
      * Output deployment-file prefix. Default writes
      *   deployment_nav_mainnet.json (mainnet)
      *   deployment_nav_testnet_<network>.json (others)
-     * Wrappers override to e.g. "deployment_nav_smb_<network>.json" so SMB
-     * artifacts are obvious at a glance.
+     * Wrappers override to e.g. "deployment_nav_smb", which produces:
+     *   deployment_nav_smb_mainnet.json           (mainnet)
+     *   deployment_nav_smb_testnet_<network>.json (others)
+     * so SMB artifacts are obvious at a glance.
      */
     outputFilePrefix?: string;
     /** Console label for the deploy banner (e.g. "SMB NAV Engine"). */
