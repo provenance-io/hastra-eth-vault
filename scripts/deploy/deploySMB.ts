@@ -20,7 +20,7 @@
  *   FREEZE_ADMIN_ADDRESS         - Who can freeze/thaw accounts (defaults to deployer)
  *   REWARDS_ADMIN_ADDRESS        - Who can call distributeRewards (defaults to deployer)
  *   NAV_ORACLE_UPDATER_ADDRESS   - Who can call setNavOracle (defaults to deployer)
- *   SMB_TOKEN_NAME               - Override ERC20 name (default: "SMB Token")
+ *   SMB_TOKEN_NAME               - Override ERC20 name (default: "Hastra SMB")
  *   SMB_TOKEN_SYMBOL             - Override ERC20 symbol (default: "SMB")
  *
  * Post-deploy: SMB needs its own NAV oracle. Deploy a HastraNavEngine instance
@@ -32,7 +32,7 @@ import { deployAutoStakingInstance } from "./deployAutoStaking";
 async function main() {
   await deployAutoStakingInstance({
     envPrefix: "SMB",
-    defaultName: "SMB Token",
+    defaultName: "Hastra SMB",
     defaultSymbol: "SMB",
     outputSuffix: "smb",
     label: "SMBStakingVault — SMB",

@@ -35,7 +35,7 @@ describe("SMBStakingVault (smoke)", function () {
     const SMBStakingVault = await ethers.getContractFactory("SMBStakingVault");
     const vault = await upgrades.deployProxy(SMBStakingVault, [
       await yieldVault.getAddress(),
-      "SMB Token",
+      "Hastra SMB",
       "SMB",
       owner.address,
       await yieldVault.getAddress()
@@ -67,7 +67,7 @@ describe("SMBStakingVault (smoke)", function () {
 
   it("initializes with the provided name and symbol", async function () {
     const { vault } = await loadFixture(deployFixture);
-    expect(await vault.name()).to.equal("SMB Token");
+    expect(await vault.name()).to.equal("Hastra SMB");
     expect(await vault.symbol()).to.equal("SMB");
     expect(await vault.decimals()).to.equal(6);
   });
@@ -102,7 +102,7 @@ describe("SMBStakingVault (smoke)", function () {
     await expect(
       vault.initialize(
         await yieldVault.getAddress(),
-        "SMB Token",
+        "Hastra SMB",
         "SMB",
         owner.address,
         await yieldVault.getAddress()

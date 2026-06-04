@@ -281,7 +281,7 @@ export async function deployAutoStakingInstance(opts: DeployAutoStakingOptions):
 async function main() {
   await deployAutoStakingInstance({
     envPrefix: "AUTO",
-    defaultName: "AUTO",
+    defaultName: "Hastra AUTO",
     defaultSymbol: "AUTO",
     outputSuffix: "auto_staking",
     label: "AutoStakingVault — AUTO",

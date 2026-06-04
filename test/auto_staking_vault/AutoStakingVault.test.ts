@@ -36,7 +36,7 @@ describe("AutoStakingVault (smoke)", function () {
     const AutoStakingVault = await ethers.getContractFactory("AutoStakingVault");
     const vault = await upgrades.deployProxy(AutoStakingVault, [
       await yieldVault.getAddress(),
-      "Auto Staked YLDS",
+      "Hastra AUTO",
       "AUTO",
       owner.address,
       await yieldVault.getAddress()
@@ -68,7 +68,7 @@ describe("AutoStakingVault (smoke)", function () {
 
   it("initializes with the provided name and symbol", async function () {
     const { vault } = await loadFixture(deployFixture);
-    expect(await vault.name()).to.equal("Auto Staked YLDS");
+    expect(await vault.name()).to.equal("Hastra AUTO");
     expect(await vault.symbol()).to.equal("AUTO");
     expect(await vault.decimals()).to.equal(6);
   });
@@ -103,7 +103,7 @@ describe("AutoStakingVault (smoke)", function () {
     await expect(
       vault.initialize(
         await yieldVault.getAddress(),
-        "Auto Staked YLDS",
+        "Hastra AUTO",
         "AUTO",
         owner.address,
         await yieldVault.getAddress()
