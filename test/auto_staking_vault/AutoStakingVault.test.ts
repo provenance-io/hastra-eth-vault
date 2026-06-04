@@ -108,6 +108,6 @@ describe("AutoStakingVault (smoke)", function () {
         owner.address,
         await yieldVault.getAddress()
       )
-    ).to.be.reverted;
+    ).to.be.revertedWithCustomError(vault, "InvalidInitialization");
   });
 });
