@@ -1,0 +1,9 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "proxy": "0xa8D8CcC9d502F1B6b576ba848D227F900460d930",
+  "oldImpl": "0xE1e747F53bB1A446d93CF13d742792Bb61e0E081",
+  "newImpl": "0xb306A43999d91b80412c9C6258287bfe8f168606",
+  "upgradedAt": "2026-06-04T16:38:13.107Z",
+  "tokenSymbol": "AUTO"
+}

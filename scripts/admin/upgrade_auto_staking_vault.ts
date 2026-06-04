@@ -235,11 +235,21 @@ async function main() {
     console.log("\n⏳ Waiting 20s for Etherscan indexing...");
     await new Promise((r) => setTimeout(r, 20000));
     try {
-      await run("verify:verify", { address: newImpl, constructorArguments: [] });
+      // AutoStakingVault inherits StakingVault wholesale — bytecode is identical,
+      // so Etherscan cannot auto-pick. Disambiguate explicitly.
+      await run("verify:verify", {
+        address: newImpl,
+        constructorArguments: [],
+        contract: "contracts/AutoStakingVault.sol:AutoStakingVault",
+      });
       console.log("  ✅ Verified on Etherscan");
     } catch (e: any) {
       if (e.message?.includes("Already Verified")) {
         console.log("  ✅ Already verified");
+      } else if (e.message?.includes("rate limit")) {
+        console.log("  ⚠️  Etherscan rate limit — retry manually:");
+        console.log(`     npx hardhat verify --contract contracts/AutoStakingVault.sol:AutoStakingVault \\`);
+        console.log(`       --network ${network.name} ${newImpl}`);
       } else {
         console.warn(`  ⚠️  Verification failed: ${e.message}`);
       }
