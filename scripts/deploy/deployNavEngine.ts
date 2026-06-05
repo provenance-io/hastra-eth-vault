@@ -1,31 +1,73 @@
 /**
- * [DEPLOY] Deploy the HastraNavEngine UUPS proxy with initial configuration.
- * Saves deployment artifacts to deployment_nav_testnet_<network>.json (or deployment_nav_mainnet.json).
+ * [DEPLOY] Deploy a NAV-engine UUPS proxy.
  *
- * Usage:
+ * This file is BOTH a runnable entry-point (deploys with HastraNavEngine
+ * defaults) AND the shared implementation imported by token-specific wrappers
+ * like scripts/deploy/deployNavEngineSMB.ts.
+ *
+ * Run directly for the generic / shared HastraNavEngine:
  *   npx hardhat run scripts/deploy/deployNavEngine.ts --network sepolia
- *   npx hardhat run scripts/deploy/deployNavEngine.ts --network mainnet
  *
- * Env vars (all optional — defaults to deployer address / Sepolia values):
+ * Env vars (all optional — defaults to deployer address):
  *   OWNER_ADDRESS            - Initial owner (use deployer, then hand off to Safe)
  *   UPDATER_ADDRESS          - Bot wallet that calls updateRate()
- *   MAX_DIFFERENCE_PERCENT   - Max TVL change per update in wei (default: 100000000000000000 = 10%)
- *   MIN_RATE                 - Minimum NAV rate as int192 (default: 500000000000000000 = 0.5)
- *   MAX_RATE                 - Maximum NAV rate as int192 (default: 3000000000000000000 = 3.0)
+ *   MAX_DIFFERENCE_PERCENT   - Max TVL change per update in wei (default: 1e17 = 10%)
+ *   MIN_RATE                 - Minimum NAV rate as int192 (default: 5e17 = 0.5)
+ *   MAX_RATE                 - Maximum NAV rate as int192 (default: 3e18 = 3.0)
+ *   DRY_RUN                  - If "true", validate impl + print params and exit
+ *                              without broadcasting any tx (no gas spent).
+ *
+ * Output file naming is overwrite-safe: if the canonical path exists, a
+ * unique timestamp + proxy-suffixed file is written so prior records (AUTO,
+ * other tokens) are never clobbered.
  */
 // @ts-ignore
-import {ethers, upgrades, network, run} from "hardhat";
+import { ethers, upgrades, network, run } from "hardhat";
 import fs from "fs";
 import path from "path";
 
-async function main() {
-    const [deployer] = await ethers.getSigners();
+export interface DeployNavEngineOptions {
+    /**
+     * Solidity contract name to deploy. Must be HastraNavEngine or a thin
+     * subclass of it (constructor calls _disableInitializers, no other code).
+     * Defaults to "HastraNavEngine".
+     */
+    contractName?: string;
+    /**
+     * Fully-qualified source path used to disambiguate Etherscan verification
+     * when multiple contracts compile to identical bytecode. Defaults to
+     * "contracts/chainlink/{contractName}.sol:{contractName}".
+     */
+    verifyContract?: string;
+    /**
+     * Output deployment-file prefix. Default writes
+     *   deployment_nav_mainnet.json (mainnet)
+     *   deployment_nav_testnet_<network>.json (others)
+     * Wrappers override to e.g. "deployment_nav_smb", which produces:
+     *   deployment_nav_smb_mainnet.json           (mainnet)
+     *   deployment_nav_smb_testnet_<network>.json (others)
+     * so SMB artifacts are obvious at a glance.
+     */
+    outputFilePrefix?: string;
+    /** Console label for the deploy banner (e.g. "SMB NAV Engine"). */
+    label?: string;
+}
 
-    console.log("Deploying HastraNavEngine with account:", deployer.address);
+export async function deployNavEngineInstance(opts: DeployNavEngineOptions = {}): Promise<void> {
+    const [deployer] = await ethers.getSigners();
+    const contractName = opts.contractName ?? "HastraNavEngine";
+    const verifyContract = opts.verifyContract ?? `contracts/chainlink/${contractName}.sol:${contractName}`;
+    const label = opts.label ?? contractName;
+    const isDryRun = process.env.DRY_RUN === "true";
+
+    console.log(`Deploying ${label} with account:`, deployer.address);
     console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
     console.log("Network:", network.name);
+    if (isDryRun) {
+        console.log("⚠️  DRY_RUN=true — no transactions will be sent.");
+    }
 
-    // Deployment parameters — override via env vars for mainnet
+    // Deployment parameters — override via env vars
     const OWNER   = process.env.OWNER_ADDRESS   || deployer.address;
     const UPDATER = process.env.UPDATER_ADDRESS || deployer.address;
     const MAX_DIFFERENCE_PERCENT = process.env.MAX_DIFFERENCE_PERCENT
@@ -39,16 +81,29 @@ async function main() {
         : BigInt("3000000000000000000");  // default 3.0
 
     console.log("\nDeployment Parameters:");
+    console.log("  Contract:", contractName);
     console.log("  Owner:", OWNER);
     console.log("  Updater:", UPDATER);
     console.log("  Max Difference:", MAX_DIFFERENCE_PERCENT.toString(), `(${Number(MAX_DIFFERENCE_PERCENT) / 1e18 * 100}%)`);
     console.log("  Min Rate:", MIN_RATE.toString(), `(${Number(MIN_RATE) / 1e18})`);
     console.log("  Max Rate:", MAX_RATE.toString(), `(${Number(MAX_RATE) / 1e18})`);
 
+    // Validate the impl + initializer would deploy without actually broadcasting.
+    // Catches storage-layout / initializer issues, missing roles, etc., before
+    // the user spends any gas.
+    if (isDryRun) {
+        console.log("\n🔍 [DRY_RUN] Validating deployment (no broadcast)...");
+        const Factory = await ethers.getContractFactory(contractName);
+        await upgrades.validateImplementation(Factory, { kind: "uups" });
+        console.log("  ✅ Implementation validates");
+        console.log("\n[DRY_RUN] Stopping before any state-changing tx. Re-run without DRY_RUN to deploy.");
+        return;
+    }
+
     // Deploy proxy
-    const HastraNavEngine = await ethers.getContractFactory("HastraNavEngine");
+    const Factory = await ethers.getContractFactory(contractName);
     const navEngine = await upgrades.deployProxy(
-        HastraNavEngine,
+        Factory,
         [OWNER, UPDATER, MAX_DIFFERENCE_PERCENT, MIN_RATE, MAX_RATE],
         {
             initializer: "initialize",
@@ -60,7 +115,7 @@ async function main() {
     const proxyAddress = await navEngine.getAddress();
     const implementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
 
-    console.log("\n✅ HastraNavEngine deployed!");
+    console.log(`\n✅ ${label} deployed!`);
     console.log("  Proxy Address:", proxyAddress);
     console.log("  Implementation:", implementationAddress);
 
@@ -69,7 +124,6 @@ async function main() {
     const updater = await navEngine.getUpdater();
     const minRate = await navEngine.getMinRate();
     const maxRate = await navEngine.getMaxRate();
-    const maxDifference = await navEngine.getMaxDifferencePercent();
 
     console.log("  Updater:", updater);
     console.log("  Min Rate:", minRate.toString());
@@ -86,6 +140,7 @@ async function main() {
         network: network.name,
         chainId: chainId,
         timestamp: new Date().toISOString(),
+        contractName,
         contracts: {
             navEngine: proxyAddress,
             navEngineImplementation: implementationAddress
@@ -104,26 +159,31 @@ async function main() {
         }
     };
 
-    // Determine output file based on network
+    // Determine output file
+    const prefix = opts.outputFilePrefix ?? "deployment_nav";
     let outputFile: string;
     if (network.name === "mainnet") {
-        outputFile = "deployment_nav_mainnet.json";
+        outputFile = `${prefix}_mainnet.json`;
     } else {
-        outputFile = `deployment_nav_testnet_${network.name}.json`;
+        outputFile = `${prefix}_testnet_${network.name}.json`;
     }
 
-    const outputPath = path.join(process.cwd(), outputFile);
+    // Overwrite-safe: if the canonical path already exists, write to a unique
+    // timestamp + proxy-suffixed file so prior records are never clobbered.
+    let outputPath = path.join(process.cwd(), outputFile);
+    if (fs.existsSync(outputPath)) {
+        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        const shortProxy = proxyAddress.slice(2, 10).toLowerCase();
+        const renamed = outputFile.replace(/\.json$/, `_${ts}_${shortProxy}.json`);
+        console.log(`\nℹ️  ${outputFile} already exists — writing new record to a unique file to avoid overwrite.`);
+        outputFile = renamed;
+        outputPath = path.join(process.cwd(), outputFile);
+    }
 
-    // Write deployment data
-    fs.writeFileSync(
-        outputPath,
-        JSON.stringify(deploymentData, null, 2),
-        "utf-8"
-    );
-
+    fs.writeFileSync(outputPath, JSON.stringify(deploymentData, null, 2), "utf-8");
     console.log(`\n✅ Deployment data saved to: ${outputFile}`);
 
-    // Verify contracts on Etherscan/block explorer
+    // Verify contracts on Etherscan
     if (network.name !== "localhost" && network.name !== "hardhat") {
         console.log("\n⏳ Waiting 30 seconds before verification...");
         await new Promise(resolve => setTimeout(resolve, 30000));
@@ -131,16 +191,26 @@ async function main() {
         console.log("\n🔍 Verifying contracts on block explorer...");
 
         try {
-            // Verifying the proxy automatically verifies + links the implementation too
             console.log("  Verifying proxy contract...");
+            // NOTE: @openzeppelin/hardhat-upgrades overrides `verify:verify` to detect
+            // an ERC1967 proxy, resolve its implementation, and submit the impl source
+            // for verification. We pass the PROXY address on purpose — the plugin
+            // extracts the impl, verifies it, then links proxy↔impl on Etherscan.
             await run("verify:verify", {
                 address: proxyAddress,
-                constructorArguments: []
+                constructorArguments: [],
+                // Disambiguate by source path — every NAV-engine subclass produces
+                // identical bytecode so Etherscan can't auto-pick.
+                contract: verifyContract,
             });
             console.log("  ✅ Proxy verified!");
         } catch (error: any) {
             if (error.message.includes("Already Verified")) {
                 console.log("  ℹ️  Proxy already verified");
+            } else if (error.message.includes("rate limit")) {
+                console.log("  ⚠️  Etherscan rate limit — retry manually:");
+                console.log(`     npx hardhat verify --contract ${verifyContract} \\`);
+                console.log(`       --network ${network.name} ${proxyAddress}`);
             } else {
                 console.log("  ⚠️  Proxy verification failed:", error.message);
             }
@@ -168,9 +238,18 @@ async function main() {
     console.log("  4. View on explorer to verify contract is published");
 }
 
-main()
-    .then(() => process.exit(0))
-    .catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
+// ============ Default entry-point: shared HastraNavEngine ============
+
+async function main() {
+    await deployNavEngineInstance();
+}
+
+// Only auto-run when invoked directly (not when imported by deployNavEngineSMB.ts).
+if (require.main === module) {
+    main()
+        .then(() => process.exit(0))
+        .catch((error) => {
+            console.error(error);
+            process.exit(1);
+        });
+}
