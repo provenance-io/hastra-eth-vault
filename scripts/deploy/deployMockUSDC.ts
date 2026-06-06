@@ -7,9 +7,11 @@
  */
 // @ts-ignore
 import { ethers } from "hardhat";
+import { patchProviderForCheckTxBug } from "./lib/patchProvider";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
+  patchProviderForCheckTxBug(ethers.provider);
   const network = await ethers.provider.getNetwork();
 
   console.log("Deploying MockUSDC");

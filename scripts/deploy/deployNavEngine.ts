@@ -25,6 +25,7 @@
 import { ethers, upgrades, network, run } from "hardhat";
 import fs from "fs";
 import path from "path";
+import { patchProviderForCheckTxBug } from "./lib/patchProvider";
 
 export interface DeployNavEngineOptions {
     /**
@@ -55,6 +56,7 @@ export interface DeployNavEngineOptions {
 
 export async function deployNavEngineInstance(opts: DeployNavEngineOptions = {}): Promise<void> {
     const [deployer] = await ethers.getSigners();
+    patchProviderForCheckTxBug(ethers.provider);
     const contractName = opts.contractName ?? "HastraNavEngine";
     const verifyContract = opts.verifyContract ?? `contracts/chainlink/${contractName}.sol:${contractName}`;
     const label = opts.label ?? contractName;

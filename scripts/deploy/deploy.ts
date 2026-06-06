@@ -14,6 +14,7 @@
 // @ts-ignore
 import {ethers, upgrades, network, run} from "hardhat";
 import * as fs from "fs";
+import { patchProviderForCheckTxBug } from "./lib/patchProvider";
 
 /**
  * Deploy script for Hastra Vault Protocol
@@ -26,6 +27,7 @@ import * as fs from "fs";
  */
 async function main() {
   const [deployer, ...otherSigners] = await ethers.getSigners();
+  patchProviderForCheckTxBug(ethers.provider);
   const isDryRun = process.argv.includes("--dry-run") || process.env.DRY_RUN === "true";
 
   if (isDryRun) {
