@@ -70,12 +70,17 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
     };
   }
 
+  // Default global cap used by tests that don't care about the value —
+  // 5M wYLDS in 6-dec.
+  const DEFAULT_GLOBAL_CAP = ethers.parseUnits("5000000", 6);
+
   async function upgradeToV2(
     vault: YieldVault,
     signer: any,
     version: number,
     epochAdmin: string,
-    redeemOperator: string
+    redeemOperator: string,
+    globalCap: bigint = DEFAULT_GLOBAL_CAP
   ): Promise<YieldVaultV2> {
     // Deploy the V2 implementation bytecode (no proxy interaction yet).
     const YieldVaultV2 = await ethers.getContractFactory("YieldVaultV2");
@@ -85,12 +90,13 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
 
     // Encode initializeV2 + perform atomic upgradeToAndCall as UPGRADER (owner).
     const iface = new ethers.Interface([
-      "function initializeV2(uint64 version, address epochAdmin, address redeemOperator)",
+      "function initializeV2(uint64 version, address epochAdmin, address redeemOperator, uint256 globalCap)",
     ]);
     const initCalldata = iface.encodeFunctionData("initializeV2", [
       version,
       epochAdmin,
       redeemOperator,
+      globalCap,
     ]);
 
     // UUPS proxies expose `upgradeToAndCall(address,bytes)` from UUPSUpgradeable.
@@ -135,8 +141,8 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
         redeployImplementation: "always",
       })) as string;
       const initCalldata = new ethers.Interface([
-        "function initializeV2(uint64 version, address epochAdmin, address redeemOperator)",
-      ]).encodeFunctionData("initializeV2", [2, ethers.ZeroAddress, redeemOperator.address]);
+        "function initializeV2(uint64 version, address epochAdmin, address redeemOperator, uint256 globalCap)",
+      ]).encodeFunctionData("initializeV2", [2, ethers.ZeroAddress, redeemOperator.address, DEFAULT_GLOBAL_CAP]);
 
       await expect(
         owner.sendTransaction({
@@ -155,8 +161,8 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
         redeployImplementation: "always",
       })) as string;
       const initCalldata = new ethers.Interface([
-        "function initializeV2(uint64 version, address epochAdmin, address redeemOperator)",
-      ]).encodeFunctionData("initializeV2", [2, epochAdmin.address, ethers.ZeroAddress]);
+        "function initializeV2(uint64 version, address epochAdmin, address redeemOperator, uint256 globalCap)",
+      ]).encodeFunctionData("initializeV2", [2, epochAdmin.address, ethers.ZeroAddress, DEFAULT_GLOBAL_CAP]);
 
       await expect(
         owner.sendTransaction({
@@ -184,7 +190,7 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
       // Second call should be blocked by reinitializer(version) regardless of caller,
       // but it should ALSO be blocked by onlyRole(UPGRADER_ROLE) for non-upgraders.
       await expect(
-        v2.connect(user1).initializeV2(3, epochAdmin.address, redeemOperator.address)
+        v2.connect(user1).initializeV2(3, epochAdmin.address, redeemOperator.address, DEFAULT_GLOBAL_CAP)
       ).to.be.reverted;
     });
 
@@ -198,7 +204,7 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
         redeemOperator.address
       );
       await expect(
-        v2.connect(owner).initializeV2(2, epochAdmin.address, redeemOperator.address)
+        v2.connect(owner).initializeV2(2, epochAdmin.address, redeemOperator.address, DEFAULT_GLOBAL_CAP)
       ).to.be.revertedWithCustomError(v2, "InvalidInitialization");
     });
   });

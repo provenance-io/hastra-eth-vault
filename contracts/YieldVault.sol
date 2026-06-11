@@ -295,7 +295,7 @@ contract YieldVault is
         uint256 epochIndex,
         uint256 amount,
         bytes32[] calldata proof
-    ) external whenNotPaused nonReentrant {
+    ) external virtual whenNotPaused nonReentrant {
         if (epochIndex >= currentEpochIndex) revert InvalidEpoch();
         
         bytes32 claimKey = keccak256(abi.encodePacked(msg.sender, epochIndex));
