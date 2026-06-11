@@ -170,9 +170,9 @@ describe("HastraNavEngineV2", function () {
     });
 
     it("Should revert when exceeding 10% delta upward (rate 1.0 → 1.11)", async function () {
-      // TVL 1110 / supply 1000 = rate 1.11 → 11% increase
+      // TVL unchanged (no TVL guard), supply 900 → rate = 1000/900 ≈ 1.111 (11.1% increase)
       await expect(
-        navEngine.connect(updater).updateRate(BASELINE_SUPPLY, ethers.parseEther("1110"))
+        navEngine.connect(updater).updateRate(ethers.parseEther("900"), BASELINE_TVL)
       ).to.be.revertedWithCustomError(navEngine, "RateDeltaExceeded");
     });
 
@@ -185,9 +185,9 @@ describe("HastraNavEngineV2", function () {
     });
 
     it("Should revert when exceeding 10% delta downward (rate 1.0 → 0.89)", async function () {
-      // TVL 890 / supply 1000 = rate 0.89 → 11% decrease
+      // TVL unchanged (no TVL guard), supply 1125 → rate = 1000/1125 ≈ 0.889 (11.1% decrease)
       await expect(
-        navEngine.connect(updater).updateRate(BASELINE_SUPPLY, ethers.parseEther("890"))
+        navEngine.connect(updater).updateRate(ethers.parseEther("1125"), BASELINE_TVL)
       ).to.be.revertedWithCustomError(navEngine, "RateDeltaExceeded");
     });
 
