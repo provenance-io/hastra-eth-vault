@@ -1,0 +1,22 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "timestamp": "2026-06-12T16:44:01.776Z",
+  "contractName": "HastraSMBNavEngine",
+  "contracts": {
+    "navEngine": "0xbeA0BFc28861eb1D0832A9D5689AA7C558E9D76d",
+    "navEngineImplementation": "0x9fD0b0EF9fb4591A7C315BC19f0fb29A9Edb019E"
+  },
+  "transactions": {
+    "navEngine": "0x11bc6d0bfc6014453f5e7173cfacb1020df705d6a2c3126e97e34d1a32eb2da1"
+  },
+  "roles": {
+    "owner": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "updater": "0xD5a287959e575212df14e37ba902c5b21e9FB4c8"
+  },
+  "config": {
+    "maxDifferencePercent": "100000000000000000",
+    "minRate": "500000000000000000",
+    "maxRate": "2000000000000000000"
+  }
+}
