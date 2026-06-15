@@ -83,22 +83,12 @@ contract HastraNavEngineV2 is HastraNavEngine {
             }
         }
 
-        // 2. TVL delta guard (same as V1)
-        if (v1.latestUpdateTime != 0) {
-            uint256 oldTVL = v1.latestTVL;
-            uint256 absDiff = totalTVL_ > oldTVL ? totalTVL_ - oldTVL : oldTVL - totalTVL_;
-            uint256 difference = Math.mulDiv(absDiff, RATE_PRECISION, oldTVL);
-            if (difference > v1.maxDifferencePercent) {
-                revert TVLDifferenceExceeded(v1.latestTVL, totalTVL_, difference, v1.maxDifferencePercent);
-            }
-        }
-
-        // 3. Compute new rate
+        // 2. Compute new rate
         uint256 calculatedRate = Math.mulDiv(totalTVL_, RATE_PRECISION, totalSupply_);
         if (calculatedRate > uint256(uint192(type(int192).max))) revert RateOverflow(calculatedRate);
         int192 newRate = int192(int256(calculatedRate));
 
-        // 4. Rate-delta guard — |newRate − oldRate| / oldRate <= maxRateDeltaPercent
+        // 3. Rate-delta guard — |newRate − oldRate| / oldRate <= maxRateDeltaPercent
         int192 oldRate = v1.latestRate;
         if (oldRate > 0) {
             uint256 newRateUint = uint256(uint192(newRate));
@@ -112,12 +102,12 @@ contract HastraNavEngineV2 is HastraNavEngine {
             }
         }
 
-        // 5. Absolute rate bounds (same as V1)
+        // 4. Absolute rate bounds (same as V1)
         if (newRate < v1.minRate || newRate > v1.maxRate) {
             revert RateOutOfBounds(newRate, v1.minRate, v1.maxRate);
         }
 
-        // 6. Store
+        // 5. Store
         v1.latestTVL = totalTVL_;
         v1.latestTotalSupply = totalSupply_;
         v1.latestUpdateTime = block.timestamp;

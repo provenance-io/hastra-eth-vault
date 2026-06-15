@@ -193,11 +193,66 @@ describe("HastraNavEngineV2", function () {
 
     it("Should revert when TVL within 10% but supply change causes rate delta > 10%", async function () {
       // Current: TVL 1000, supply 1000, rate 1.0
-      // New:     TVL 1050 (+5% TVL, within threshold), supply 900
-      //          rate = 1050/900 ≈ 1.1667 → ~16.7% rate increase
+      // New:     TVL 1050 (+5% TVL), supply 900
+      //          rate = 1050/900 ≈ 1.1667 → ~16.7% rate increase → rate guard fires
       await expect(
         navEngine.connect(updater).updateRate(ethers.parseEther("900"), ethers.parseEther("1050"))
       ).to.be.revertedWithCustomError(navEngine, "RateDeltaExceeded");
+    });
+
+    it("Should allow large TVL increase when rate stays within delta (proportional growth)", async function () {
+      // TVL doubles, supply doubles → rate stays at 1.0 → rate guard passes
+      // This is the seeding / proportional-growth case that TVL guard would have blocked
+      await expect(
+        navEngine.connect(updater).updateRate(
+          ethers.parseEther("2000"), // supply 2x
+          ethers.parseEther("2000")  // TVL 2x — rate unchanged
+        )
+      ).to.not.be.reverted;
+      expect(await navEngine.getRate()).to.equal(ethers.parseEther("1"));
+    });
+
+    it("Should allow first update with very low TVL (seeding from near-zero)", async function () {
+      // Deploy fresh V2 — no baseline update yet
+      const V1Factory = await ethers.getContractFactory("HastraNavEngine");
+      const v1 = await upgrades.deployProxy(
+        V1Factory,
+        [owner.address, updater.address, MAX_DIFFERENCE_PERCENT, MIN_RATE, V1_MAX_RATE],
+        { initializer: "initialize", kind: "uups" }
+      );
+      await v1.waitForDeployment();
+
+      const V2Factory = await ethers.getContractFactory("HastraNavEngineV2");
+      const fresh = await upgrades.upgradeProxy(
+        await v1.getAddress(),
+        V2Factory,
+        { call: { fn: "initializeV2", args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL, V2_MAX_RATE] } }
+      ) as unknown as HastraNavEngineV2;
+
+      // $1 TVL / $1 supply — would have been 100% delta vs a padded baseline under TVL guard
+      await expect(
+        fresh.connect(updater).updateRate(ethers.parseEther("1"), ethers.parseEther("1"))
+      ).to.not.be.reverted;
+      expect(await fresh.getRate()).to.equal(ethers.parseEther("1"));
+    });
+
+    it("Should allow TVL to jump 10x on second update as long as rate is within delta", async function () {
+      // rate stays 1.0 throughout — only the rate guard matters
+      await time.increase(MIN_UPDATE_INTERVAL);
+      await expect(
+        navEngine.connect(updater).updateRate(
+          ethers.parseEther("10000"),
+          ethers.parseEther("10000")
+        )
+      ).to.not.be.reverted;
+    });
+
+    it("Rate guard fires at exact boundary + 1 wei (> not >=)", async function () {
+      // 10% delta threshold: 1000 * 1.1 = 1100, rate = 1.1 → exactly 10% → should PASS
+      await time.increase(MIN_UPDATE_INTERVAL);
+      await expect(
+        navEngine.connect(updater).updateRate(BASELINE_SUPPLY, ethers.parseEther("1100"))
+      ).to.not.be.reverted;
     });
   });
 
@@ -370,12 +425,14 @@ describe("HastraNavEngineV2", function () {
       expect(await navEngine.getUpdater()).to.equal(updater.address);
     });
 
-    it("Should preserve V1 maxDifferencePercent after upgrade", async function () {
-      expect(await navEngine.getMaxDifferencePercent()).to.equal(MAX_DIFFERENCE_PERCENT);
-    });
-
     it("Should preserve V1 minRate after upgrade", async function () {
       expect(await navEngine.getMinRate()).to.equal(MIN_RATE);
+    });
+
+    it("Should preserve V1 maxDifferencePercent in storage (V1 field, not used by V2 updateRate)", async function () {
+      // maxDifferencePercent still lives in V1 storage and is readable;
+      // V2 updateRate no longer enforces it — rate-delta guard replaced it
+      expect(await navEngine.getMaxDifferencePercent()).to.equal(MAX_DIFFERENCE_PERCENT);
     });
   });
 });
