@@ -44,23 +44,20 @@ contract HastraNavEngineV2 is HastraNavEngine {
     /**
      * @notice V2 initializer — call via upgradeToAndCall.
      * @param pauser_               Address with instant pause/unpause authority
-     * @param maxRateDeltaPercent_   Max |rate change| per update, scaled 1e18 (e.g. 0.1e18 = 10%)
+     * @param maxRateDeltaPercent_  Max |rate change| per update, scaled 1e18 (e.g. 0.1e18 = 10%)
      * @param minUpdateInterval_    Minimum seconds between updateRate calls
-     * @param maxRate_              Tightened maxRate (e.g. 2e18, down from 3e18)
+     *
+     * @dev maxRate is V1 storage and is not touched here. To tighten it at upgrade
+     *      time, call setMaxRate() separately after the upgrade completes.
      */
     function initializeV2(
         address pauser_,
         uint256 maxRateDeltaPercent_,
-        uint256 minUpdateInterval_,
-        int192 maxRate_
+        uint256 minUpdateInterval_
     ) external reinitializer(2) {
         _setPauser(pauser_);
         _setMaxRateDeltaPercent(maxRateDeltaPercent_);
         _setMinUpdateInterval(minUpdateInterval_);
-        // Tighten maxRate on the V1 storage
-        if (maxRate_ > 0) {
-            _setMaxRate(maxRate_);
-        }
     }
 
     // ── updateRate override ──────────────────────────────────────────

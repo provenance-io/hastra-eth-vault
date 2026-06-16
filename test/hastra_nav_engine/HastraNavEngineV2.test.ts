@@ -45,10 +45,13 @@ describe("HastraNavEngineV2", function () {
       {
         call: {
           fn: "initializeV2",
-          args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL, V2_MAX_RATE],
+          args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL],
         },
       }
     ) as unknown as HastraNavEngineV2;
+
+    // Tighten maxRate to 2e18 as a separate post-upgrade call (no longer in initializeV2)
+    await v2.connect(owner).setMaxRate(V2_MAX_RATE);
 
     // Establish baseline rate of 1.0
     await v2.connect(updater).updateRate(BASELINE_SUPPLY, BASELINE_TVL);
@@ -81,7 +84,7 @@ describe("HastraNavEngineV2", function () {
       expect(await navEngine.getMinUpdateInterval()).to.equal(MIN_UPDATE_INTERVAL);
     });
 
-    it("Should tighten maxRate from 3e18 to 2e18", async function () {
+    it("Should tighten maxRate from 3e18 to 2e18 via post-upgrade setMaxRate", async function () {
       expect(await navEngine.getMaxRate()).to.equal(V2_MAX_RATE);
     });
 
@@ -99,7 +102,7 @@ describe("HastraNavEngineV2", function () {
         upgrades.upgradeProxy(await v1.getAddress(), V2Factory, {
           call: {
             fn: "initializeV2",
-            args: [ethers.ZeroAddress, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL, V2_MAX_RATE],
+            args: [ethers.ZeroAddress, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL],
           },
         })
       ).to.be.revertedWithCustomError(V2Factory, "InvalidPauser");
@@ -119,7 +122,7 @@ describe("HastraNavEngineV2", function () {
         upgrades.upgradeProxy(await v1.getAddress(), V2Factory, {
           call: {
             fn: "initializeV2",
-            args: [pauser.address, 0, MIN_UPDATE_INTERVAL, V2_MAX_RATE],
+            args: [pauser.address, 0, MIN_UPDATE_INTERVAL],
           },
         })
       ).to.be.revertedWithCustomError(V2Factory, "InvalidMaxRateDelta");
@@ -139,7 +142,7 @@ describe("HastraNavEngineV2", function () {
         upgrades.upgradeProxy(await v1.getAddress(), V2Factory, {
           call: {
             fn: "initializeV2",
-            args: [pauser.address, MAX_RATE_DELTA_PERCENT, 0, V2_MAX_RATE],
+            args: [pauser.address, MAX_RATE_DELTA_PERCENT, 0],
           },
         })
       ).to.be.revertedWithCustomError(V2Factory, "InvalidMinUpdateInterval");
@@ -147,8 +150,26 @@ describe("HastraNavEngineV2", function () {
 
     it("Should not allow re-initialization", async function () {
       await expect(
-        navEngine.initializeV2(pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL, V2_MAX_RATE)
+        navEngine.initializeV2(pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL)
       ).to.be.revertedWithCustomError(navEngine, "InvalidInitialization");
+    });
+
+    it("Should leave V1 maxRate unchanged (setMaxRate is a separate post-upgrade call)", async function () {
+      // maxRate_ is no longer a param — V1 storage is preserved as-is
+      // V1 was initialised with V1_MAX_RATE (3e18); fixture sets V2_MAX_RATE (2e18) via setMaxRate
+      // Here we deploy without a post-upgrade setMaxRate call and verify V1 value is untouched
+      const V1Factory = await ethers.getContractFactory("HastraNavEngine");
+      const v1 = await upgrades.deployProxy(
+        V1Factory,
+        [owner.address, updater.address, MAX_DIFFERENCE_PERCENT, MIN_RATE, V1_MAX_RATE],
+        { initializer: "initialize", kind: "uups" }
+      );
+      await v1.waitForDeployment();
+      const V2Factory = await ethers.getContractFactory("HastraNavEngineV2");
+      const v2 = await upgrades.upgradeProxy(await v1.getAddress(), V2Factory, {
+        call: { fn: "initializeV2", args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL] },
+      }) as unknown as HastraNavEngineV2;
+      expect(await v2.getMaxRate()).to.equal(V1_MAX_RATE);
     });
   });
 
@@ -226,7 +247,7 @@ describe("HastraNavEngineV2", function () {
       const fresh = await upgrades.upgradeProxy(
         await v1.getAddress(),
         V2Factory,
-        { call: { fn: "initializeV2", args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL, V2_MAX_RATE] } }
+        { call: { fn: "initializeV2", args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL] } }
       ) as unknown as HastraNavEngineV2;
 
       // $1 TVL / $1 supply — would have been 100% delta vs a padded baseline under TVL guard
@@ -253,6 +274,24 @@ describe("HastraNavEngineV2", function () {
       await expect(
         navEngine.connect(updater).updateRate(BASELINE_SUPPLY, ethers.parseEther("1100"))
       ).to.not.be.reverted;
+    });
+
+    it("Should revert when totalSupply_ is zero", async function () {
+      await expect(
+        navEngine.connect(updater).updateRate(0, BASELINE_TVL)
+      ).to.be.revertedWithCustomError(navEngine, "TotalSupplyIsZero");
+    });
+
+    it("Should revert when totalTVL_ is zero", async function () {
+      await expect(
+        navEngine.connect(updater).updateRate(BASELINE_SUPPLY, 0)
+      ).to.be.revertedWithCustomError(navEngine, "TVLIsZero");
+    });
+
+    it("Should revert when non-updater calls updateRate", async function () {
+      await expect(
+        navEngine.connect(user).updateRate(BASELINE_SUPPLY, BASELINE_TVL)
+      ).to.be.revertedWith("Not updater");
     });
   });
 
@@ -303,7 +342,7 @@ describe("HastraNavEngineV2", function () {
         {
           call: {
             fn: "initializeV2",
-            args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL, V2_MAX_RATE],
+            args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL],
           },
         }
       ) as unknown as HastraNavEngineV2;
@@ -360,6 +399,13 @@ describe("HastraNavEngineV2", function () {
         navEngine.connect(user).setPauser(user.address)
       ).to.be.revertedWithCustomError(navEngine, "OwnableUnauthorizedAccount");
     });
+
+    it("Should revert when non-pauser tries to unpause", async function () {
+      await navEngine.connect(pauser).pause();
+      await expect(
+        navEngine.connect(user).unpause()
+      ).to.be.revertedWithCustomError(navEngine, "InvalidPauser");
+    });
   });
 
   // ====================================================================
@@ -386,6 +432,13 @@ describe("HastraNavEngineV2", function () {
       ).to.be.revertedWithCustomError(navEngine, "InvalidMaxRateDelta");
     });
 
+    it("Should revert setMaxRateDeltaPercent > RATE_PRECISION (> 1e18 = > 100%)", async function () {
+      // pct_ > RATE_PRECISION branch — the second condition in the || guard
+      await expect(
+        navEngine.connect(owner).setMaxRateDeltaPercent(ethers.parseEther("1.01"))
+      ).to.be.revertedWithCustomError(navEngine, "InvalidMaxRateDelta");
+    });
+
     it("Should allow owner to setMinUpdateInterval", async function () {
       const newInterval = 600;
       await expect(navEngine.connect(owner).setMinUpdateInterval(newInterval))
@@ -408,7 +461,46 @@ describe("HastraNavEngineV2", function () {
   });
 
   // ====================================================================
-  // 6. Storage preservation after upgrade
+  // 6. Absolute rate bounds (RateOutOfBounds)
+  // ====================================================================
+  describe("Absolute Rate Bounds", function () {
+    async function deployFreshV2() {
+      const V1Factory = await ethers.getContractFactory("HastraNavEngine");
+      const v1 = await upgrades.deployProxy(
+        V1Factory,
+        [owner.address, updater.address, MAX_DIFFERENCE_PERCENT, MIN_RATE, V1_MAX_RATE],
+        { initializer: "initialize", kind: "uups" }
+      );
+      await v1.waitForDeployment();
+      const V2Factory = await ethers.getContractFactory("HastraNavEngineV2");
+      const v2 = await upgrades.upgradeProxy(
+        await v1.getAddress(),
+        V2Factory,
+        { call: { fn: "initializeV2", args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL] } }
+      ) as unknown as HastraNavEngineV2;
+      await v2.connect(owner).setMaxRate(V2_MAX_RATE);
+      return v2;
+    }
+
+    it("Should revert when rate exceeds maxRate on first update (no rate-delta check yet)", async function () {
+      const fresh = await deployFreshV2();
+      // supply 1, TVL 2.1 → rate 2.1 > maxRate 2.0
+      await expect(
+        fresh.connect(updater).updateRate(ethers.parseEther("1"), ethers.parseEther("2.1"))
+      ).to.be.revertedWithCustomError(fresh, "RateOutOfBounds");
+    });
+
+    it("Should revert when rate is below minRate on first update (no rate-delta check yet)", async function () {
+      const fresh = await deployFreshV2();
+      // supply 1, TVL 0.4 → rate 0.4 < minRate 0.5
+      await expect(
+        fresh.connect(updater).updateRate(ethers.parseEther("1"), ethers.parseEther("0.4"))
+      ).to.be.revertedWithCustomError(fresh, "RateOutOfBounds");
+    });
+  });
+
+  // ====================================================================
+  // 7. Storage preservation after upgrade
   // ====================================================================
   describe("Storage Preservation", function () {
     it("Should preserve V1 rate after upgrade", async function () {
@@ -433,6 +525,23 @@ describe("HastraNavEngineV2", function () {
       // maxDifferencePercent still lives in V1 storage and is readable;
       // V2 updateRate no longer enforces it — rate-delta guard replaced it
       expect(await navEngine.getMaxDifferencePercent()).to.equal(MAX_DIFFERENCE_PERCENT);
+    });
+
+    it("V2 does NOT enforce maxDifferencePercent — TVL change > threshold passes if rate is within delta", async function () {
+      // Set maxDifferencePercent to 1% so any real TVL change would breach it under V1
+      await navEngine.connect(owner).setMaxDifferencePercent(ethers.parseEther("0.01")); // 1%
+
+      await time.increase(MIN_UPDATE_INTERVAL);
+
+      // TVL +5%, supply +5% → rate unchanged at 1.0 → 0% rate delta
+      // V1 would revert (TVLDifferenceExceeded: 5% > 1%)
+      // V2 must pass — maxDifferencePercent is not consulted
+      const newSupply = ethers.parseEther("1050"); // +5%
+      const newTVL    = ethers.parseEther("1050"); // +5%
+      await expect(
+        navEngine.connect(updater).updateRate(newSupply, newTVL)
+      ).to.not.be.reverted;
+      expect(await navEngine.getRate()).to.equal(ethers.parseEther("1"));
     });
   });
 });

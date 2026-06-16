@@ -452,5 +452,74 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
         v2.connect(epochAdmin).createRewardsEpoch(0, ethers.ZeroHash, ethers.parseUnits("1", 6))
       ).to.be.revertedWithCustomError(v2, "InvalidAmount");
     });
+
+    it("claimRewards reverts InvalidProof when proof is wrong", async function () {
+      const { v2, epochAdmin, user1 } = await upgradedWithFrozenAdmin();
+      const amount = ethers.parseUnits("10", 6);
+
+      // Create epoch with a real root (built from user1's leaf)
+      const leaf = ethers.keccak256(
+        ethers.solidityPacked(
+          ["bytes32"],
+          [ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address", "uint256", "uint256"],
+            [user1.address, amount, 0]
+          ))]
+        )
+      );
+      // Use the leaf itself as the root so a valid proof would be [] — but we pass a bad proof
+      await v2.connect(epochAdmin).createRewardsEpoch(0, leaf, amount);
+
+      // Pass a non-empty garbage proof → MerkleProof.verify returns false
+      const badProof = [ethers.keccak256(ethers.toUtf8Bytes("garbage"))];
+      await expect(
+        v2.connect(user1).claimRewards(0, amount, badProof)
+      ).to.be.revertedWithCustomError(v2, "InvalidProof");
+    });
+
+    it("claimRewards reverts InvalidEpoch when epochIndex >= currentEpochIndex", async function () {
+      const { v2, user1 } = await upgradedWithFrozenAdmin();
+      // currentEpochIndex is 0 — passing 0 or any higher index reverts
+      await expect(
+        v2.connect(user1).claimRewards(0, ethers.parseUnits("1", 6), [])
+      ).to.be.revertedWithCustomError(v2, "InvalidEpoch");
+    });
+
+    it("claimRewards reverts RewardsAlreadyClaimed on double claim", async function () {
+      const { v2, epochAdmin, user1 } = await upgradedWithFrozenAdmin();
+      const amount = ethers.parseUnits("10", 6);
+
+      // Build a valid single-leaf tree so the first claim passes
+      const leaf = ethers.keccak256(
+        ethers.solidityPacked(
+          ["bytes32"],
+          [ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address", "uint256", "uint256"],
+            [user1.address, amount, 0]
+          ))]
+        )
+      );
+      await v2.connect(epochAdmin).createRewardsEpoch(0, leaf, amount);
+
+      // First claim: valid empty proof (leaf == root)
+      await v2.connect(user1).claimRewards(0, amount, []);
+
+      // Second claim: same epoch → RewardsAlreadyClaimed
+      await expect(
+        v2.connect(user1).claimRewards(0, amount, [])
+      ).to.be.revertedWithCustomError(v2, "RewardsAlreadyClaimed");
+    });
+
+    it("claimRewards reverts EnforcedPause when vault is paused", async function () {
+      const { v2, epochAdmin, user1, owner } = await upgradedWithFrozenAdmin();
+      const amount = ethers.parseUnits("10", 6);
+      const merkleRoot = ethers.keccak256(ethers.toUtf8Bytes("root"));
+      await v2.connect(epochAdmin).createRewardsEpoch(0, merkleRoot, amount);
+
+      await v2.connect(owner).pause();
+      await expect(
+        v2.connect(user1).claimRewards(0, amount, [])
+      ).to.be.revertedWithCustomError(v2, "EnforcedPause");
+    });
   });
 });
