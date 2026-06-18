@@ -6,7 +6,7 @@ import * as path from "path";
 /**
  * Deploys an OZ TimelockController and generates the Safe calldata to migrate
  * BOTH `UPGRADER_ROLE` and `DEFAULT_ADMIN_ROLE` from Safe → TimelockController on
- * YieldVault and StakingVault (Option A migration — see local_docs/TIMELOCK_PLAYBOOK.md).
+ * YieldVault and StakingVault (Option A migration — see local_docs/PLAYBOOK.md).
  *
  * Why DEFAULT_ADMIN_ROLE too: leaving DEFAULT_ADMIN on the Safe means a
  * compromised/coerced Safe can re-grant itself UPGRADER_ROLE at any time and
@@ -15,7 +15,7 @@ import * as path from "path";
  *
  * PAUSER_ROLE intentionally stays with the Safe so pause remains instant.
  * (Pause/unpause symmetry is a documented accepted limitation —
- *  see TIMELOCK_PLAYBOOK.md §"Threat model and limitations".)
+ *  see PLAYBOOK.md §11 "Threat model and limitations".)
  *
  * The TimelockController is configured so that:
  *   - Safe is PROPOSER + CANCELLER (only Safe can queue or cancel txs)

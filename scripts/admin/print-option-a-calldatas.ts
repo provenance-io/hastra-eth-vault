@@ -11,7 +11,7 @@ import * as path from "path";
  * `deploy-timelock.ts`) and just need to regenerate the calldatas — without
  * spending gas on a second deploy.
  *
- * See `local_docs/TIMELOCK_PLAYBOOK.md` for the full migration playbook.
+ * See `local_docs/PLAYBOOK.md` for the full migration playbook.
  *
  * Usage:
  *   SAFE=0x...        \
