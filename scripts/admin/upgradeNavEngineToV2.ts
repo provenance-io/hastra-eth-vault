@@ -118,7 +118,7 @@ async function main() {
     const upgradeIface = new ethers.Interface([
       "function upgradeToAndCall(address newImplementation, bytes calldata data)",
     ]);
-    const maxRateIface = new ethers.Interface(["function setMaxRate(uint256)"]);
+    const maxRateIface = new ethers.Interface(["function setMaxRate(int192)"]);
 
     const upgradeCalldata = isDryRun
       ? "(deploy impl first, then re-run to get real calldata)"
