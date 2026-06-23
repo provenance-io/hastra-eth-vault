@@ -7,10 +7,11 @@ import type { MockUSDC, YieldVault, YieldVaultV2 } from "../../typechain-types";
 /**
  * Tests for the Audit 4.1 per-epoch reward cap on `YieldVaultV2`.
  *
- * Each test deploys a V1 proxy → upgrades to V2 (initializeV2) → calls
- * `initializeCaps(version, globalCap)` to enable cap enforcement, then drives
- * the Merkle claim path with a per-epoch budget that's smaller than the sum of
- * leaves so we can exercise the over-cap revert.
+ * Each test deploys a V1 proxy → upgrades to V2 via a single
+ * `upgradeToAndCall(impl, initializeV2(version, epochAdmin, redeemOperator, globalCap))`
+ * call. `initializeV2` sets both the role grants and the cap state atomically.
+ * The Merkle claim path is then driven with a per-epoch budget smaller than the
+ * sum of leaves to exercise the over-cap revert.
  *
  * Pre-cap epochs (created before `initializeCaps` runs) remain claimable with
  * V1 semantics — covered by the existing `YieldVault.test.ts` suite.
@@ -83,10 +84,11 @@ describe("YieldVaultV2 epoch caps (Audit 4.1)", function () {
     const uupsIface = new ethers.Interface([
       "function upgradeToAndCall(address newImplementation, bytes data)",
     ]);
-    await owner.sendTransaction({
+    const tx = await owner.sendTransaction({
       to: await v1.getAddress(),
       data: uupsIface.encodeFunctionData("upgradeToAndCall", [newImpl, initV2Calldata]),
     });
+    await tx.wait();
     return (await ethers.getContractAt(
       "YieldVaultV2",
       await v1.getAddress()

@@ -105,7 +105,8 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
     ]);
     const calldata = uupsIface.encodeFunctionData("upgradeToAndCall", [newImpl, initCalldata]);
 
-    await signer.sendTransaction({ to: await vault.getAddress(), data: calldata });
+    const tx = await signer.sendTransaction({ to: await vault.getAddress(), data: calldata });
+    await tx.wait();
 
     return (await ethers.getContractAt("YieldVaultV2", await vault.getAddress())) as unknown as YieldVaultV2;
   }

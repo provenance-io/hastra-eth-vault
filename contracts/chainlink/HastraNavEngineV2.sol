@@ -13,7 +13,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *     - minUpdateInterval:  revert if < N seconds since last updateRate
  *     - pauser:             separate address for pause/unpause (owner can be timelocked)
  *
- *   initializeV2 also tightens maxRate (3.0 → 2.0).
+ *   initializeV2 does NOT touch maxRate (it is V1 storage). Tighten it with a
+ *   separate setMaxRate() call after the upgrade (the upgrade script does this).
  */
 contract HastraNavEngineV2 is HastraNavEngine {
 

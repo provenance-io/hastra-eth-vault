@@ -26,6 +26,7 @@ describe("HastraTimelockController", function () {
     // available in this repo; we only need its address + known calldata.
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const target = await MockUSDC.deploy();
+    await target.waitForDeployment();
 
     const Timelock = await ethers.getContractFactory("HastraTimelockController");
     const timelock = await Timelock.deploy(
@@ -34,6 +35,7 @@ describe("HastraTimelockController", function () {
       [ethers.ZeroAddress],      // executors — open (anyone)
       safe.address               // admin (== TIMELOCK_ADMIN / DEFAULT_ADMIN_ROLE)
     );
+    await timelock.waitForDeployment();
 
     const PROPOSER_ROLE  = await timelock.PROPOSER_ROLE();
     const EXECUTOR_ROLE  = await timelock.EXECUTOR_ROLE();
