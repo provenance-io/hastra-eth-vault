@@ -1,0 +1,15 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "deployedAt": "2026-06-04T17:04:49.140Z",
+  "yieldVaultAddress": "0x0258787Eb97DD01436B562943D8ca85B772D7b98",
+  "autoStakingVaultProxy": "0xBF1bA8f71cCe6f9E7CFAa723434B212fEb38f43d",
+  "tokenName": "SMB Token",
+  "tokenSymbol": "SMB",
+  "roles": {
+    "admin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "freezeAdmin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "rewardsAdmin": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "navOracleUpdater": "0x3778F66336F79B2B0D86E759499D191EA030a4c6"
+  }
+}
