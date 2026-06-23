@@ -1,0 +1,22 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "timestamp": "2026-06-05T22:33:57.989Z",
+  "contractName": "HastraAutoNavEngine",
+  "contracts": {
+    "navEngine": "0xC38479C4f1155A6b3d839F33f70D4A9923e24Af3",
+    "navEngineImplementation": "0x748D0731738e68C7E2d693CCAe56C82FD7B14DA3"
+  },
+  "transactions": {
+    "navEngine": "0x64c44aaa2cf00170d06130c2011ae3257070dea80e3a45e0d22821ecaaa0e280"
+  },
+  "roles": {
+    "owner": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "updater": "0xD5a287959e575212df14e37ba902c5b21e9FB4c8"
+  },
+  "config": {
+    "maxDifferencePercent": "100000000000000000",
+    "minRate": "500000000000000000",
+    "maxRate": "2000000000000000000"
+  }
+}

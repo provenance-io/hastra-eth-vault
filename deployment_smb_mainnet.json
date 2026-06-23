@@ -1,0 +1,16 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "deployedAt": "2026-06-18T23:09:01.523Z",
+  "yieldVaultAddress": "0x6aD038cA6C04e885630851278ca0a856Ad9a66Cc",
+  "smbStakingVaultProxy": "0xBd49537Cc9105E8c1651Ed12b94cD9A3D79Bf3d9",
+  "smbStakingVaultImplementation": "0x49c62f9c3d7d401a7933e2484ae88c70c9c59bec",
+  "tokenName": "Hastra SMB",
+  "tokenSymbol": "SMB",
+  "roles": {
+    "admin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "freezeAdmin": "0xA8C3CF6183D49d5D372f8FC149BD2cb5CFC0faCd",
+    "rewardsAdmin": "0xA8C3CF6183D49d5D372f8FC149BD2cb5CFC0faCd",
+    "navOracleUpdater": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3"
+  }
+}
