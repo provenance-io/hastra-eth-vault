@@ -153,6 +153,17 @@ async function listNavEngine(address: string) {
     updater = await nav.getUpdater();
   } catch {}
 
+  // V2-specific fields — silently absent on V1
+  let pauser: string | null = null;
+  let maxRateDeltaPercent: string | null = null;
+  let minUpdateInterval: string | null = null;
+  try {
+    const v2 = await ethers.getContractAt("HastraNavEngineV2", address);
+    pauser = await v2.getPauser();
+    maxRateDeltaPercent = (await v2.getMaxRateDeltaPercent()).toString();
+    minUpdateInterval = (await v2.getMinUpdateInterval()).toString();
+  } catch {}
+
   console.log(`\n${"═".repeat(62)}`);
   console.log(`  ROLE REPORT — NAVENGINE (Ownable2Step)`);
   console.log(`  Address: ${address}`);
@@ -161,6 +172,12 @@ async function listNavEngine(address: string) {
   console.log(`\n  owner:        ${owner}`);
   console.log(`  pendingOwner: ${pending}`);
   console.log(`  updater:      ${updater}`);
+  if (pauser !== null) {
+    console.log(`\n  ── V2 fields ──`);
+    console.log(`  pauser:             ${pauser}`);
+    console.log(`  maxRateDeltaPct:    ${maxRateDeltaPercent}`);
+    console.log(`  minUpdateInterval:  ${minUpdateInterval}s`);
+  }
   console.log(`\n${"═".repeat(62)}\n`);
 }
 
