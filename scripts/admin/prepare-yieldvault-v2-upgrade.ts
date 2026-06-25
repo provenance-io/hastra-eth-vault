@@ -323,8 +323,8 @@ async function main() {
   console.log("🔍 POST-UPGRADE VERIFICATION");
   console.log(sep);
   console.log(`# Implementation — read the EIP-1967 slot (UUPS proxies don't expose implementation()):`);
-  console.log(`cast storage ${proxyAddress} 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url $RPC_URL`);
-  console.log(`# Expected last 20 bytes: ${newImplAddress}`);
+  console.log(`cast storage ${proxyAddress} 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url $RPC_URL | cast to-address`);
+  console.log(`# Expected: ${newImplAddress}`);
   console.log(`\n# New role grants:`);
   console.log(
     `cast call ${proxyAddress} "hasRole(bytes32,address)(bool)" $(cast keccak "EPOCH_ADMIN") ${epochAdmin} --rpc-url $RPC_URL`
