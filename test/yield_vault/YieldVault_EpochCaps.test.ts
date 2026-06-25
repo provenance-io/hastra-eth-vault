@@ -184,7 +184,10 @@ describe("YieldVaultV2 epoch caps (Audit 4.1)", function () {
       const ctx = await loadFixture(deployV2WithCapsFixture);
       await expect(
         upgradeV1ToV2(ctx.v1, ctx.owner, ctx.epochAdmin.address, ctx.redeemOperator.address, 0n)
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError(
+        await ethers.getContractAt("YieldVaultV2", await ctx.v1.getAddress()),
+        "InvalidGlobalCap"
+      );
     });
 
     it("reverts CapsAlreadyInitialized when initializeV2 is re-run with a higher version", async function () {

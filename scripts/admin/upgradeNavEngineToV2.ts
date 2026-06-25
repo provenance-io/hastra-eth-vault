@@ -144,7 +144,7 @@ async function main() {
       console.log(`     cast call ${proxyAddress} "getPauser()(address)" --rpc-url $RPC`);
       console.log(`     cast call ${proxyAddress} "getMaxRateDeltaPercent()(uint256)" --rpc-url $RPC`);
       console.log(`     cast call ${proxyAddress} "getMinUpdateInterval()(uint256)" --rpc-url $RPC`);
-      console.log(`     cast call ${proxyAddress} "getMaxRate()(uint256)" --rpc-url $RPC`);
+      console.log(`     cast call ${proxyAddress} "getMaxRate()(int192)" --rpc-url $RPC`);
     }
   }
 

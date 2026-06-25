@@ -152,7 +152,7 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
             "function upgradeToAndCall(address newImplementation, bytes data)",
           ]).encodeFunctionData("upgradeToAndCall", [newImpl, initCalldata]),
         })
-      ).to.be.reverted; // bubbled InvalidAddress() from delegated initializeV2
+      ).to.be.revertedWithCustomError({ interface: (await ethers.getContractAt("YieldVaultV2", await vault.getAddress())).interface }, "InvalidAddress");
     });
 
     it("reverts on zero redeemOperator", async function () {
@@ -172,7 +172,7 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
             "function upgradeToAndCall(address newImplementation, bytes data)",
           ]).encodeFunctionData("upgradeToAndCall", [newImpl, initCalldata]),
         })
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError({ interface: (await ethers.getContractAt("YieldVaultV2", await vault.getAddress())).interface }, "InvalidAddress");
     });
 
     it("reverts when called by non-UPGRADER directly on the V2 proxy", async function () {
@@ -192,7 +192,7 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
       // but it should ALSO be blocked by onlyRole(UPGRADER_ROLE) for non-upgraders.
       await expect(
         v2.connect(user1).initializeV2(3, epochAdmin.address, redeemOperator.address, DEFAULT_GLOBAL_CAP)
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError(v2, "AccessControlUnauthorizedAccount");
     });
 
     it("cannot be re-run with the same version (reinitializer enforced)", async function () {
@@ -334,14 +334,13 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
     });
   });
 
-  describe("Sepolia-style upgrade (already at _initialized=2, pass version=3)", function () {
-    it("succeeds when called with version=3 against a proxy at _initialized=2", async function () {
-      // Simulate a Sepolia-like proxy: V1 deployProxy puts us at _initialized=1, so
-      // first bump it to 2 with a no-op reinitializer-equivalent. The cleanest way
-      // is to drive a real V2 upgrade with version=2 then a SECOND upgrade with
-      // version=3. But we only have one V2 contract; the second upgrade would just
-      // re-run the same bytecode. For coverage we drive version=3 directly on a
-      // fresh V1 proxy (still satisfies the version > _initialized check at 1<3).
+  describe("version=3 upgrade against a V1 proxy (covers Sepolia _initialized>1 path)", function () {
+    it("succeeds when initializeV2 is called with version=3 against a V1 proxy (_initialized=1)", async function () {
+      // A fresh V1 proxy has _initialized=1. Passing version=3 satisfies OZ's
+      // reinitializer check (version > _initialized) and exercises the same code
+      // path used on Sepolia where _initialized was already > 1 from prior upgrades.
+      // (True Sepolia simulation would require a proxy at _initialized=2, but that
+      // requires two separate V2 contracts — this covers the same bytecode branch.)
       const { vault, owner, epochAdmin, redeemOperator } = await loadFixture(
         deployV1AndUpgradeFixture
       );
