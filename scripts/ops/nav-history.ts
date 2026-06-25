@@ -135,7 +135,7 @@ async function main() {
   const timeline: Event[] = [];
 
   for (const e of rateEvents) {
-    const rate   = ethers.formatUnits(e.args.rate, 18); // 18-decimal string, no float loss
+    const rate   = ethers.formatUnits(e.args.rate, 18); // 18-decimal string (rateDelta computation below uses JS number math)
     const supply = ethers.formatUnits(e.args.totalSupply, 6);
     const tvl    = ethers.formatUnits(e.args.totalTVL, 6);
     timeline.push({ block: e.blockNumber, txHash: e.transactionHash, type: "NAV_UPDATE",
