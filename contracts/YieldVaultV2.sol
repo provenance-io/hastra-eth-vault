@@ -26,11 +26,12 @@ import "./YieldVault.sol";
  *      role(s) if anything goes wrong during the rehearsal window.
  *
  * @dev `initializeV2` takes the reinitializer version as a runtime argument so the same
- *      bytecode can be deployed to networks at different `_initialized` states:
- *        - Mainnet  YieldVault proxy `_initialized == 1` → call with `version = 2`
- *        - Sepolia  YieldVault proxy `_initialized == 2` → call with `version = 3`
+ *      bytecode can be deployed to networks at different `_initialized` states.
  *      Caller MUST pass a version strictly greater than the proxy's current
  *      `_initialized` value; the OZ `reinitializer(version)` modifier enforces this.
+ *
+ *      Example: mainnet proxies typically start at `_initialized == 1` (so `version = 2`),
+ *      but testnets may be higher depending on prior upgrades/reinitializers.
  *
  * @dev Must be invoked atomically via `upgradeToAndCall(newImpl, initializeV2Calldata)`
  *      so the role grants land in the same tx as the implementation swap.
