@@ -89,8 +89,8 @@ async function main() {
   const versionOverride = process.env.VERSION ? BigInt(process.env.VERSION) : undefined;
   const delayOverride = process.env.DELAY ? BigInt(process.env.DELAY) : undefined;
 
-  // Default: 5,000,000 wYLDS (6-dec) = 5_000_000_000_000 raw.
-  const DEFAULT_GLOBAL_CAP = 5_000_000n * 10n ** 6n;
+  // Default: 1,000,000 wYLDS (6-dec) = 1_000_000_000_000 raw.
+  const DEFAULT_GLOBAL_CAP = 1_000_000n * 10n ** 6n;
   const globalCap = process.env.GLOBAL_CAP ? BigInt(process.env.GLOBAL_CAP) : DEFAULT_GLOBAL_CAP;
   if (globalCap === 0n) throw new Error(`GLOBAL_CAP must be > 0; initializeV2 will revert InvalidGlobalCap.`);
 

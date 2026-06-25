@@ -186,6 +186,42 @@ describe("YieldVaultV2 epoch caps (Audit 4.1)", function () {
         upgradeV1ToV2(ctx.v1, ctx.owner, ctx.epochAdmin.address, ctx.redeemOperator.address, 0n)
       ).to.be.reverted;
     });
+
+    it("reverts CapsAlreadyInitialized when initializeV2 is re-run with a higher version", async function () {
+      // After a successful initializeV2 (maxEpochCap > 0), a subsequent call
+      // with a higher reinitializer version must be rejected so firstCappedEpoch
+      // and maxEpochCap cannot be overwritten (audit invariant).
+      const ctx = await loadFixture(deployV2WithCapsFixture);
+      const vault = await upgradeV1ToV2(
+        ctx.v1, ctx.owner, ctx.epochAdmin.address, ctx.redeemOperator.address, FIVE_M
+      );
+      expect(await vault.maxEpochCap()).to.equal(FIVE_M); // caps are live
+
+      // Prepare a higher-version call (version=3 since proxy is now at _initialized=2)
+      const YieldVaultV2Factory = await ethers.getContractFactory("YieldVaultV2");
+      const newImpl = await upgrades.prepareUpgrade(await vault.getAddress(), YieldVaultV2Factory, {
+        redeployImplementation: "always",
+      }) as string;
+      const iface = new ethers.Interface([
+        "function initializeV2(uint64 version, address epochAdmin, address redeemOperator, uint256 globalCap)",
+      ]);
+      const initCalldata = iface.encodeFunctionData("initializeV2", [
+        3, ctx.epochAdmin.address, ctx.redeemOperator.address, ONE_M,
+      ]);
+      const uupsIface = new ethers.Interface([
+        "function upgradeToAndCall(address newImplementation, bytes data)",
+      ]);
+      await expect(
+        ctx.owner.sendTransaction({
+          to: await vault.getAddress(),
+          data: uupsIface.encodeFunctionData("upgradeToAndCall", [newImpl, initCalldata]),
+        })
+      ).to.be.revertedWithCustomError(vault, "CapsAlreadyInitialized");
+
+      // State is unchanged after the failed re-run
+      expect(await vault.maxEpochCap()).to.equal(FIVE_M);
+      expect(await vault.firstCappedEpoch()).to.equal(0n);
+    });
   });
 
   describe("setMaxEpochCap", function () {
@@ -397,6 +433,53 @@ describe("YieldVaultV2 epoch caps (Audit 4.1)", function () {
       const YieldVault = await ethers.getContractFactory("YieldVault");
       const YieldVaultV2 = await ethers.getContractFactory("YieldVaultV2");
       await upgrades.validateUpgrade(YieldVault, YieldVaultV2, { kind: "uups" });
+    });
+  });
+
+  describe("createRewardsEpoch cap == 0 defense-in-depth", function () {
+    it("skips cap check when maxEpochCap is zero (proxy upgraded without initializeV2)", async function () {
+      // This exercises the `if (cap != 0 && ...)` false branch — explicitly
+      // documented as dead code for any properly-initialized V2 proxy but
+      // retained as defense-in-depth. We reach it by upgrading without calling
+      // initializeV2, leaving maxEpochCap == 0, then granting EPOCH_ADMIN_ROLE
+      // manually and creating an epoch. The call must succeed (no cap enforcement).
+      const ctx = await loadFixture(deployV2WithCapsFixture);
+
+      const YieldVaultV2Factory = await ethers.getContractFactory("YieldVaultV2");
+      const newImpl = (await upgrades.prepareUpgrade(
+        await ctx.v1.getAddress(),
+        YieldVaultV2Factory,
+        { redeployImplementation: "always" }
+      )) as string;
+
+      // Upgrade with empty calldata — initializeV2 NOT called, maxEpochCap stays 0
+      const uupsIface = new ethers.Interface([
+        "function upgradeToAndCall(address newImplementation, bytes data)",
+      ]);
+      await ctx.owner.sendTransaction({
+        to: await ctx.v1.getAddress(),
+        data: uupsIface.encodeFunctionData("upgradeToAndCall", [newImpl, "0x"]),
+      });
+
+      const vault = (await ethers.getContractAt(
+        "YieldVaultV2",
+        await ctx.v1.getAddress()
+      )) as unknown as YieldVaultV2;
+
+      // maxEpochCap is still 0 — the cap guard must be skipped (not reverted)
+      expect(await vault.maxEpochCap()).to.equal(0n);
+
+      // Grant EPOCH_ADMIN_ROLE manually so we can call createRewardsEpoch
+      const EPOCH_ADMIN_ROLE = await vault.EPOCH_ADMIN_ROLE();
+      const DEFAULT_ADMIN_ROLE = await vault.DEFAULT_ADMIN_ROLE();
+      // DEFAULT_ADMIN_ROLE was not granted to Timelock here — owner held it via V1
+      await vault.connect(ctx.owner).grantRole(EPOCH_ADMIN_ROLE, ctx.owner.address);
+
+      const root = ethers.keccak256(ethers.toUtf8Bytes("cap-zero-test"));
+      // totalRewards > 0 — but cap == 0 so the guard is skipped → should succeed
+      await expect(
+        vault.connect(ctx.owner).createRewardsEpoch(0, root, ethers.parseUnits("999999", 6))
+      ).to.not.be.reverted;
     });
   });
 });

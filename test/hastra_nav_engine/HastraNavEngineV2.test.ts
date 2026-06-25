@@ -497,6 +497,30 @@ describe("HastraNavEngineV2", function () {
         fresh.connect(updater).updateRate(ethers.parseEther("1"), ethers.parseEther("0.4"))
       ).to.be.revertedWithCustomError(fresh, "RateOutOfBounds");
     });
+
+    it("Should revert RateOverflow when computed rate exceeds int192 max (V2 updateRate)", async function () {
+      // Deploy fresh V2 with maxRate = int192.max so the absolute-bounds check
+      // does not fire before the overflow check on line 86.
+      const int192Max = BigInt(2) ** BigInt(191) - BigInt(1);
+      const V1Factory = await ethers.getContractFactory("HastraNavEngine");
+      const v1 = await upgrades.deployProxy(
+        V1Factory,
+        [owner.address, updater.address, MAX_DIFFERENCE_PERCENT, MIN_RATE, int192Max],
+        { initializer: "initialize", kind: "uups" }
+      );
+      await v1.waitForDeployment();
+      const V2Factory = await ethers.getContractFactory("HastraNavEngineV2");
+      const fresh = await upgrades.upgradeProxy(
+        await v1.getAddress(),
+        V2Factory,
+        { call: { fn: "initializeV2", args: [pauser.address, MAX_RATE_DELTA_PERCENT, MIN_UPDATE_INTERVAL] } }
+      ) as unknown as HastraNavEngineV2;
+
+      // supply=1 wei, TVL = int192Max + 1 → calculatedRate = (int192Max+1)*1e18 overflows int192
+      await expect(
+        fresh.connect(updater).updateRate(1n, int192Max + 1n)
+      ).to.be.revertedWithCustomError(fresh, "RateOverflow");
+    });
   });
 
   // ====================================================================

@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import type { MockUSDC, YieldVault, YieldVaultV2 } from "../../typechain-types";
+import type { MockUSDC, MockReentrantUSDC, YieldVault, YieldVaultV2 } from "../../typechain-types";
 
 /**
  * Tests for the production V2 role-split upgrade — `contracts/YieldVaultV2.sol`.
@@ -521,6 +521,69 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
       await expect(
         v2.connect(user1).claimRewards(0, amount, [])
       ).to.be.revertedWithCustomError(v2, "EnforcedPause");
+    });
+  });
+
+  // =========================================================================
+  // nonReentrant guard — covers the "already entered → revert" branch
+  // =========================================================================
+  describe("nonReentrant guard", function () {
+    async function reentrantFixture() {
+      const [owner, redeemVaultSigner, redeemOperator, epochAdmin, user1] =
+        await ethers.getSigners();
+
+      // Deploy the reentrant USDC that re-enters completeRedeem on transferFrom
+      const ReentrantUSDC = await ethers.getContractFactory("MockReentrantUSDC");
+      const usdc = (await ReentrantUSDC.deploy()) as unknown as MockReentrantUSDC;
+      await usdc.waitForDeployment();
+
+      const YieldVaultFactory = await ethers.getContractFactory("YieldVault");
+      const v1 = (await upgrades.deployProxy(
+        YieldVaultFactory,
+        [
+          await usdc.getAddress(),
+          "Wrapped YLDS",
+          "wYLDS",
+          owner.address,
+          redeemVaultSigner.address,
+          ethers.ZeroAddress,
+        ],
+        { kind: "uups" }
+      )) as unknown as YieldVault;
+      await v1.waitForDeployment();
+
+      const deposit = ethers.parseUnits("100", 6);
+      await usdc.mint(user1.address, deposit);
+      await usdc.mint(redeemVaultSigner.address, deposit);
+      await usdc.connect(user1).approve(await v1.getAddress(), ethers.MaxUint256);
+      await usdc.connect(redeemVaultSigner).approve(await v1.getAddress(), ethers.MaxUint256);
+
+      const DEFAULT_GLOBAL_CAP = ethers.parseUnits("5000000", 6);
+      const v2 = await upgradeToV2(
+        v1, owner, 2, epochAdmin.address, redeemOperator.address, DEFAULT_GLOBAL_CAP
+      );
+
+      // user1 deposits and requests full redemption
+      await v1.connect(user1).deposit(deposit, user1.address);
+      const shares = await v2.balanceOf(user1.address);
+      await v2.connect(user1).requestRedeem(shares);
+
+      // Grant REDEEM_OPERATOR_ROLE to the reentrant USDC contract so the
+      // re-entrant call passes onlyRole and reaches the nonReentrant guard.
+      const REDEEM_OPERATOR_ROLE = await v2.REDEEM_OPERATOR_ROLE();
+      await v2.connect(owner).grantRole(REDEEM_OPERATOR_ROLE, await usdc.getAddress());
+
+      // Arm the re-entrant mock: completeRedeem → safeTransferFrom → USDC.transferFrom → re-enters completeRedeem
+      await usdc.enableReentry(await v2.getAddress(), user1.address);
+
+      return { v2, usdc, redeemOperator, user1 };
+    }
+
+    it("completeRedeem reverts ReentrancyGuardReentrantCall when re-entered via transferFrom", async function () {
+      const { v2, redeemOperator, user1 } = await reentrantFixture();
+      await expect(
+        v2.connect(redeemOperator).completeRedeem(user1.address)
+      ).to.be.revertedWithCustomError(v2, "ReentrancyGuardReentrantCall");
     });
   });
 });

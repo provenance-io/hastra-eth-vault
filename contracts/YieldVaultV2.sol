@@ -154,6 +154,12 @@ contract YieldVaultV2 is YieldVault {
     ///         (zero) global cap.
     error InvalidGlobalCap();
 
+    /// @notice Reverted by `initializeV2` when cap state has already been set.
+    ///         The cap boundary (`firstCappedEpoch`) and global cap (`maxEpochCap`)
+    ///         are one-shot: re-running `initializeV2` with a higher reinitializer
+    ///         version must not be allowed to move the boundary or overwrite the cap.
+    error CapsAlreadyInitialized();
+
     /// @notice Emitted by `setMaxEpochCap` whenever the global cap changes.
     event MaxEpochCapUpdated(uint256 oldCap, uint256 newCap);
 
@@ -211,6 +217,12 @@ contract YieldVaultV2 is YieldVault {
 
         _grantRole(EPOCH_ADMIN_ROLE, epochAdmin);
         _grantRole(REDEEM_OPERATOR_ROLE, redeemOperator);
+
+        // Cap state is one-shot. `maxEpochCap > 0` means a prior initializeV2
+        // already set the boundary. Allowing a re-run would silently move
+        // `firstCappedEpoch` forward (grandfathering already-enforced epochs)
+        // and overwrite `maxEpochCap` — both violate the audit invariant.
+        if (maxEpochCap != 0) revert CapsAlreadyInitialized();
 
         firstCappedEpoch = currentEpochIndex;
         maxEpochCap      = globalCap;
