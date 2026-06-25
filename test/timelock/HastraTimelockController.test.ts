@@ -9,7 +9,7 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
  * Covers:
  *   - Construction wires the expected roles (PROPOSER, CANCELLER, EXECUTOR,
  *     DEFAULT_ADMIN) to the right addresses.
- *   - getMinDelay() reflects the 24h default required by REQUIREMENTS §4.3.
+ *   - getMinDelay() reflects the constructor-supplied delay.
  *   - Schedule -> wait -> execute happy path.
  *   - Execute before delay reverts.
  *   - Cancel by canceller succeeds; cancel by random EOA reverts.
@@ -17,7 +17,7 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
  *   - "Open execution" (anyone may execute after delay) holds.
  */
 describe("HastraTimelockController", function () {
-  const DELAY = 86_400; // 24h — REQUIREMENTS §4.3 default
+  const DELAY = 86_400; // 24h (test value; deploy-timelock.ts defaults to 12h unless overridden)
 
   async function deployFixture() {
     const [admin, safe, executor, randomUser] = await ethers.getSigners();
