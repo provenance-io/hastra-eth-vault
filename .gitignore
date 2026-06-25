@@ -70,8 +70,8 @@ local_docs/
 forge-out/
 forge-cache/
 
-# Foundry libs
-lib/
+# Foundry libs (anchored to repo root — does not affect scripts/deploy/lib/)
+/lib/
 bot/
 
 AGENTS.md
