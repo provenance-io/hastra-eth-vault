@@ -17,7 +17,7 @@ describe("YieldVault Upgradeability", function () {
     return { yieldVault, owner };
   }
 
-  it("Should upgrade to V2 successfully", async function () {
+  it("Should upgrade implementation successfully", async function () {
     const { yieldVault, owner } = await loadFixture(deployFixture);
     
     const YieldVaultV2 = await ethers.getContractFactory("YieldVaultUpgradeMock");
