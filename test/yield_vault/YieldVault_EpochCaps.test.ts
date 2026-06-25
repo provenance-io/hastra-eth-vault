@@ -13,7 +13,7 @@ import type { MockUSDC, YieldVault, YieldVaultV2 } from "../../typechain-types";
  * The Merkle claim path is then driven with a per-epoch budget smaller than the
  * sum of leaves to exercise the over-cap revert.
  *
- * Pre-cap epochs (created before `initializeCaps` runs) remain claimable with
+ * Pre-cap epochs (created before `initializeV2` runs) remain claimable with
  * V1 semantics — covered by the existing `YieldVault.test.ts` suite.
  */
 describe("YieldVaultV2 epoch caps (Audit 4.1)", function () {
@@ -295,12 +295,12 @@ describe("YieldVaultV2 epoch caps (Audit 4.1)", function () {
         .withArgs(epochIndex, leafAmount, 0n, declared);
     });
 
-    it("accepts claims summing exactly to epoch.totalRewards; rejects the next claim", async function () {
+    it("rejects claim that would push cumulative past epoch.totalRewards; accepts smaller claim after revert", async function () {
       const { vault, epochAdmin, user1, user2, user3 } = await freshV2(FIVE_M);
 
       const epochIndex = 0;
       const amt = ethers.parseUnits("40", 6);
-      const declared = ethers.parseUnits("100", 6); // exactly covers user1+user2
+      const declared = ethers.parseUnits("100", 6); // cap: user1(40) fits, user2(80) busts it
       const overAmt = ethers.parseUnits("30", 6);   // any extra busts the cap
 
       const tree = createMerkleTree([
@@ -334,7 +334,7 @@ describe("YieldVaultV2 epoch caps (Audit 4.1)", function () {
         .to.be.revertedWithCustomError(vault, "EpochCapExceeded")
         .withArgs(epochIndex, amt + amt, amt, declared);
 
-      // user3 claims 30 → cumulative 70, fits within cap
+      // user3 claims 30 → cumulative 70 (counter stayed at 40 because user2 reverted), fits within cap
       await vault
         .connect(user3)
         .claimRewards(

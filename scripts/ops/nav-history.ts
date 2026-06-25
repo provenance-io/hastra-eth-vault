@@ -46,6 +46,7 @@ interface Event {
   txHash: string;   // full hash
   type: string;
   rate?: string;
+  _rawRate?: bigint; // raw 18-dec bigint for lossless delta math
   rateDelta?: string;
   supply?: string;
   tvl?: string;
@@ -135,11 +136,11 @@ async function main() {
   const timeline: Event[] = [];
 
   for (const e of rateEvents) {
-    const rate   = ethers.formatUnits(e.args.rate, 18); // 18-decimal string (rateDelta computation below uses JS number math)
+    const rate   = ethers.formatUnits(e.args.rate, 18); // 18-decimal string, lossless
     const supply = ethers.formatUnits(e.args.totalSupply, 6);
     const tvl    = ethers.formatUnits(e.args.totalTVL, 6);
     timeline.push({ block: e.blockNumber, txHash: e.transactionHash, type: "NAV_UPDATE",
-      rate, supply, tvl });
+      rate, supply, tvl, _rawRate: e.args.rate as bigint });
   }
 
   for (const e of depositEvents) {
@@ -166,15 +167,22 @@ async function main() {
       amount: value, address: e.args.to });
   }
 
-  timeline.sort((a, b) => a.block - b.block);
+  timeline.sort((a, b) => a.block !== b.block ? a.block - b.block : a.txHash.localeCompare(b.txHash));
 
-  // Compute rate deltas now that timeline is sorted
-  let lastRate = 0;
+  // Compute rate deltas using bigint math to avoid JS float rounding
+  let lastRawRate = 0n;
   for (const ev of timeline) {
-    if (ev.type === "NAV_UPDATE" && ev.rate) {
-      const r = parseFloat(ev.rate);
-      ev.rateDelta = lastRate > 0 ? ((r - lastRate) / lastRate * 100).toFixed(6) + "%" : "first";
-      lastRate = r;
+    if (ev.type === "NAV_UPDATE" && ev._rawRate !== undefined) {
+      if (lastRawRate > 0n) {
+        // delta% = (new - old) / old * 100, scaled to 6 decimal places
+        const deltaBps = (ev._rawRate - lastRawRate) * 100_000_000n / lastRawRate;
+        const sign = deltaBps < 0n ? "-" : "";
+        const abs = deltaBps < 0n ? -deltaBps : deltaBps;
+        ev.rateDelta = `${sign}${(abs / 1_000_000n).toString()}.${(abs % 1_000_000n).toString().padStart(6, "0")}%`;
+      } else {
+        ev.rateDelta = "0.000000%";
+      }
+      lastRawRate = ev._rawRate;
     }
   }
 
