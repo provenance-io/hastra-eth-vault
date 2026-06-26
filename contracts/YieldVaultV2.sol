@@ -239,6 +239,10 @@ contract YieldVaultV2 is YieldVault {
      *         Zero is rejected — use `pause()` to halt activity, not a 0 cap.
      */
     function setMaxEpochCap(uint256 newCap) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        // Block calls before initializeV2 has run. If maxEpochCap is still 0,
+        // the V2 sentinel hasn't been set — allowing setMaxEpochCap here would
+        // permanently trip the CapsAlreadyInitialized guard and brick initializeV2.
+        if (maxEpochCap == 0) revert InvalidInitialization();
         if (newCap == 0) revert InvalidGlobalCap();
         uint256 oldCap = maxEpochCap;
         maxEpochCap = newCap;

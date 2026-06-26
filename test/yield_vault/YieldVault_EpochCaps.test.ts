@@ -248,6 +248,33 @@ describe("YieldVaultV2 epoch caps (Audit 4.1)", function () {
       ).to.be.revertedWithCustomError(vault, "InvalidGlobalCap");
     });
 
+    it("reverts InvalidInitialization when called before initializeV2 (caps not yet set)", async function () {
+      // Simulate upgrade without upgradeToAndCall: proxy is V2 bytecode but
+      // initializeV2 was never called → maxEpochCap == 0.
+      // setMaxEpochCap must block here to prevent permanently bricking initializeV2.
+      const ctx = await loadFixture(deployV2WithCapsFixture);
+      const YieldVaultV2Factory = await ethers.getContractFactory("YieldVaultV2");
+      const newImpl = (await upgrades.prepareUpgrade(await ctx.v1.getAddress(), YieldVaultV2Factory, {
+        redeployImplementation: "always",
+      })) as string;
+      // Upgrade with empty calldata — initializeV2 NOT called, maxEpochCap stays 0
+      const uupsIface = new ethers.Interface([
+        "function upgradeToAndCall(address newImplementation, bytes data)",
+      ]);
+      await ctx.owner.sendTransaction({
+        to: await ctx.v1.getAddress(),
+        data: uupsIface.encodeFunctionData("upgradeToAndCall", [newImpl, "0x"]),
+      });
+      const vault = (await ethers.getContractAt("YieldVaultV2", await ctx.v1.getAddress())) as unknown as YieldVaultV2;
+      expect(await vault.maxEpochCap()).to.equal(0n);
+
+      await expect(
+        vault.connect(ctx.owner).setMaxEpochCap(ONE_M)
+      ).to.be.revertedWithCustomError(vault, "InvalidInitialization");
+    });
+
+
+
     it("reverts when called by non-admin", async function () {
       const { vault, user1 } = await freshV2();
       await expect(vault.connect(user1).setMaxEpochCap(ONE_M)).to.be.reverted;
