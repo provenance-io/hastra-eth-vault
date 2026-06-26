@@ -190,7 +190,8 @@ async function main() {
     const record: Record<string, any> = {
       network: net.name,
       chainId: net.chainId.toString(),
-      upgradedAt: new Date().toISOString(),
+      implDeployedAt: new Date().toISOString(),
+      status: deployerIsOwner ? "upgraded" : "impl_deployed_pending_safe_execution",
       proxy: proxyAddress,
       implementation: newImplAddress,
       v2Config: {
