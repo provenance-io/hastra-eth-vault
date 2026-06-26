@@ -94,21 +94,31 @@ async function main() {
   if (!stakingVaultAddr) throw new Error("STAKING_VAULT env var required");
 
   const BLOCKS_PER_HOUR = 300; // ~12s/block on mainnet
-  const hoursBack = Number(process.env.HOURS_BACK ?? 24);
+  const requestedHoursBack = Number(process.env.HOURS_BACK ?? 24);
+
   const provider = ethers.provider;
   const latestBlock = await provider.getBlockNumber();
-  const fromBlock = process.env.FROM_BLOCK
+
+  const toBlock =
+    process.env.TO_BLOCK === "latest" || !process.env.TO_BLOCK
+      ? latestBlock
+      : Number(process.env.TO_BLOCK);
+
+  const fromBlockRaw = process.env.FROM_BLOCK
     ? Number(process.env.FROM_BLOCK)
-    : latestBlock - Math.ceil(hoursBack * BLOCKS_PER_HOUR);
-  const toBlock   = process.env.TO_BLOCK === "latest" || !process.env.TO_BLOCK
-    ? latestBlock
-    : Number(process.env.TO_BLOCK);
+    : toBlock - Math.ceil(requestedHoursBack * BLOCKS_PER_HOUR);
+  const fromBlock = Math.max(0, fromBlockRaw);
+
+  // Effective window size used for reporting/bucketing (FROM_BLOCK overrides HOURS_BACK).
+  const hoursBack = Math.max(0, Math.ceil((toBlock - fromBlock + 1) / BLOCKS_PER_HOUR));
 
   console.log(`\n${"═".repeat(72)}`);
   console.log(`  NAV History — ${net}`);
   console.log(`  NavEngine:    ${navEngineAddr}`);
   console.log(`  StakingVault: ${stakingVaultAddr}`);
-  console.log(`  Blocks:       ${fromBlock.toLocaleString()} → ${toBlock.toLocaleString()} (${hoursBack}h back, chunk=${CHUNK})`);
+  console.log(
+    `  Blocks:       ${fromBlock.toLocaleString()} → ${toBlock.toLocaleString()} (${hoursBack}h window, chunk=${CHUNK})`
+  );
   console.log(`${"═".repeat(72)}\n`);
 
   const navEngine    = new ethers.Contract(navEngineAddr, NAV_ENGINE_ABI, provider);
