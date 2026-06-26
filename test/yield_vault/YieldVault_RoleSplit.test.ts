@@ -152,7 +152,7 @@ describe("YieldVaultV2 role split (production upgrade)", function () {
             "function upgradeToAndCall(address newImplementation, bytes data)",
           ]).encodeFunctionData("upgradeToAndCall", [newImpl, initCalldata]),
         })
-      ).to.be.revertedWithCustomError({ interface: (await ethers.getContractAt("YieldVaultV2", await vault.getAddress())).interface }, "InvalidAddress");
+      ).to.be.revertedWithCustomError(YieldVaultV2, "InvalidAddress");
     });
 
     it("reverts on zero redeemOperator", async function () {
