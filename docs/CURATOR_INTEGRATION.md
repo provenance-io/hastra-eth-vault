@@ -122,6 +122,9 @@ await tx.wait();
 // (requires EIP-2612 permit signature)
 ```
 
+> [!NOTE]
+> `depositWithPermit(assets, receiver, deadline, v, r, s)` calls `USDC.permit()` then `deposit()` atomically, saving one transaction. The permit call is wrapped in a `try/catch` — if a front-runner already consumed the nonce (setting the allowance), the deposit still succeeds via `transferFrom`. USDC on mainnet supports EIP-2612 permits.
+
 **Key facts**:
 - No fee on deposit
 - Ratio is always 1:1 (1,000 USDC → 1,000 wYLDS)
