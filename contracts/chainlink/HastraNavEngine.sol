@@ -83,7 +83,7 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
      */
     // totalSupply = Total pTokens (Prime tokens) issued
     // totalAssets = Total wYLDS held = Total USDC value (since 1:1)
-    function updateRate(uint256 totalSupply_, uint256 totalTVL_) external onlyUpdater whenNotPaused returns (int192) {
+    function updateRate(uint256 totalSupply_, uint256 totalTVL_) external virtual onlyUpdater whenNotPaused returns (int192) {
         if (totalSupply_ == 0) revert TotalSupplyIsZero();
         NavEngineStorage storage $ = _getStorage();
 
@@ -133,10 +133,10 @@ contract HastraNavEngine is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
     function setMaxDifferencePercent(uint256 maxDifferencePercent_) external onlyOwner { _setMaxDifferencePercent(maxDifferencePercent_); }
     function setMinRate(int192 minRate_) external onlyOwner { _setMinRate(minRate_); }
     function setMaxRate(int192 maxRate_) external onlyOwner { _setMaxRate(maxRate_); }
-    function pause() external onlyOwner { _pause(); }
-    function unpause() external onlyOwner { _unpause(); }
+    function pause() external virtual onlyOwner { _pause(); }
+    function unpause() external virtual onlyOwner { _unpause(); }
 
-    function _getStorage() private pure returns (NavEngineStorage storage $) {
+    function _getStorage() internal pure returns (NavEngineStorage storage $) {
         assembly { $.slot := NAV_ENGINE_STORAGE_SLOT }
     }
 

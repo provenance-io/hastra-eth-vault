@@ -1,0 +1,13 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "upgradedAt": "2026-06-23T15:40:53.690Z",
+  "proxy": "0x69415F7957Cdf05dD29EA9d7Ae5EF17734a14EEc",
+  "implementation": "0xF8Db35b8f6f19794d79b57493f40ecf9AD0B15b6",
+  "v2Config": {
+    "pauser": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "maxRateDeltaPercent": "100000000000000000",
+    "minUpdateInterval": "60",
+    "maxRate": "2000000000000000000"
+  }
+}

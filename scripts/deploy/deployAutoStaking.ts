@@ -28,6 +28,7 @@
 // @ts-ignore
 import { ethers, upgrades, run } from "hardhat";
 import * as fs from "fs";
+import { patchProviderForCheckTxBug } from "./lib/patchProvider";
 
 export interface DeployAutoStakingOptions {
   /** Env-var prefix used to read TOKEN_NAME / TOKEN_SYMBOL overrides. e.g. "AUTO" or "SMB". */
@@ -58,6 +59,7 @@ export interface DeployAutoStakingOptions {
 
 export async function deployAutoStakingInstance(opts: DeployAutoStakingOptions): Promise<void> {
   const [deployer] = await ethers.getSigners();
+  patchProviderForCheckTxBug(ethers.provider);
   const isDryRun = process.env.DRY_RUN === "true";
   const contractName = opts.contractName ?? "AutoStakingVault";
   const verifyContract = opts.verifyContract ?? `contracts/${contractName}.sol:${contractName}`;
