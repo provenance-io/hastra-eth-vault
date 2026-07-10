@@ -92,7 +92,7 @@ Contact Chainlink with:
 - **Chain**: Holesky (17000)
 - **Function**: `getRate() returns (int192)`
 - **Schema**: v7 (Redemption Rates)
-- **Polling Frequency**: DON observations every ~1 minute; bot submissions average every ~30 minutes
+- **Polling Frequency**: Determined by Chainlink DON configuration; contact Chainlink for current parameters
 
 The DON will:
 1. Call `getRate()` on NavEngine
@@ -122,7 +122,7 @@ func (b *NavBot) getTotalSupply(ctx context.Context) (*big.Int, error) {
 Once everything is deployed:
 
 1. **Bot calls NavEngine.updateRate()**
-   - Every hour (configurable)
+   - On a configurable schedule
    - With fresh totalSupply and totalTVL
 
 2. **NavEngine stores rate as int192**
@@ -130,7 +130,7 @@ Once everything is deployed:
    - Emits events
 
 3. **Chainlink DON reads getRate()**
-   - Observations every ~1 minute
+   - On a schedule determined by Chainlink DON configuration
    - Gets int192 value
 
 4. **DON signs and publishes**
@@ -138,7 +138,7 @@ Once everything is deployed:
    - Publishes to Data Streams API
 
 5. **Bot fetches signed report**
-   - From Chainlink API (~every 30 minutes average)
+   - From Chainlink API on a configurable schedule
    - Submits to FeedVerifier via `verifyReport()`
 
 6. **FeedVerifier verifies**
