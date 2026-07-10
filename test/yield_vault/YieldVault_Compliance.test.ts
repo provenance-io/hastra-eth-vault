@@ -206,6 +206,68 @@ describe("YieldVault Compliance (Freeze/Thaw)", function () {
     ).to.be.revertedWithCustomError(yieldVault, "EnforcedPause");
   });
 
+  // ── Frozen sender deposit/mint gap (audit finding) ───────────────────────────
+
+  it("frozen sender cannot deposit to an unfrozen receiver", async function () {
+    const { yieldVault, usdc, freezeAdmin, userA, userB } = await loadFixture(deployFixture);
+
+    // Give userA fresh USDC and freeze them
+    const amount = ethers.parseUnits("100", 6);
+    await usdc.mint(userA.address, amount);
+    await usdc.connect(userA).approve(await yieldVault.getAddress(), amount);
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+
+    // Frozen sender trying to mint shares into unfrozen receiver must revert
+    await expect(
+      yieldVault.connect(userA).deposit(amount, userB.address)
+    ).to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
+  });
+
+  it("frozen sender cannot deposit to themselves", async function () {
+    const { yieldVault, usdc, freezeAdmin, userA } = await loadFixture(deployFixture);
+
+    const amount = ethers.parseUnits("100", 6);
+    await usdc.mint(userA.address, amount);
+    await usdc.connect(userA).approve(await yieldVault.getAddress(), amount);
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+
+    await expect(
+      yieldVault.connect(userA).deposit(amount, userA.address)
+    ).to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
+  });
+
+  it("frozen sender cannot mint shares to an unfrozen receiver", async function () {
+    const { yieldVault, usdc, freezeAdmin, userA, userB } = await loadFixture(deployFixture);
+
+    const assets = ethers.parseUnits("100", 6);
+    await usdc.mint(userA.address, assets);
+    await usdc.connect(userA).approve(await yieldVault.getAddress(), assets);
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+
+    // mint() takes shares not assets — use same amount as approximation
+    await expect(
+      yieldVault.connect(userA).mint(assets, userB.address)
+    ).to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
+  });
+
+  it("unfrozen sender can still deposit to a different unfrozen receiver after freeze of third party", async function () {
+    const { yieldVault, usdc, freezeAdmin, userA, userB, owner } = await loadFixture(deployFixture);
+
+    // Freeze userA only
+    await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
+
+    // userB (unfrozen) deposits to owner (unfrozen) — should succeed
+    const amount = ethers.parseUnits("100", 6);
+    await usdc.mint(userB.address, amount);
+    await usdc.connect(userB).approve(await yieldVault.getAddress(), amount);
+
+    await expect(
+      yieldVault.connect(userB).deposit(amount, owner.address)
+    ).to.not.be.reverted;
+
+    expect(await yieldVault.balanceOf(owner.address)).to.equal(amount);
+  });
+
   it("Should revert with AddressNotFoundInWhitelistArray on mapping/array desync", async function () {
     // Regression: removeFromWhitelist must revert (not silently succeed) when the mapping
     // says the account is whitelisted but the array does not contain it.

@@ -10,11 +10,12 @@ On-chain NAV calculation engine that Chainlink DON reads from. Conforms to Chain
 - **Schema v7 Compliance:** ✅ Returns `int192` exchange rate
 
 ## Key Features
-1. **Rate Calculation:** `rate = totalTVL / totalSupply` (18 decimals)
-2. **Safety Checks:**
-   - Min/max rate bounds
-   - Max TVL change percent between updates
-   - Graceful degradation (alerts instead of reverts)
+1. **Rate Calculation:** `rate = (totalTVL × 1e18) / totalSupply` — result is 1e18 scaled (Schema v7 format). Inputs (`totalSupply`, `totalTVL`) are raw vault values in 6 decimals (PRIME shares and wYLDS use 6 decimals).
+2. **Safety Checks — all invalid inputs revert:**
+   - `TotalSupplyIsZero` — supply is zero
+   - `TVLIsZero` — TVL is zero
+   - `TVLDifferenceExceeded` — TVL changed more than `maxDifferencePercent` vs previous
+   - `RateOutOfBounds` — computed rate outside min/max bounds
 3. **Access Control:**
    - Owner: Admin operations
    - Updater: Can call `updateRate()`
@@ -106,9 +107,10 @@ Point Chainlink DON to read from your deployed NavEngine:
 
 #### `updateRate(uint256 totalSupply, uint256 totalTVL) returns (int192)`
 Updates the NAV rate. Only callable by updater role.
-- **totalSupply:** Total supply of vault shares (18 decimals)
-- **totalTVL:** Total value locked in underlying assets (18 decimals)
-- **Returns:** Current rate as int192 (Schema v7)
+- **totalSupply:** Total supply of vault shares — raw vault value (6 decimals, e.g. 1000 PRIME = `1000e6`)
+- **totalTVL:** Total value locked in underlying assets — raw vault value (6 decimals, e.g. 1500 wYLDS = `1500e6`)
+- **Rate formula:** `(totalTVL * 1e18) / totalSupply` — produces a 1e18-scaled result as required by Chainlink Schema v7
+- **Returns:** Current rate as int192 (1e18 scaled, Schema v7)
 
 #### `getRate() returns (int192)`
 Returns current NAV rate. Read by Chainlink DON.
@@ -135,11 +137,6 @@ Returns current NAV rate. Read by Chainlink DON.
 ### Success
 - `RateUpdated(int192 rate, uint256 totalSupply, uint256 totalTVL, uint256 timestamp)`
 
-### Alerts (Graceful Degradation)
-- `AlertInvalidTVL(uint256 tvl, uint256 timestamp)`
-- `AlertInvalidTVLDifference(uint256 previousTVL, uint256 newTVL, uint256 timestamp)`
-- `AlertInvalidRate(int192 rate, uint256 timestamp)`
-
 ### Admin
 - `UpdaterSet(address updater)`
 - `MinRateSet(int192 minRate)`
@@ -160,20 +157,16 @@ Once deployed:
 1. Provide contract address to Chainlink
 2. Specify `getRate()` as the data source function
 3. Confirm Schema v7 (Redemption Rates) configuration
-4. Set polling frequency (e.g., every 4 hours)
+4. Set polling frequency (DON observes ~every 1 minute; bot submits ~every 30 minutes)
 5. Test with DON on testnet first
 
 ## Troubleshooting
 
 ### Rate not updating
 - Check updater has sufficient gas
-- Verify rate is within min/max bounds
-- Check TVL change is within maxDifferencePercent
-
-### Alert events firing
-- `AlertInvalidTVL`: TVL is zero - check calculation
-- `AlertInvalidRate`: Rate outside bounds - adjust bounds or fix calculation
-- `AlertInvalidTVLDifference`: TVL changed >10% - expected for large deposits/withdrawals
+- Verify rate is within min/max bounds (`RateOutOfBounds` revert)
+- Check TVL change is within `maxDifferencePercent` (`TVLDifferenceExceeded` revert)
+- Check TVL and supply are non-zero (`TVLIsZero` / `TotalSupplyIsZero` reverts)
 
 ### Upgrade fails
 - Verify caller is owner

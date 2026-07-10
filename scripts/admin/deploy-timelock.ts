@@ -26,13 +26,13 @@ import * as path from "path";
  *   PRIVATE_KEY=0x... \
  *   SEPOLIA_RPC_URL=https://... \
  *   SAFE=0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4 \
- *   DELAY=43200 \
+ *   DELAY=86400 \
  *   DRY_RUN=true \
  *     npx hardhat run scripts/admin/deploy-timelock.ts --network sepolia
  *
  * Env vars:
  *   SAFE      - Safe multisig address (proposer/canceller/admin). Required.
- *   DELAY     - Timelock delay in seconds. Default: 43200 (12h, per REQUIREMENTS §4.3).
+ *   DELAY     - Timelock delay in seconds. Default: 86400 (24h, per REQUIREMENTS §4.3).
  *   DRY_RUN   - If "true", skips deployment and only prints what would happen.
  *   YIELD_VAULT   - Override YieldVault proxy address.
  *   STAKING_VAULT - Override StakingVault proxy address.
@@ -72,7 +72,7 @@ function persistTimelock(networkName: string, entry: Record<string, any>): void 
 
 async function main() {
     const safeAddress = process.env.SAFE;
-    const delaySeconds = parseInt(process.env.DELAY || "43200"); // 12h default (REQUIREMENTS §4.3)
+    const delaySeconds = parseInt(process.env.DELAY || "86400"); // 24h default (REQUIREMENTS §4.3)
     const dryRun = process.env.DRY_RUN === "true";
 
     if (!safeAddress) throw new Error("SAFE env var required (Safe multisig address)");

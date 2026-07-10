@@ -10,7 +10,7 @@
         │ updateRate(supply, TVL)
         ▼
 ┌─────────────────────────────────────┐
-│ HastraNavEngine                     │ ← Deployed on Sepolia
+│ HastraNavEngine                     │ ← Deployed on mainnet + Sepolia
 │                                     │
 │ - Calculates rate                   │
 │ - Returns int192 (Schema v7)        │
@@ -28,10 +28,10 @@
 │  Your Bot       │
 │  (fetches API)  │
 └───────┬─────────┘
-        │ submitReport()
+        │ verifyReport()
         ▼
 ┌─────────────────────────────────────┐
-│ FeedVerifier                        │ ← Deployed to Sepolia
+│ FeedVerifier                        │ ← Deployed on mainnet + Sepolia
 │ - Verifies signature                │
 │ - Stores verified rate              │
 └───────┬─────────────────────────────┘
@@ -45,12 +45,17 @@
 
 ## Deployed Contracts
 
-### Holesky Testnet
-- **HastraNavEngine**: `0xec8a23c912397B7971595774ac1bD08FC5Efe39C`
-  - Updater: Your deployer address
-  - Min Rate: 0.5 (int192)
-  - Max Rate: 3.0 (int192)
-  - Max Difference: 10%
+### Mainnet (Chain ID: 1)
+- **HastraNavEngine (PRIME)**: `0xfEd839B6BA09c1aBf4C768abA0ECA50746E4eca9`
+- **HastraAutoNavEngine (AUTO)**: `0xC38479C4f1155A6b3d839F33f70D4A9923e24Af3`
+- **HastraSMBNavEngine (SMB)**: `0xbeA0BFc28861eb1D0832A9D5689AA7C558E9D76d`
+- **FeedVerifier**: `0xdF4ab20fA7752Be52E41e42F1FD667f37964d6a3`
+
+### Sepolia Testnet (Chain ID: 11155111)
+- **HastraNavEngine (PRIME)**: `0xBc494b33Cd67e8033644608876b10BB84d0eDF55` (V2)
+- **HastraAutoNavEngine (AUTO)**: `0x69415F7957Cdf05dD29EA9d7Ae5EF17734a14EEc` (V2)
+- **HastraSMBNavEngine (SMB)**: `0x1cFA2457a71A4fE8086a3FEE61b90C347Cff9813` (V1)
+- **FeedVerifier**: `0xCd9DC3EFaE333Be42d9CbAc0B4F8A4af8f3C8f3D`
 
 ## Setup Instructions
 
@@ -87,7 +92,7 @@ Contact Chainlink with:
 - **Chain**: Holesky (17000)
 - **Function**: `getRate() returns (int192)`
 - **Schema**: v7 (Redemption Rates)
-- **Polling Frequency**: Every 4 hours (or as needed)
+- **Polling Frequency**: DON observations every ~1 minute; bot submissions average every ~30 minutes
 
 The DON will:
 1. Call `getRate()` on NavEngine
@@ -125,7 +130,7 @@ Once everything is deployed:
    - Emits events
 
 3. **Chainlink DON reads getRate()**
-   - Periodically (every 4 hours)
+   - Observations every ~1 minute
    - Gets int192 value
 
 4. **DON signs and publishes**
@@ -133,16 +138,16 @@ Once everything is deployed:
    - Publishes to Data Streams API
 
 5. **Bot fetches signed report**
-   - From Chainlink API
-   - Submits to FeedVerifier
+   - From Chainlink API (~every 30 minutes average)
+   - Submits to FeedVerifier via `verifyReport()`
 
 6. **FeedVerifier verifies**
    - Checks signatures
    - Validates report
    - Stores verified rate
 
-7. **Vaults read from Hub**
-   - Call hub.getExchangeRate()
+7. **Vaults read from FeedVerifier**
+   - Call `FeedVerifier.priceOf(feedId)`
    - Use for vault operations
 
 ## Testing Checklist
