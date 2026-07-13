@@ -217,7 +217,8 @@ contract FeedVerifier is
     /**
      * @notice Verify multiple Data Streams Schema v7 reports in a single call.
      * @dev Uses VerifierProxy.verifyBulk() for gas efficiency.
-     *      No FeeManager is set in this deployment so parameterPayload is always empty.
+     *      Passes empty parameterPayload — bulk fee payment is not supported by this path.
+     *      Single-report verification via verifyReport() handles FeeManager when present.
      * @param unverifiedReports Array of full payloads from Chainlink Data Streams API.
      */
     function verifyBulkReports(bytes[] calldata unverifiedReports) external whenNotPaused onlyRole(UPDATER_ROLE) {
@@ -297,7 +298,7 @@ contract FeedVerifier is
             nativeFee = fee.amount;
             parameterPayload = abi.encode(nativeToken);
         }
-        // else: no FeeManager (Sepolia) — parameterPayload stays empty, nativeFee stays 0
+        // else: no FeeManager set — parameterPayload stays empty, nativeFee stays 0
     }
 
     /**
