@@ -217,14 +217,15 @@ contract FeedVerifier is
     /**
      * @notice Verify multiple Data Streams Schema v7 reports in a single call.
      * @dev Uses VerifierProxy.verifyBulk() for gas efficiency.
-     *      Passes empty parameterPayload — bulk fee payment is not supported by this path.
-     *      Single-report verification via verifyReport() handles FeeManager when present.
+     *      Fee is calculated from the first report only — this is a known limitation:
+     *      for batches with a FeeManager set, each report may require its own fee.
      * @param unverifiedReports Array of full payloads from Chainlink Data Streams API.
      */
     function verifyBulkReports(bytes[] calldata unverifiedReports) external whenNotPaused onlyRole(UPDATER_ROLE) {
         if (unverifiedReports.length == 0) return;
 
-        bytes[] memory verifiedReports = verifierProxy.verifyBulk(unverifiedReports, "");
+        (bytes memory parameterPayload, uint256 nativeFee) = _buildParameterPayload(unverifiedReports[0]);
+        bytes[] memory verifiedReports = verifierProxy.verifyBulk{value: nativeFee}(unverifiedReports, parameterPayload);
 
         for (uint256 i = 0; i < verifiedReports.length; i++) {
             _storeReport(verifiedReports[i]);
