@@ -546,4 +546,4 @@ stakingVault.on("RewardsDistributed", (amount, event) => {
 ---
 
 
-Last updated: 2026-06-29.*
+Last updated: 2026-06-29.
