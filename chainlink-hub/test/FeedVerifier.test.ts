@@ -335,6 +335,24 @@ describe("FeedVerifier", function () {
       ).to.be.revertedWith(/AccessControl:/);
     });
 
+    it("reverts with InvalidReportVersion if any report in batch has wrong schema", async function () {
+      const { feedVerifier, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const badReport = buildUnverifiedReport(6);
+      // report[0] valid, report[1] bad
+      await expect(
+        feedVerifier.connect(updater).verifyBulkReports([unverifiedReport, badReport])
+      ).to.be.revertedWithCustomError(feedVerifier, "InvalidReportVersion");
+    });
+
+    it("reverts with InvalidReportVersion if first report in batch has wrong schema", async function () {
+      const { feedVerifier, updater, unverifiedReport } = await loadFixture(deployFixture);
+      const badReport = buildUnverifiedReport(6);
+      // report[0] bad
+      await expect(
+        feedVerifier.connect(updater).verifyBulkReports([badReport, unverifiedReport])
+      ).to.be.revertedWithCustomError(feedVerifier, "InvalidReportVersion");
+    });
+
     it("reverts when paused", async function () {
       const { feedVerifier, admin, updater, unverifiedReport } = await loadFixture(deployFixture);
       await feedVerifier.connect(admin).pause();
@@ -342,6 +360,7 @@ describe("FeedVerifier", function () {
         feedVerifier.connect(updater).verifyBulkReports([unverifiedReport])
       ).to.be.revertedWith("Pausable: paused");
     });
+
   });
 
   // ── priceOf / timestampOf ─────────────────────────────────────────────────

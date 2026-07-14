@@ -4,6 +4,7 @@ ERC-4626 tokenized vaults with two-step redemptions, merkle-based rewards, and U
 
 ## 📚 Documentation
 
+- **[Curator Integration Guide](docs/CURATOR_INTEGRATION.md)** - On-chain integration guide for curators and institutional integrators
 - **[Quick Start Guide](docs/QUICKSTART.md)** - Setup, local development, and common workflows
 - **[Architecture & Flow Diagrams](docs/ARCHITECTURE.md)** - Visual guides for both vaults
 - **[Roles & Permissions](docs/ROLES.md)** - Access control documentation

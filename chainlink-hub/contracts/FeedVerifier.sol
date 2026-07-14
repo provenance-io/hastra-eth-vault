@@ -216,15 +216,17 @@ contract FeedVerifier is
 
     /**
      * @notice Verify multiple Data Streams Schema v7 reports in a single call.
-     * @dev All reports must use the same fee token (single parameterPayload).
-     *      Uses VerifierProxy.verifyBulk() for gas efficiency.
+     * @dev Uses VerifierProxy.verifyBulk() for gas efficiency.
+     *      Validates schema version and accumulates fees across all reports.
+     *      VerifierProxy.processFeeBulk handles per-report billing from msg.value.
+     *      Fee is drawn from this contract's ETH balance — fund via receive() before use with a FeeManager.
      * @param unverifiedReports Array of full payloads from Chainlink Data Streams API.
      */
     function verifyBulkReports(bytes[] calldata unverifiedReports) external whenNotPaused onlyRole(UPDATER_ROLE) {
         if (unverifiedReports.length == 0) return;
 
-        (bytes memory parameterPayload, uint256 nativeFee) = _buildParameterPayload(unverifiedReports[0]);
-        bytes[] memory verifiedReports = verifierProxy.verifyBulk{value: nativeFee}(unverifiedReports, parameterPayload);
+        (bytes memory parameterPayload, uint256 totalNativeFee) = _buildBulkParameterPayload(unverifiedReports);
+        bytes[] memory verifiedReports = verifierProxy.verifyBulk{value: totalNativeFee}(unverifiedReports, parameterPayload);
 
         for (uint256 i = 0; i < verifiedReports.length; i++) {
             _storeReport(verifiedReports[i]);
@@ -298,7 +300,28 @@ contract FeedVerifier is
             nativeFee = fee.amount;
             parameterPayload = abi.encode(nativeToken);
         }
-        // else: no FeeManager (Sepolia) — parameterPayload stays empty, nativeFee stays 0
+        // else: no FeeManager set — parameterPayload stays empty, nativeFee stays 0
+    }
+
+    /**
+     * @dev Validates schema version for every report and accumulates the total native fee.
+     *      parameterPayload encodes the fee token address — identical for all reports in a batch.
+     *      VerifierProxy.processFeeBulk handles per-report billing from the forwarded msg.value.
+     *
+     *      When s_feeManager() == address(0) (current deployment), this always returns ("", 0)
+     *      and has no effect on gas or behaviour — fee logic only activates if a FeeManager
+     *      is configured on the VerifierProxy in the future.
+     */
+    function _buildBulkParameterPayload(
+        bytes[] calldata unverifiedReports
+    ) internal returns (bytes memory parameterPayload, uint256 totalNativeFee) {
+        uint256 fee;
+        (parameterPayload, fee) = _buildParameterPayload(unverifiedReports[0]);
+        totalNativeFee += fee;
+        for (uint256 i = 1; i < unverifiedReports.length; i++) {
+            (, fee) = _buildParameterPayload(unverifiedReports[i]);
+            totalNativeFee += fee;
+        }
     }
 
     /**

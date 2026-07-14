@@ -439,13 +439,14 @@ contract StakingVault is
     }
 
     /**
-     * @notice Returns the total vault assets denominated in the NAV-adjusted underlying value.
-     * @dev totalAssets() is in wYLDS (6 decimals). NAV is 1e18 scaled.
-     *      Result is in 1e18 * 1e6 = 1e24 units — divide by 1e18 to get USDC (6 decimals).
-     * @return Total value = totalAssets * navRate / 1e18.
+     * @notice Returns the total wYLDS locked in the vault.
+     * @dev Equivalent to totalAssets(). Retained for ABI compatibility.
+     *      Per ERC-4626: MUST return total underlying assets managed by the vault.
+     *      MUST NOT revert.
+     * @return Total wYLDS held by the vault (6 decimals).
      */
     function getTotalValueAtNav() public view returns (uint256) {
-        return Math.mulDiv(totalAssets(), getVerifiedNav(), 1e18);
+        return totalAssets();
     }
     
     // ============ Freeze Functionality ============
