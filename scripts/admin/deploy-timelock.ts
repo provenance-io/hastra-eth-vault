@@ -72,7 +72,9 @@ function persistTimelock(networkName: string, entry: Record<string, any>): void 
 
 async function main() {
     const safeAddress = process.env.SAFE;
-    const delaySeconds = parseInt(process.env.DELAY || "86400"); // 24h default (REQUIREMENTS §4.3)
+    const delaySeconds = Number.parseInt(process.env.DELAY || "86400", 10); // 24h default (REQUIREMENTS §4.3)
+    if (!Number.isInteger(delaySeconds) || delaySeconds < 0)
+        throw new Error(`DELAY must be a non-negative integer, got: "${process.env.DELAY}"`);
     const dryRun = process.env.DRY_RUN === "true";
 
     if (!safeAddress) throw new Error("SAFE env var required (Safe multisig address)");
