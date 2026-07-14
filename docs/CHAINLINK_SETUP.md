@@ -80,7 +80,8 @@ make run       # Start bot
 **Configuration** (in `../.env`):
 ```bash
 PRIVATE_KEY=<your_key>
-NAV_ENGINE_ADDRESS=0xec8a23c912397B7971595774ac1bD08FC5Efe39C
+# Mainnet PRIME NavEngine (use Sepolia address for testing)
+NAV_ENGINE_ADDRESS=0xfEd839B6BA09c1aBf4C768abA0ECA50746E4eca9
 VAULT_ADDRESS=<your_vault>
 UPDATE_INTERVAL=3600
 ```
@@ -88,8 +89,8 @@ UPDATE_INTERVAL=3600
 ### 2. Configure Chainlink DON (⏳ Next Step)
 
 Contact Chainlink with:
-- **Contract Address**: `0xec8a23c912397B7971595774ac1bD08FC5Efe39C`
-- **Chain**: Holesky (17000)
+- **Contract Address**: `0xfEd839B6BA09c1aBf4C768abA0ECA50746E4eca9` (mainnet PRIME) or `0xBc494b33Cd67e8033644608876b10BB84d0eDF55` (Sepolia PRIME V2)
+- **Chain**: Mainnet (1) / Sepolia (11155111)
 - **Function**: `getRate() returns (int192)`
 - **Schema**: v7 (Redemption Rates)
 - **Polling Frequency**: Determined by Chainlink DON configuration; contact Chainlink for current parameters
@@ -152,7 +153,7 @@ Once everything is deployed:
 
 ## Testing Checklist
 
-- [ ] Bot can connect to Holesky RPC
+- [ ] Bot can connect to Sepolia or Mainnet RPC
 - [ ] Bot address matches NavEngine updater
 - [ ] Bot can call updateRate() successfully
 - [ ] NavEngine stores correct int192 rate
@@ -164,11 +165,18 @@ Once everything is deployed:
 
 ## Monitoring
 
-### Check NavEngine Rate
+### Check NavEngine Rate (Sepolia PRIME V2)
 ```bash
-cast call 0xec8a23c912397B7971595774ac1bD08FC5Efe39C \
+cast call 0xBc494b33Cd67e8033644608876b10BB84d0eDF55 \
   "getRate()" \
-  --rpc-url https://ethereum-holesky-rpc.publicnode.com
+  --rpc-url $SEPOLIA_RPC_URL
+```
+
+### Check NavEngine Rate (Mainnet PRIME)
+```bash
+cast call 0xfEd839B6BA09c1aBf4C768abA0ECA50746E4eca9 \
+  "getRate()" \
+  --rpc-url $MAINNET_RPC_URL
 ```
 
 ### Check Bot Logs
@@ -178,7 +186,8 @@ tail -f nav-bot.log
 ```
 
 ### Check Transaction History
-https://holesky.etherscan.io/address/0xec8a23c912397B7971595774ac1bD08FC5Efe39C
+- Mainnet PRIME: https://etherscan.io/address/0xfEd839B6BA09c1aBf4C768abA0ECA50746E4eca9
+- Sepolia PRIME V2: https://sepolia.etherscan.io/address/0xBc494b33Cd67e8033644608876b10BB84d0eDF55
 
 ## Troubleshooting
 

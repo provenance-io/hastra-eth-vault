@@ -27,7 +27,6 @@ On-chain NAV calculation engine that Chainlink DON reads from. Conforms to Chain
 ```bash
 npx hardhat run scripts/deployNavEngine.ts --network localhost
 npx hardhat run scripts/deployNavEngine.ts --network sepolia
-npx hardhat run scripts/deployNavEngine.ts --network holesky
 ```
 
 ### Mainnet
