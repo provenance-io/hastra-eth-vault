@@ -239,14 +239,14 @@ describe("YieldVault Compliance (Freeze/Thaw)", function () {
   it("frozen sender cannot mint shares to an unfrozen receiver", async function () {
     const { yieldVault, usdc, freezeAdmin, userA, userB } = await loadFixture(deployFixture);
 
-    const assets = ethers.parseUnits("100", 6);
-    await usdc.mint(userA.address, assets);
-    await usdc.connect(userA).approve(await yieldVault.getAddress(), assets);
+    const shares = ethers.parseUnits("100", 6);
+    await usdc.mint(userA.address, shares);
+    await usdc.connect(userA).approve(await yieldVault.getAddress(), shares);
     await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
 
-    // mint() takes shares not assets — use same amount as approximation
+    // mint() takes shares; 1:1 ratio means shares == assets here
     await expect(
-      yieldVault.connect(userA).mint(assets, userB.address)
+      yieldVault.connect(userA).mint(shares, userB.address)
     ).to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
   });
 

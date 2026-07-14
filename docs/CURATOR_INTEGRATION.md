@@ -22,7 +22,7 @@
 9. [Events Reference](#9-events-reference)
 10. [Error Reference](#10-error-reference)
 11. [Gas Cost Reference](#11-gas-cost-reference)
-12. [Security Notes](#12-security-notes)
+12. [Notes](#12-notes)
 
 ---
 
@@ -367,12 +367,17 @@ Monitor `RateUpdated` to track share price changes:
 event RateUpdated(int192 rate, uint256 totalSupply, uint256 totalTVL, uint256 timestamp);
 ```
 
-Alert events (graceful degradation — rate is NOT updated when these fire):
+Invalid inputs to `updateRate` revert with custom errors — the rate is never partially updated:
+
 ```solidity
-event AlertInvalidTVL(uint256 tvl, uint256 timestamp);
-event AlertInvalidTVLDifference(uint256 previousTVL, uint256 newTVL, uint256 timestamp);
-event AlertInvalidRate(int192 rate, uint256 timestamp);
+error TVLIsZero();
+error TotalSupplyIsZero();
+error TVLDifferenceExceeded(uint256 previousTVL, uint256 newTVL, uint256 difference, uint256 maxAllowed);
+error RateOutOfBounds(int192 rate, int192 minRate, int192 maxRate);
+error RateOverflow(uint256 calculatedRate);
 ```
+
+Monitor these as reverted transactions on the updater EOA — a reverted `updateRate` call means the NAV was not updated for that cycle.
 
 ---
 
@@ -512,7 +517,7 @@ stakingVault.on("RewardsDistributed", (amount, event) => {
 | `InvalidProof` | YieldVault | Merkle proof incorrect | Regenerate proof from latest distribution |
 | `AlreadyClaimed` | YieldVault | Reward already claimed for epoch | Check `hasClaimed(epoch, user)` |
 | `EpochNotFound` | YieldVault | Invalid epoch index | Use `latestEpochIndex()` to get valid epoch |
-| `Pausable: paused` | Both | Contract is paused | Wait for `unpause()` by PAUSER_ROLE |
+| `EnforcedPause` | Both | Contract is paused (OZ v5 custom error) | Wait for `unpause()` by PAUSER_ROLE |
 
 ---
 
@@ -533,7 +538,7 @@ stakingVault.on("RewardsDistributed", (amount, event) => {
 
 ---
 
-## 12.  Notes
+## 12.Notes
 
 > [!CAUTION]
 > **Always interact with the proxy address.** The implementation address changes on upgrades. The proxy address is permanent.
