@@ -538,7 +538,7 @@ stakingVault.on("RewardsDistributed", (amount, event) => {
 
 ---
 
-## 12.Notes
+## 12. Notes
 
 > [!CAUTION]
 > **Always interact with the proxy address.** The implementation address changes on upgrades. The proxy address is permanent.
