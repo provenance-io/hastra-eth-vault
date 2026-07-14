@@ -217,7 +217,7 @@ describe("YieldVault Compliance (Freeze/Thaw)", function () {
     await usdc.connect(userA).approve(await yieldVault.getAddress(), amount);
     await yieldVault.connect(freezeAdmin).freezeAccount(userA.address);
 
-    // Frozen sender trying to mint shares into unfrozen receiver must revert
+    // Frozen sender trying to deposit into an unfrozen receiver must revert
     await expect(
       yieldVault.connect(userA).deposit(amount, userB.address)
     ).to.be.revertedWithCustomError(yieldVault, "AccountIsFrozen");
