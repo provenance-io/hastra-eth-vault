@@ -416,7 +416,7 @@ describe("StakingVault", function () {
       // user2 = frozen spender, user1 = non-frozen owner who approved user2.
       // _update(owner=user1, address(0), shares) would NOT catch user2 being frozen,
       // so the explicit frozen[msg.sender] guard in redeem() is required.
-      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2, user3 } =
         await loadFixture(deployStakingVaultFixture);
 
       const amount = ethers.parseUnits("1000", 6);
@@ -427,19 +427,19 @@ describe("StakingVault", function () {
       await stakingVault.connect(user1).deposit(amount, user1.address);
 
       // user1 approves user2 to spend shares
-      await stakingVault.connect(user1).approve(await stakingVault.getAddress(), amount);
       await stakingVault.connect(user1).approve(user2.address, amount);
 
       await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
 
+      // receiver is user3 (non-frozen) — revert must come from the caller-freeze check
       await expect(
-        stakingVault.connect(user2).redeem(amount, user2.address, user1.address)
+        stakingVault.connect(user2).redeem(amount, user3.address, user1.address)
       ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
     });
 
     it("Should prevent withdraw by a frozen spender acting on behalf of owner", async function () {
       // user2 = frozen spender, user1 = non-frozen owner who approved user2.
-      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2, user3 } =
         await loadFixture(deployStakingVaultFixture);
 
       const amount = ethers.parseUnits("1000", 6);
@@ -454,8 +454,9 @@ describe("StakingVault", function () {
 
       await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
 
+      // receiver is user3 (non-frozen) — revert must come from the caller-freeze check
       await expect(
-        stakingVault.connect(user2).withdraw(amount, user2.address, user1.address)
+        stakingVault.connect(user2).withdraw(amount, user3.address, user1.address)
       ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
     });
 
