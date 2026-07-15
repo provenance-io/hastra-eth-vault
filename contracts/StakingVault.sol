@@ -195,7 +195,16 @@ contract StakingVault is
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ============ Deposit & Withdraw Overrides ============
-    
+
+    function transferFrom(address from, address to, uint256 value)
+        public
+        override(ERC20Upgradeable, IERC20)
+        returns (bool)
+    {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
+        return super.transferFrom(from, to, value);
+    }
+
     function deposit(uint256 assets, address receiver)
         public
         override

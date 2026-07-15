@@ -283,6 +283,29 @@ describe("StakingVault", function () {
       ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
     });
 
+    it("Should prevent transferFrom by a frozen spender acting on behalf of owner", async function () {
+      // user2 = frozen spender, user1 = non-frozen owner who approved user2.
+      // _update(from=user1, to, amount) does NOT see msg.sender=user2,
+      // so the explicit frozen[msg.sender] guard in transferFrom() is required.
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2, user3 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const stakeAmount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, stakeAmount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), stakeAmount);
+      await yieldVault.connect(user1).deposit(stakeAmount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), stakeAmount);
+      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
+
+      // user1 approves user2 to spend their PRIME shares
+      await stakingVault.connect(user1).approve(user2.address, stakeAmount);
+      await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
+
+      await expect(
+        stakingVault.connect(user2).transferFrom(user1.address, user3.address, stakeAmount)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
     it("Should prevent deposit to a frozen receiver", async function () {
       const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
         await loadFixture(deployStakingVaultFixture);
