@@ -283,6 +283,29 @@ describe("StakingVault", function () {
       ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
     });
 
+    it("Should prevent transferFrom by a frozen spender acting on behalf of owner", async function () {
+      // user2 = frozen spender, user1 = non-frozen owner who approved user2.
+      // _update(from=user1, to, amount) does NOT see msg.sender=user2,
+      // so the explicit frozen[msg.sender] guard in transferFrom() is required.
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2, user3 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const stakeAmount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, stakeAmount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), stakeAmount);
+      await yieldVault.connect(user1).deposit(stakeAmount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), stakeAmount);
+      await stakingVault.connect(user1).deposit(stakeAmount, user1.address);
+
+      // user1 approves user2 to spend their PRIME shares
+      await stakingVault.connect(user1).approve(user2.address, stakeAmount);
+      await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
+
+      await expect(
+        stakingVault.connect(user2).transferFrom(user1.address, user3.address, stakeAmount)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
     it("Should prevent deposit to a frozen receiver", async function () {
       const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
         await loadFixture(deployStakingVaultFixture);
@@ -300,7 +323,9 @@ describe("StakingVault", function () {
     });
 
     it("Should prevent deposit from a frozen caller", async function () {
-      const { stakingVault, yieldVault, usdc, freezeAdmin, user1 } =
+      // user1 = frozen caller, user2 = non-frozen receiver.
+      // Receiver is non-frozen so the revert is provably from the caller-freeze check.
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
         await loadFixture(deployStakingVaultFixture);
 
       const amount = ethers.parseUnits("1000", 6);
@@ -311,7 +336,127 @@ describe("StakingVault", function () {
       await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
 
       await expect(
-        stakingVault.connect(user1).deposit(amount, user1.address)
+        stakingVault.connect(user1).deposit(amount, user2.address)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
+    it("Should prevent mint from a frozen caller", async function () {
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const amount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), amount);
+      await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
+
+      // mint() takes shares; 1:1 ratio so shares == assets
+      await expect(
+        stakingVault.connect(user1).mint(amount, user2.address)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
+    it("Should prevent mint to a frozen receiver", async function () {
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const amount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), amount);
+      await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
+
+      await expect(
+        stakingVault.connect(user1).mint(amount, user2.address)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
+    it("Should prevent depositWithPermit from a frozen caller", async function () {
+      // user1 = frozen caller, user2 = non-frozen receiver.
+      // Using a non-frozen receiver isolates the msg.sender freeze check:
+      // the call must revert because the CALLER is frozen, not the receiver.
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const amount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
+
+      // Build a valid permit signature: user1 permits stakingVault to spend wYLDS
+      const deadline = (await ethers.provider.getBlock("latest"))!.timestamp + 3600;
+      const nonce = await yieldVault.nonces(user1.address);
+      const domain = {
+        name: await yieldVault.name(),
+        version: "1",
+        chainId: (await ethers.provider.getNetwork()).chainId,
+        verifyingContract: await yieldVault.getAddress(),
+      };
+      const types = { Permit: [
+        { name: "owner",   type: "address" },
+        { name: "spender", type: "address" },
+        { name: "value",   type: "uint256" },
+        { name: "nonce",   type: "uint256" },
+        { name: "deadline",type: "uint256" },
+      ]};
+      const values = { owner: user1.address, spender: await stakingVault.getAddress(), value: amount, nonce, deadline };
+      const sig = await user1.signTypedData(domain, types, values);
+      const { v, r, s } = ethers.Signature.from(sig);
+
+      // Receiver is user2 (not frozen) — revert must come from the caller-freeze check
+      await expect(
+        stakingVault.connect(user1).depositWithPermit(amount, user2.address, deadline, v, r, s)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
+    it("Should prevent redeem by a frozen spender acting on behalf of owner", async function () {
+      // user2 = frozen spender, user1 = non-frozen owner who approved user2.
+      // _update(owner=user1, address(0), shares) would NOT catch user2 being frozen,
+      // so the explicit frozen[msg.sender] guard in redeem() is required.
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2, user3 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const amount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), amount);
+      await stakingVault.connect(user1).deposit(amount, user1.address);
+
+      // user1 approves user2 to spend shares
+      await stakingVault.connect(user1).approve(user2.address, amount);
+
+      await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
+
+      // receiver is user3 (non-frozen) — revert must come from the caller-freeze check
+      await expect(
+        stakingVault.connect(user2).redeem(amount, user3.address, user1.address)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
+    it("Should prevent withdraw by a frozen spender acting on behalf of owner", async function () {
+      // user2 = frozen spender, user1 = non-frozen owner who approved user2.
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2, user3 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const amount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), amount);
+      await stakingVault.connect(user1).deposit(amount, user1.address);
+
+      // user1 approves user2 to spend shares
+      await stakingVault.connect(user1).approve(user2.address, amount);
+
+      await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
+
+      // receiver is user3 (non-frozen) — revert must come from the caller-freeze check
+      await expect(
+        stakingVault.connect(user2).withdraw(amount, user3.address, user1.address)
       ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
     });
 

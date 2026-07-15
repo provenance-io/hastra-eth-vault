@@ -195,7 +195,16 @@ contract StakingVault is
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ============ Deposit & Withdraw Overrides ============
-    
+
+    function transferFrom(address from, address to, uint256 value)
+        public
+        override(ERC20Upgradeable, IERC20)
+        returns (bool)
+    {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
+        return super.transferFrom(from, to, value);
+    }
+
     function deposit(uint256 assets, address receiver)
         public
         override
@@ -203,6 +212,7 @@ contract StakingVault is
         nonReentrant
         returns (uint256 shares)
     {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         return super.deposit(assets, receiver);
     }
     
@@ -214,6 +224,7 @@ contract StakingVault is
         bytes32 r,
         bytes32 s
     ) external whenNotPaused nonReentrant returns (uint256 shares) {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         // Guard against permit front-running: a front-runner consuming the nonce also
         // sets the allowance, so deposit() via transferFrom() will still succeed.
         try IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s) {} catch {}
@@ -227,6 +238,7 @@ contract StakingVault is
         nonReentrant
         returns (uint256 assets)
     {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         return super.mint(shares, receiver);
     }
     
@@ -237,6 +249,7 @@ contract StakingVault is
         nonReentrant
         returns (uint256 assets)
     {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         return super.redeem(shares, receiver, owner);
     }
 
@@ -247,6 +260,7 @@ contract StakingVault is
         nonReentrant
         returns (uint256 shares)
     {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         return super.withdraw(assets, receiver, owner);
     }
     
