@@ -240,6 +240,7 @@ contract StakingVault is
         nonReentrant
         returns (uint256 assets)
     {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         return super.redeem(shares, receiver, owner);
     }
 
@@ -250,6 +251,7 @@ contract StakingVault is
         nonReentrant
         returns (uint256 shares)
     {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         return super.withdraw(assets, receiver, owner);
     }
     
