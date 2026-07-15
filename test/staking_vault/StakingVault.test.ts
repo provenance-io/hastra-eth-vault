@@ -315,6 +315,74 @@ describe("StakingVault", function () {
       ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
     });
 
+    it("Should prevent mint from a frozen caller", async function () {
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const amount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), amount);
+      await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
+
+      // mint() takes shares; 1:1 ratio so shares == assets
+      await expect(
+        stakingVault.connect(user1).mint(amount, user2.address)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
+    it("Should prevent mint to a frozen receiver", async function () {
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const amount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), amount);
+      await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
+
+      await expect(
+        stakingVault.connect(user1).mint(amount, user2.address)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
+    it("Should prevent depositWithPermit from a frozen caller", async function () {
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1 } =
+        await loadFixture(deployStakingVaultFixture);
+
+      const amount = ethers.parseUnits("1000", 6);
+      await usdc.mint(user1.address, amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
+
+      // Build a valid permit signature for yieldVault → stakingVault
+      const deadline = (await ethers.provider.getBlock("latest"))!.timestamp + 3600;
+      const nonce = await (yieldVault as any).nonces(user1.address);
+      const domain = {
+        name: await (yieldVault as any).name(),
+        version: "1",
+        chainId: (await ethers.provider.getNetwork()).chainId,
+        verifyingContract: await yieldVault.getAddress(),
+      };
+      const types = { Permit: [
+        { name: "owner",   type: "address" },
+        { name: "spender", type: "address" },
+        { name: "value",   type: "uint256" },
+        { name: "nonce",   type: "uint256" },
+        { name: "deadline",type: "uint256" },
+      ]};
+      const values = { owner: user1.address, spender: await stakingVault.getAddress(), value: amount, nonce, deadline };
+      const sig = await user1.signTypedData(domain, types, values);
+      const { v, r, s } = ethers.Signature.from(sig);
+
+      await expect(
+        stakingVault.connect(user1).depositWithPermit(amount, user1.address, deadline, v, r, s)
+      ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
+    });
+
     it("Should thaw account", async function () {
       const { stakingVault, freezeAdmin, user1 } = await loadFixture(deployStakingVaultFixture);
       
