@@ -1,0 +1,22 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "timestamp": "2026-07-15T22:05:13.289Z",
+  "contractName": "HastraFlexNavEngine",
+  "contracts": {
+    "navEngine": "0x83C1Ab519c3d82F69E07327827bfdd5EdF10C84d",
+    "navEngineImplementation": "0x45f3b1805D884AcAfca1806C9fEa2D98B7dC61E2"
+  },
+  "transactions": {
+    "navEngine": "0xd38b964f46fd3063843e0ccacec76248b8705296a805fc88c80a457f6e077fd8"
+  },
+  "roles": {
+    "owner": "0x3778F66336F79B2B0D86E759499D191EA030a4c6",
+    "updater": "0x3778F66336F79B2B0D86E759499D191EA030a4c6"
+  },
+  "config": {
+    "maxDifferencePercent": "100000000000000000",
+    "minRate": "500000000000000000",
+    "maxRate": "3000000000000000000"
+  }
+}
