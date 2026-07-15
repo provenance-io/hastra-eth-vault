@@ -284,12 +284,14 @@ describe("StakingVault", function () {
     });
 
     it("Should prevent deposit to a frozen receiver", async function () {
-      const { stakingVault, usdc, freezeAdmin, user1, user2 } =
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
         await loadFixture(deployStakingVaultFixture);
 
       const amount = ethers.parseUnits("1000", 6);
       await usdc.mint(user1.address, amount);
-      await usdc.connect(user1).approve(await stakingVault.getAddress(), amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), amount);
       await stakingVault.connect(freezeAdmin).freezeAccount(user2.address);
 
       await expect(
@@ -298,12 +300,14 @@ describe("StakingVault", function () {
     });
 
     it("Should prevent deposit from a frozen caller", async function () {
-      const { stakingVault, usdc, freezeAdmin, user1 } =
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1 } =
         await loadFixture(deployStakingVaultFixture);
 
       const amount = ethers.parseUnits("1000", 6);
       await usdc.mint(user1.address, amount);
-      await usdc.connect(user1).approve(await stakingVault.getAddress(), amount);
+      await usdc.connect(user1).approve(await yieldVault.getAddress(), amount);
+      await yieldVault.connect(user1).deposit(amount, user1.address);
+      await yieldVault.connect(user1).approve(await stakingVault.getAddress(), amount);
       await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
 
       await expect(
