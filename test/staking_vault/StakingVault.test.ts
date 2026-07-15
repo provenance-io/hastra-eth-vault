@@ -300,7 +300,9 @@ describe("StakingVault", function () {
     });
 
     it("Should prevent deposit from a frozen caller", async function () {
-      const { stakingVault, yieldVault, usdc, freezeAdmin, user1 } =
+      // user1 = frozen caller, user2 = non-frozen receiver.
+      // Receiver is non-frozen so the revert is provably from the caller-freeze check.
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
         await loadFixture(deployStakingVaultFixture);
 
       const amount = ethers.parseUnits("1000", 6);
@@ -311,7 +313,7 @@ describe("StakingVault", function () {
       await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
 
       await expect(
-        stakingVault.connect(user1).deposit(amount, user1.address)
+        stakingVault.connect(user1).deposit(amount, user2.address)
       ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
     });
 
@@ -349,7 +351,10 @@ describe("StakingVault", function () {
     });
 
     it("Should prevent depositWithPermit from a frozen caller", async function () {
-      const { stakingVault, yieldVault, usdc, freezeAdmin, user1 } =
+      // user1 = frozen caller, user2 = non-frozen receiver.
+      // Using a non-frozen receiver isolates the msg.sender freeze check:
+      // the call must revert because the CALLER is frozen, not the receiver.
+      const { stakingVault, yieldVault, usdc, freezeAdmin, user1, user2 } =
         await loadFixture(deployStakingVaultFixture);
 
       const amount = ethers.parseUnits("1000", 6);
@@ -358,11 +363,11 @@ describe("StakingVault", function () {
       await yieldVault.connect(user1).deposit(amount, user1.address);
       await stakingVault.connect(freezeAdmin).freezeAccount(user1.address);
 
-      // Build a valid permit signature for yieldVault → stakingVault
+      // Build a valid permit signature: user1 permits stakingVault to spend wYLDS
       const deadline = (await ethers.provider.getBlock("latest"))!.timestamp + 3600;
-      const nonce = await (yieldVault as any).nonces(user1.address);
+      const nonce = await yieldVault.nonces(user1.address);
       const domain = {
-        name: await (yieldVault as any).name(),
+        name: await yieldVault.name(),
         version: "1",
         chainId: (await ethers.provider.getNetwork()).chainId,
         verifyingContract: await yieldVault.getAddress(),
@@ -378,8 +383,9 @@ describe("StakingVault", function () {
       const sig = await user1.signTypedData(domain, types, values);
       const { v, r, s } = ethers.Signature.from(sig);
 
+      // Receiver is user2 (not frozen) — revert must come from the caller-freeze check
       await expect(
-        stakingVault.connect(user1).depositWithPermit(amount, user1.address, deadline, v, r, s)
+        stakingVault.connect(user1).depositWithPermit(amount, user2.address, deadline, v, r, s)
       ).to.be.revertedWithCustomError(stakingVault, "AccountIsFrozen");
     });
 
