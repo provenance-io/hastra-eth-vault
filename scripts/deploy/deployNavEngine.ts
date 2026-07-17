@@ -25,6 +25,7 @@
 import { ethers, upgrades, network, run } from "hardhat";
 import fs from "fs";
 import path from "path";
+import { patchProviderForCheckTxBug } from "./lib/patchProvider";
 
 export interface DeployNavEngineOptions {
     /**
@@ -59,6 +60,8 @@ export async function deployNavEngineInstance(opts: DeployNavEngineOptions = {})
     const verifyContract = opts.verifyContract ?? `contracts/chainlink/${contractName}.sol:${contractName}`;
     const label = opts.label ?? contractName;
     const isDryRun = process.env.DRY_RUN === "true";
+
+    patchProviderForCheckTxBug(ethers.provider);
 
     console.log(`Deploying ${label} with account:`, deployer.address);
     console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
