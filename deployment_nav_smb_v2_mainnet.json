@@ -1,0 +1,22 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "implDeployedAt": "2026-08-03T22:19:59.000Z",
+  "status": "upgraded",
+  "proxy": "0xbeA0BFc28861eb1D0832A9D5689AA7C558E9D76d",
+  "implementation": "0xf59317c54b60F1d0aBA9ba09E968768Ab83E3378",
+  "contractName": "HastraSMBNavEngineV2",
+  "gitCommit": "15fc053432e8ce911362a885dc094e0f657df442",
+  "v2Config": {
+    "pauser": "0xA8C3CF6183D49d5D372f8FC149BD2cb5CFC0faCd",
+    "maxRateDeltaPercent": "50000000000000000",
+    "minUpdateInterval": "900",
+    "maxRate": "2000000000000000000"
+  },
+  "transactions": {
+    "upgradeToAndCall_v2Init": "0xde2913cc9c84f6047c69050af9c6e120376e0addd94fd6e821ec75305ec4c5e9",
+    "setMaxRate": "0x56c19f7a05f77695668700e341a5a330b6479d5c2c7642fb40877dd8ad21fc84",
+    "brandedImplDeploy": "0x25f5efa8e22ef48a8d25583082b91546752812040aad9510591a1332b198c1e2"
+  },
+  "verifiedOnEtherscan": true
+}

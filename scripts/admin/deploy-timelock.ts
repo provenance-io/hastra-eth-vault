@@ -2,6 +2,7 @@
 import {ethers, network, run} from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
+import {execSync} from "child_process";
 
 /**
  * Deploys an OZ TimelockController and generates the Safe calldata to migrate
@@ -56,6 +57,14 @@ function loadDeployment(networkName: string): any {
 function timelockDeploymentPath(networkName: string): string {
     const suffix = networkName === "mainnet" ? "mainnet" : networkName === "sepolia" ? "testnet_sepolia" : networkName;
     return path.join(__dirname, `../../deployment_timelock_${suffix}.json`);
+}
+
+function getGitCommit(): string | null {
+    try {
+        return execSync("git rev-parse HEAD").toString().trim();
+    } catch {
+        return null;
+    }
 }
 
 function persistTimelock(networkName: string, entry: Record<string, any>): void {
@@ -130,6 +139,7 @@ async function main() {
             admin: safeAddress,
             deployedAt: new Date().toISOString(),
             deployTx: deployTx || null,
+            gitCommit: getGitCommit(),
         });
 
         // ── 1b. Auto-verify on Etherscan (best-effort) ──────────────────────────

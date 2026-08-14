@@ -51,6 +51,10 @@ async function main() {
   const minUpdateInterval   = BigInt(process.env.MIN_UPDATE_INTERVAL
     ?? (net.name === "sepolia" ? SEPOLIA_DEFAULT_INTERVAL : MAINNET_DEFAULT_INTERVAL).toString());
   const newMaxRate = BigInt(process.env.NEW_MAX_RATE ?? DEFAULT_MAX_RATE.toString());
+  // Branded wrapper contracts (e.g. HastraSMBNavEngineV2) are identical to
+  // HastraNavEngineV2 plus a cosmetic name() getter — pass CONTRACT_NAME to
+  // deploy the correct one instead of silently using the generic contract.
+  const contractName = process.env.CONTRACT_NAME ?? "HastraNavEngineV2";
 
   console.log("═".repeat(64));
   console.log(`  HASTRA NAV ENGINE → V2 UPGRADE${isDryRun ? " (DRY RUN)" : ""}`);
@@ -79,10 +83,10 @@ async function main() {
 
   if (isDryRun) {
     newImplAddress = ethers.ZeroAddress; // placeholder — not used in dry run output
-    console.log(`\n  [dry] Would deploy HastraNavEngineV2 implementation`);
+    console.log(`\n  [dry] Would deploy ${contractName} implementation`);
   } else {
-    console.log(`\n  Deploying HastraNavEngineV2 implementation...`);
-    const Factory = await ethers.getContractFactory("HastraNavEngineV2");
+    console.log(`\n  Deploying ${contractName} implementation...`);
+    const Factory = await ethers.getContractFactory(contractName);
     const impl = await Factory.deploy();
     await impl.waitForDeployment();
     newImplAddress = await impl.getAddress();
@@ -169,7 +173,7 @@ async function main() {
     try {
       await run("verify:verify", {
         address: newImplAddress,
-        contract: "contracts/chainlink/HastraNavEngineV2.sol:HastraNavEngineV2",
+        contract: `contracts/chainlink/${contractName}.sol:${contractName}`,
         constructorArguments: [],
       });
       console.log(`  ✅ Implementation verified on Etherscan`);
