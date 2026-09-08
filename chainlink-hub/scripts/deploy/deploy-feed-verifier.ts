@@ -39,6 +39,7 @@ const VERIFIER_PROXY: Record<string, string> = {
   sepolia:  "0x4e9935be37302B9C97Ff4ae6868F1b566ade26d2",
   hoodi:    "",
   mainnet:  "0x5A1634A86e9b7BfEf33F0f3f3EA3b1aBBc4CC85F", // Chainlink Data Streams Verifier — Ethereum mainnet
+  fuji:     "0x2bf612C65f5a4d388E687948bb2CF842FFb8aBB3", // Chainlink Data Streams Verifier — Avalanche Fuji testnet
 };
 
 async function main() {
