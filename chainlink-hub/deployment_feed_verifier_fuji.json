@@ -1,0 +1,12 @@
+{
+  "network": "fuji",
+  "chainId": "43113",
+  "feedVerifier": "0x249bf835053FB1782F6751f8e478bf3d26d7786A",
+  "feedVerifierImplementation": "0x1fa53E85Bf12e94D7467F16D146f395156116385",
+  "verifierProxy": "0x2bf612C65f5a4d388E687948bb2CF842FFb8aBB3",
+  "feedId": "",
+  "deployer": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "admin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "updater": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "deployedAt": "2026-09-09T17:18:08.397Z"
+}

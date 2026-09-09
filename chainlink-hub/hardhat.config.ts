@@ -32,6 +32,16 @@ const config: HardhatUserConfig = {
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 1,
     },
+    fuji: {
+      url: process.env.FUJI_RPC_URL || "https://api.avax-test.network/ext/bc/C/rpc",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 43113,
+      // This RPC rejects "pending" block-tag queries (used internally by ethers
+      // for gas estimation) with "state not available for pending block".
+      // Setting an explicit gas limit/price skips that estimation call.
+      gasPrice: 30000000000, // 30 Gwei (Fuji base fee is near-zero; padded for headroom)
+      gas: 8000000, // 8M gas limit
+    },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY || "",

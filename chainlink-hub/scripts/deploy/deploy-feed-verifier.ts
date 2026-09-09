@@ -2,6 +2,7 @@
 import { ethers, upgrades, run, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
+import { patchProviderForPendingBlockBug } from "./lib/patchProvider";
 
 /**
  * Deploy FeedVerifier.sol (UUPS proxy).
@@ -44,6 +45,7 @@ const VERIFIER_PROXY: Record<string, string> = {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
+  patchProviderForPendingBlockBug(deployer.provider);
   const net = network.name;
 
   const verifierProxy = VERIFIER_PROXY[net];
