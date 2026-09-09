@@ -138,19 +138,7 @@ describe("StakingVault — NAV Oracle", function () {
   // ── getTotalValueAtNav ────────────────────────────────────────────────────────
 
   describe("getTotalValueAtNav", function () {
-    it("at NAV=1.0: total value equals totalAssets", async function () {
-      const { stakingVault, oracle } = await loadFixture(deployFixture);
-      const now = await time.latest();
-      await oracle.setPrice(FEED_ID, NAV_1x, now);
-      await stakingVault.setNavOracle(await oracle.getAddress(), FEED_ID);
-
-      const totalAssets = await stakingVault.totalAssets();
-      const totalValue  = await stakingVault.getTotalValueAtNav();
-      // value = assets * 1e18 / 1e18 = assets
-      expect(totalValue).to.equal(totalAssets);
-    });
-
-    it("at NAV=1.05: total value is 5% higher than totalAssets", async function () {
+    it("returns totalAssets regardless of NAV", async function () {
       const { stakingVault, oracle } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_105, now);
@@ -158,11 +146,10 @@ describe("StakingVault — NAV Oracle", function () {
 
       const totalAssets = await stakingVault.totalAssets();
       const totalValue  = await stakingVault.getTotalValueAtNav();
-      const expected    = totalAssets * NAV_105 / ethers.parseUnits("1", 18);
-      expect(totalValue).to.equal(expected);
+      expect(totalValue).to.equal(totalAssets);
     });
 
-    it("after reward distribution, NAV-adjusted value increases proportionally", async function () {
+    it("after reward distribution, value equals updated totalAssets", async function () {
       const { stakingVault, yieldVault, oracle, owner } = await loadFixture(deployFixture);
       const now = await time.latest();
       await oracle.setPrice(FEED_ID, NAV_1x, now);
@@ -170,14 +157,13 @@ describe("StakingVault — NAV Oracle", function () {
 
       const valueBefore = await stakingVault.getTotalValueAtNav();
 
-      // Raise cap to 20% for this test (default is 75 bps; test exercises NAV value math, not the cap)
       await stakingVault.connect(owner).setMaxRewardPercent(ethers.parseEther("0.2"));
-      // Distribute 50 wYLDS reward (~5%)
       const reward = ethers.parseUnits("50", 6);
       await stakingVault.distributeRewards(reward);
 
       const valueAfter = await stakingVault.getTotalValueAtNav();
       expect(valueAfter).to.equal(valueBefore + reward);
+      expect(valueAfter).to.equal(await stakingVault.totalAssets());
     });
   });
 

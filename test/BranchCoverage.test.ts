@@ -430,7 +430,7 @@ describe("Branch Coverage Tests", function () {
     });
 
     it("should prevent non-UPGRADER from upgrading", async function () {
-      const YieldVaultV2 = await ethers.getContractFactory("YieldVaultV2");
+      const YieldVaultV2 = await ethers.getContractFactory("YieldVaultUpgradeMock");
       const newImpl = await YieldVaultV2.deploy();
       const yieldVaultAddress = await yieldVault.getAddress();
       

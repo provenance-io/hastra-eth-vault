@@ -4,13 +4,14 @@ pragma solidity ^0.8.20;
 import "../YieldVault.sol";
 
 /**
- * @title YieldVaultV2
+ * @title YieldVaultUpgradeMock
  * @notice Mock upgraded version of YieldVault for testing upgrade patterns
  * @dev This is a TEST-ONLY contract used to verify UUPS upgrade mechanisms work correctly.
  *      It adds a version() function to demonstrate state preservation across upgrades.
- *      For production upgrades, create a properly versioned contract with actual new features.
+ *      For production upgrades, create a properly versioned contract with actual new features
+ *      (see `contracts/YieldVaultV2.sol`).
  */
-contract YieldVaultV2 is YieldVault {
+contract YieldVaultUpgradeMock is YieldVault {
     uint256 public constant VERSION = 3;
 
     /**

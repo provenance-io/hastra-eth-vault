@@ -154,7 +154,7 @@ contract YieldVault is
     }
     
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
-    
+
     // ============ Deposit & Withdraw Overrides ============
     
     function deposit(uint256 assets, address receiver)
@@ -164,6 +164,7 @@ contract YieldVault is
         nonReentrant
         returns (uint256 shares)
     {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         return super.deposit(assets, receiver);
     }
     
@@ -175,6 +176,7 @@ contract YieldVault is
         bytes32 r,
         bytes32 s
     ) external whenNotPaused nonReentrant returns (uint256 shares) {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         // Guard against permit front-running: a front-runner consuming the nonce also
         // sets the allowance, so deposit() via transferFrom() will still succeed.
         try IERC20Permit(asset()).permit(msg.sender, address(this), assets, deadline, v, r, s) {} catch {}
@@ -188,6 +190,7 @@ contract YieldVault is
         nonReentrant
         returns (uint256 assets)
     {
+        if (frozen[msg.sender]) revert AccountIsFrozen();
         return super.mint(shares, receiver);
     }
     
@@ -231,6 +234,7 @@ contract YieldVault is
     
     function completeRedeem(address user) 
         external 
+        virtual
         onlyRole(REWARDS_ADMIN_ROLE)
         nonReentrant 
     {
@@ -276,7 +280,7 @@ contract YieldVault is
         uint256 epochIndex,
         bytes32 merkleRoot,
         uint256 totalRewards
-    ) external onlyRole(REWARDS_ADMIN_ROLE) {
+    ) external virtual onlyRole(REWARDS_ADMIN_ROLE) {
         if (epochIndex != currentEpochIndex) revert InvalidEpoch();
         if (merkleRoot == bytes32(0)) revert InvalidAmount();
         
@@ -294,7 +298,7 @@ contract YieldVault is
         uint256 epochIndex,
         uint256 amount,
         bytes32[] calldata proof
-    ) external whenNotPaused nonReentrant {
+    ) external virtual whenNotPaused nonReentrant {
         if (epochIndex >= currentEpochIndex) revert InvalidEpoch();
         
         bytes32 claimKey = keccak256(abi.encodePacked(msg.sender, epochIndex));

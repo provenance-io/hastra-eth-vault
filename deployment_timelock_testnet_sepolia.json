@@ -1,0 +1,10 @@
+{
+  "network": "sepolia",
+  "address": "0x8C6ed403d20Ec24a9Ac14E46Af2365B97Af9d951",
+  "delaySeconds": 300,
+  "proposer": "0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4",
+  "executor": "0x0000000000000000000000000000000000000000",
+  "admin": "0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4",
+  "deployedAt": "2026-05-28T22:54:36.723Z",
+  "deployTx": "0xd591986234215e0fb5364915c606b79ef7f817b0fdef50bccf277057ba334683"
+}

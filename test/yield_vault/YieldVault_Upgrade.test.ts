@@ -17,13 +17,13 @@ describe("YieldVault Upgradeability", function () {
     return { yieldVault, owner };
   }
 
-  it("Should upgrade to V2 successfully", async function () {
+  it("Should upgrade implementation successfully", async function () {
     const { yieldVault, owner } = await loadFixture(deployFixture);
     
-    const YieldVaultV2 = await ethers.getContractFactory("YieldVaultV2");
-    const yieldVaultV2 = await upgrades.upgradeProxy(await yieldVault.getAddress(), YieldVaultV2);
+    const upgradeMockFactory = await ethers.getContractFactory("YieldVaultUpgradeMock");
+    const upgradedVault = await upgrades.upgradeProxy(await yieldVault.getAddress(), upgradeMockFactory);
     
-    expect(await yieldVaultV2.version()).to.equal(3);
-    expect(await yieldVaultV2.getAddress()).to.equal(await yieldVault.getAddress());
+    expect(await upgradedVault.version()).to.equal(3);
+    expect(await upgradedVault.getAddress()).to.equal(await yieldVault.getAddress());
   });
 });

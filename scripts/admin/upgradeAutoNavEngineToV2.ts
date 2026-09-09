@@ -1,25 +1,24 @@
 /**
- * [ADMIN] Upgrade HastraNavEngine proxy → HastraNavEngineV2.
+ * [ADMIN] Upgrade HastraAutoNavEngine proxy → HastraAutoNavEngineV2.
  *
  * What this does:
- *   1. Deploys HastraNavEngineV2 implementation.
+ *   1. Deploys HastraAutoNavEngineV2 implementation.
  *   2. Calls upgradeToAndCall(newImpl, initializeV2Data) on the proxy.
  *      initializeV2 sets: pauser, maxRateDeltaPercent, minUpdateInterval.
- *   3. Calls setMaxRate(2e18) to tighten the ceiling (REQUIREMENTS §4.5).
+ *   3. Calls setMaxRate(2e18) to tighten the ceiling.
  *   4. Prints V2 storage state for verification.
  *   5. Verifies the new implementation on Etherscan.
  *
  * Usage (Sepolia):
  *   PRIVATE_KEY=0x... \
- *     npx hardhat run scripts/admin/upgradeNavEngineToV2.ts --network sepolia
+ *     npx hardhat run scripts/admin/upgradeAutoNavEngineToV2.ts --network sepolia
  *
  * Usage (mainnet — via Safe + timelock):
  *   DRY_RUN=true PROXY_ADDRESS=<mainnet-proxy> \
- *     npx hardhat run scripts/admin/upgradeNavEngineToV2.ts --network mainnet
- *   (outputs upgradeToAndCall calldata to queue through TimelockController)
+ *     npx hardhat run scripts/admin/upgradeAutoNavEngineToV2.ts --network mainnet
  *
  * Env vars:
- *   PROXY_ADDRESS           Override the proxy address (default: Sepolia PRIME proxy).
+ *   PROXY_ADDRESS           Override the proxy address (default: Sepolia AUTO proxy).
  *   PAUSER_ADDRESS          Address that can pause/unpause (default: deployer).
  *   MAX_RATE_DELTA_PERCENT  Max rate change per update, 18-dec fraction (default: 1e17 = 10%).
  *   MIN_UPDATE_INTERVAL     Min seconds between updates (default: 60 for Sepolia, 300 for mainnet).
@@ -27,16 +26,16 @@
  *   DRY_RUN                 Print calldata only — no transactions sent.
  */
 // @ts-ignore
-import { ethers, network, run, upgrades } from "hardhat";
+import { ethers, run } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
-const SEPOLIA_PRIME_PROXY  = "0xBc494b33Cd67e8033644608876b10BB84d0eDF55";
-const DEFAULT_MAX_RATE_DELTA = ethers.parseEther("0.1");   // 10%
-const DEFAULT_MAX_RATE       = ethers.parseEther("2");     // 2.0
-const SEPOLIA_DEFAULT_INTERVAL = 60n;    // 1 min — fast cadence for Sepolia testing
-const MAINNET_DEFAULT_INTERVAL = 300n;   // 5 min — matches Pulse publish cadence
+const SEPOLIA_AUTO_PROXY     = "0x69415F7957Cdf05dD29EA9d7Ae5EF17734a14EEc";
+const DEFAULT_MAX_RATE_DELTA = ethers.parseEther("0.1");  // 10%
+const DEFAULT_MAX_RATE       = ethers.parseEther("2");    // 2.0
+const SEPOLIA_DEFAULT_INTERVAL = 60n;   // 1 min — fast cadence for Sepolia testing
+const MAINNET_DEFAULT_INTERVAL = 300n;  // 5 min — matches Pulse publish cadence
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -44,7 +43,9 @@ async function main() {
   const net = await ethers.provider.getNetwork();
 
   const proxyAddress = process.env.PROXY_ADDRESS
-    ?? (net.name === "sepolia" ? SEPOLIA_PRIME_PROXY : (() => { throw new Error("PROXY_ADDRESS required on mainnet"); })());
+    ?? (net.name === "sepolia"
+      ? SEPOLIA_AUTO_PROXY
+      : (() => { throw new Error("PROXY_ADDRESS required on mainnet"); })());
 
   const pauserAddress = process.env.PAUSER_ADDRESS ?? deployer.address;
   const maxRateDeltaPercent = BigInt(process.env.MAX_RATE_DELTA_PERCENT ?? DEFAULT_MAX_RATE_DELTA.toString());
@@ -53,7 +54,7 @@ async function main() {
   const newMaxRate = BigInt(process.env.NEW_MAX_RATE ?? DEFAULT_MAX_RATE.toString());
 
   console.log("═".repeat(64));
-  console.log(`  HASTRA NAV ENGINE → V2 UPGRADE${isDryRun ? " (DRY RUN)" : ""}`);
+  console.log(`  HASTRA AUTO NAV ENGINE → V2 UPGRADE${isDryRun ? " (DRY RUN)" : ""}`);
   console.log("═".repeat(64));
   console.log(`  Network:              ${net.name} (chainId: ${net.chainId})`);
   console.log(`  Deployer:             ${deployer.address}`);
@@ -74,15 +75,15 @@ async function main() {
   console.log(`    maxRate:    ${ethers.formatEther(await proxy.getMaxRate())}`);
   console.log(`    minRate:    ${ethers.formatEther(await proxy.getMinRate())}`);
 
-  // ── 1. Deploy HastraNavEngineV2 implementation (no ownership required) ──────
+  // ── 1. Deploy HastraAutoNavEngineV2 implementation ────────────────────────
   let newImplAddress: string;
 
   if (isDryRun) {
-    newImplAddress = ethers.ZeroAddress; // placeholder — not used in dry run output
-    console.log(`\n  [dry] Would deploy HastraNavEngineV2 implementation`);
+    newImplAddress = ethers.ZeroAddress;
+    console.log(`\n  [dry] Would deploy HastraAutoNavEngineV2 implementation`);
   } else {
-    console.log(`\n  Deploying HastraNavEngineV2 implementation...`);
-    const Factory = await ethers.getContractFactory("HastraNavEngineV2");
+    console.log(`\n  Deploying HastraAutoNavEngineV2 implementation...`);
+    const Factory = await ethers.getContractFactory("HastraAutoNavEngineV2");
     const impl = await Factory.deploy();
     await impl.waitForDeployment();
     newImplAddress = await impl.getAddress();
@@ -99,7 +100,7 @@ async function main() {
     minUpdateInterval,
   ]);
 
-  // ── 3a. If deployer is owner — execute directly ───────────────────────────
+  // ── 3a. Deployer is owner — execute directly ─────────────────────────────
   const deployerIsOwner = owner.toLowerCase() === deployer.address.toLowerCase();
 
   if (!isDryRun && deployerIsOwner) {
@@ -109,12 +110,12 @@ async function main() {
     await upgradeTx.wait();
     console.log(`  ✅ Upgraded — tx: ${upgradeTx.hash}`);
 
-    const v2 = await ethers.getContractAt("HastraNavEngineV2", proxyAddress, deployer);
+    const v2 = await ethers.getContractAt("HastraAutoNavEngineV2", proxyAddress, deployer);
     const setMaxRateTx = await v2.setMaxRate(newMaxRate);
     await setMaxRateTx.wait();
     console.log(`  ✅ setMaxRate(${ethers.formatEther(newMaxRate)}) — tx: ${setMaxRateTx.hash}`);
   } else {
-    // ── 3b. Generate Safe calldata ──────────────────────────────────────────
+    // ── 3b. Owner is Safe — emit calldata ────────────────────────────────────
     const upgradeIface = new ethers.Interface([
       "function upgradeToAndCall(address newImplementation, bytes calldata data)",
     ]);
@@ -140,7 +141,7 @@ async function main() {
 
     if (!isDryRun) {
       console.log(`\n  ℹ️  Implementation ${newImplAddress} is deployed.`);
-      console.log(`     Execute TX 1 + TX 2 via Safe, then run verify:`);
+      console.log(`     Execute TX 1 + TX 2 via Safe, then verify:`);
       console.log(`     cast call ${proxyAddress} "getPauser()(address)" --rpc-url $RPC`);
       console.log(`     cast call ${proxyAddress} "getMaxRateDeltaPercent()(uint256)" --rpc-url $RPC`);
       console.log(`     cast call ${proxyAddress} "getMinUpdateInterval()(uint256)" --rpc-url $RPC`);
@@ -148,9 +149,9 @@ async function main() {
     }
   }
 
-  // ── 5. Post-upgrade verification (only when deployer executed upgrade) ───────
+  // ── 4. Post-upgrade verification (deployer path) ─────────────────────────
   if (!isDryRun && deployerIsOwner) {
-    const v2 = await ethers.getContractAt("HastraNavEngineV2", proxyAddress, deployer);
+    const v2 = await ethers.getContractAt("HastraAutoNavEngineV2", proxyAddress, deployer);
     console.log(`\n  Post-upgrade state:`);
     console.log(`    rate:                ${ethers.formatEther(await v2.getRate())}`);
     console.log(`    maxRate:             ${ethers.formatEther(await v2.getMaxRate())}`);
@@ -162,14 +163,14 @@ async function main() {
     console.log(`    owner:               ${await v2.owner()}`);
   }
 
-  // ── 6. Etherscan verification (impl deployed in both paths) ──────────────
+  // ── 5. Etherscan verification ─────────────────────────────────────────────
   if (!isDryRun) {
     console.log(`\n  Waiting 30s for Etherscan to index...`);
     await new Promise((r) => setTimeout(r, 30_000));
     try {
       await run("verify:verify", {
         address: newImplAddress,
-        contract: "contracts/chainlink/HastraNavEngineV2.sol:HastraNavEngineV2",
+        contract: "contracts/chainlink/HastraAutoNavEngineV2.sol:HastraAutoNavEngineV2",
         constructorArguments: [],
       });
       console.log(`  ✅ Implementation verified on Etherscan`);
@@ -180,12 +181,12 @@ async function main() {
       } else {
         console.log(`  ⚠️  Verify failed (retry manually):`);
         console.log(`     npx hardhat verify --network ${net.name} \\`);
-        console.log(`       --contract contracts/chainlink/HastraNavEngineV2.sol:HastraNavEngineV2 \\`);
+        console.log(`       --contract contracts/chainlink/HastraAutoNavEngineV2.sol:HastraAutoNavEngineV2 \\`);
         console.log(`       ${newImplAddress}`);
       }
     }
 
-    // ── 7. Save deployment record ───────────────────────────────────────────
+    // ── 6. Save deployment record ─────────────────────────────────────────
     const record: Record<string, any> = {
       network: net.name,
       chainId: net.chainId.toString(),
@@ -200,7 +201,8 @@ async function main() {
         maxRate: newMaxRate.toString(),
       },
     };
-    const outFile = path.join(__dirname, `../../deployment_nav_v2_${net.name}.json`);
+    const tag = new Date().toISOString().replace(/[:.]/g, "-");
+    const outFile = path.join(__dirname, `../../deployment_nav_auto_v2_${net.name}_${tag}.json`);
     fs.writeFileSync(outFile, JSON.stringify(record, null, 2) + "\n");
     console.log(`\n  📝 Record saved: ${path.basename(outFile)}`);
   }
