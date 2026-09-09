@@ -1,0 +1,14 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "implDeployedAt": "2026-08-10T19:14:29.495Z",
+  "status": "upgraded",
+  "proxy": "0xC38479C4f1155A6b3d839F33f70D4A9923e24Af3",
+  "implementation": "0xA5E02Cbdf3bBB4531E874C071B7ebB0a2328B34A",
+  "v2Config": {
+    "pauser": "0xA8C3CF6183D49d5D372f8FC149BD2cb5CFC0faCd",
+    "maxRateDeltaPercent": "50000000000000000",
+    "minUpdateInterval": "900",
+    "maxRate": "2000000000000000000"
+  }
+}

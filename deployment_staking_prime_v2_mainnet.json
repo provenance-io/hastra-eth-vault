@@ -1,0 +1,14 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "status": "upgraded",
+  "proxy": "0x19ebb35279A16207Ec4ba82799CC64715065F7F6",
+  "implementationV1": "0x90fd843c68db38e2de0618AcBB39341CbA5A5abD",
+  "implementation": "0x881fe0e5e91C54FaBBf0198A1bB2fC6E5747D4C5",
+  "contractName": "StakingVault",
+  "note": "Impl-only swap, no storage/init changes. Executed via Safe upgradeToAndCall.",
+  "verifiedOnChain": {
+    "implementationSlot": "0x881fe0e5e91C54FaBBf0198A1bB2fC6E5747D4C5",
+    "paused": false
+  }
+}
