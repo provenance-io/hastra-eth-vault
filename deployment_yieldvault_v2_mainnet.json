@@ -1,0 +1,25 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "status": "upgraded",
+  "proxy": "0x6aD038cA6C04e885630851278ca0a856Ad9a66Cc",
+  "implementationV1": "0xDA962f7a0308e9D4F2F60c5Aab94f173C26d1A1D",
+  "implementation": "0x06e0b9155A3cf07F41aC826CCFEE7ef8413A9723",
+  "contractName": "YieldVaultV2",
+  "v2Config": {
+    "version": 2,
+    "epochAdmin": "0x8D358B8aE881F8ea92C3d07783aBCA21727C6309",
+    "redeemOperator": "0xA8C3CF6183D49d5D372f8FC149BD2cb5CFC0faCd",
+    "globalCap": "1000000000000",
+    "firstCappedEpoch": 3
+  },
+  "verifiedOnChain": {
+    "implementationSlot": "0x06e0b9155A3cf07F41aC826CCFEE7ef8413A9723",
+    "epochAdminRole": true,
+    "redeemOperatorRole": true,
+    "rewardsAdminRevokedFromOpsEOA": true,
+    "rewardsAdminRevokedFromSafe": true,
+    "rewardsAdminRetainedOnAutoStakingVault": true,
+    "rewardsAdminRetainedOnStakingVaultPrime": true
+  }
+}
