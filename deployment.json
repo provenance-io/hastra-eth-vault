@@ -1,19 +1,19 @@
 {
   "network": "fuji",
   "chainId": "43113",
-  "deployedAt": "2026-09-09T17:25:10.319Z",
+  "deployedAt": "2026-09-11T22:29:30.578Z",
   "contracts": {
-    "usdc": "0xCA1feB6ACb3c6f91e9ECC125A3fAc9D1cfb6fbd3",
-    "yieldVault": "0xc0Fc71F38e3C6B0b56f633B9714b0932d8FA6AE7",
+    "usdc": "0x7B15d771A3Ac7d93a11E52c6ED303590B9C52F5f",
+    "yieldVault": "0x6Afe80182b5AD2550AAf35391A342a5954832108",
     "yieldVaultImplementation": "0xC8Ffa14dF81EF2b410DD9Be267aD9B67F1566aa2",
-    "stakingVault": "0xD9c74Ae1d9B95A9C90E676974412ab71fb2b5DF4",
+    "stakingVault": "0x9945995bbD98239a74015d1746E921dBa16F6079",
     "stakingVaultImplementation": "0x4c2f7f39c43d9b50CEA14347ea3a5d3021F696Ad",
     "navOracle": "0x249bf835053FB1782F6751f8e478bf3d26d7786A",
-    "navFeedId": null
+    "navFeedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3"
   },
   "transactions": {
-    "yieldVault": "0x61efa65a7304f19eeb728dbd54d2fe597f8bb3b9bd4692253e4e06ac1801450c",
-    "stakingVault": "0xac0c90afa30a361c621dde134da4bc91244426ab025300aae83fe377c84300f6"
+    "yieldVault": "0x79496ce339b49afd24abb5a706f5bb28adedb7a8a18f8fb2cc9dc5d4a34ed05c",
+    "stakingVault": "0x58e67a5c38a1b725f7ceb3a03cfbe91bb39ae937cad17e2f3113664b85c074ae"
   },
   "roles": {
     "admin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",

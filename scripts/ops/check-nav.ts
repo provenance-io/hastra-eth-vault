@@ -9,7 +9,7 @@ import { ethers, network } from "hardhat";
  *   npx hardhat run scripts/ops/check-nav.ts --network sepolia
  *
  * Optional env vars:
- *   NAV_ENGINE=<proxy>     — defaults to deployment_nav_testnet.json
+ *   NAV_ENGINE=<proxy>     — defaults to deployment_nav_<network>.json (falls back to deployment_nav_testnet.json)
  *   FEED_VERIFIER=<proxy>  — defaults to chainlink-hub/deployment_feed_verifier_<network>.json
  *   FEED_ID=<bytes32>      — defaults to allowedFeedId on FeedVerifier
  */
@@ -25,10 +25,18 @@ function loadAddress(envVar: string, file: string, key: string): string | undefi
   } catch { return undefined; }
 }
 
+function defaultNavEngineFile(networkName: string): string {
+  const root = path.join(__dirname, "../../");
+  const perNetwork = path.join(root, `deployment_nav_${networkName}.json`);
+  if (fs.existsSync(perNetwork)) return perNetwork;
+  // backward-compat fallback (previous default, used for sepolia)
+  return path.join(root, "deployment_nav_testnet.json");
+}
+
 async function main() {
   const navEngineAddr = loadAddress(
     "NAV_ENGINE",
-    path.join(__dirname, "../../deployment_nav_testnet.json"),
+    defaultNavEngineFile(network.name),
     "navEngine"
   );
   const feedVerifierAddr = loadAddress(

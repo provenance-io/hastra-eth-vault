@@ -21,10 +21,16 @@ echo "--------------------------------------------------"
 # Set an initial whitelist address for demonstration
 export INITIAL_WHITELIST_ADDRESS="0x803AdF8d4F036134070Bde997f458502Ade2f834"
 
-npx hardhat run scripts/deploy.ts --network "$NETWORK"
+npx hardhat run scripts/deploy/deploy.ts --network "$NETWORK"
 
 # Resolve network-specific deployment file
 DEPLOYMENT_FILE="deployment_testnet_${NETWORK}.json"
+# deploy.ts writes to generic deployment.json for networks not in its
+# sepolia/hoodi/goerli/testnet whitelist (e.g. fuji) — check that before
+# falling back to the old, potentially stale generic deployment_testnet.json.
+if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment.json" ]; then
+  DEPLOYMENT_FILE="deployment.json"
+fi
 # backward compat fallback
 if [ ! -f "$DEPLOYMENT_FILE" ] && [ -f "deployment_testnet.json" ]; then
   DEPLOYMENT_FILE="deployment_testnet.json"

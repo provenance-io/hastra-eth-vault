@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "chainId": "4217",
+  "createdAt": 1794255364896,
+  "meta": {
+    "name": "Accept CCIP pool ownership + token admin role — PRIME & wYLDS",
+    "description": "Accepts pending Ownable2Step pool-ownership transfers and TokenAdminRegistry admin-role transfers for PRIME and wYLDS on Tempo mainnet.",
+    "txBuilderVersion": "1.16.5"
+  },
+  "transactions": [
+    {
+      "to": "0x608Fa11227Fef4Be0290936894fC8490Dd7CDA1e",
+      "value": "0",
+      "data": "0x79ba5097"
+    },
+    {
+      "to": "0xd36188D25d09F3AfbE306535026A0329dA376880",
+      "value": "0",
+      "data": "0x79ba5097"
+    },
+    {
+      "to": "0x60A97bd9ACf755954Ff0fE85837224f2920a57F3",
+      "value": "0",
+      "data": "0x156194da00000000000000000000000020c00000000000000000000058d0b8b2cfdb358c"
+    },
+    {
+      "to": "0x60A97bd9ACf755954Ff0fE85837224f2920a57F3",
+      "value": "0",
+      "data": "0x156194da00000000000000000000000020c00000000000000000000030fdd4a919e93fcf"
+    }
+  ]
+}

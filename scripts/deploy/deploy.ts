@@ -28,7 +28,13 @@ import { patchProviderForCheckTxBug, patchProviderForPendingBlockBug } from "./l
 async function main() {
   const [deployer, ...otherSigners] = await ethers.getSigners();
   patchProviderForCheckTxBug(ethers.provider);
-  patchProviderForPendingBlockBug(ethers.provider);
+  // Only apply on networks confirmed to hard-error on the "pending" block tag
+  // (e.g. Fuji). On networks where "pending" works, rewriting it to "latest"
+  // can race against still-propagating blocks and produce bogus low gas
+  // estimates instead of an error (observed on Base Sepolia).
+  if (network.name === "fuji") {
+    patchProviderForPendingBlockBug(ethers.provider);
+  }
   const isDryRun = process.argv.includes("--dry-run") || process.env.DRY_RUN === "true";
 
   if (isDryRun) {
@@ -308,7 +314,7 @@ async function main() {
   const networkName = network.name;
   let filename: string;
 
-  if (["sepolia", "hoodi", "goerli", "testnet"].includes(networkName)) {
+  if (["sepolia", "hoodi", "goerli", "testnet", "base-sepolia", "robinhood-testnet", "tempo-moderato"].includes(networkName)) {
     filename = `deployment_testnet_${networkName}.json`;
   } else if (networkName === "mainnet") {
     filename = "deployment_mainnet.json";

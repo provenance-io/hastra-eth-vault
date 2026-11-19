@@ -1,0 +1,28 @@
+{
+  "network": "tempo-moderato",
+  "chainId": "42431",
+  "deployedAt": "2026-10-14T15:03:27.340Z",
+  "contracts": {
+    "usdc": "0x1fa53E85Bf12e94D7467F16D146f395156116385",
+    "yieldVault": "0x3925FB795c07fFff93936e4505Ac5Ae97A5B1209",
+    "yieldVaultImplementation": "0xCA1feB6ACb3c6f91e9ECC125A3fAc9D1cfb6fbd3",
+    "stakingVault": "0xc0Fc71F38e3C6B0b56f633B9714b0932d8FA6AE7",
+    "stakingVaultImplementation": "0xC8Ffa14dF81EF2b410DD9Be267aD9B67F1566aa2",
+    "navOracle": "0xFDD42DFCe6Ad8B3bf80b5d0f8e4e4D427c766307",
+    "navFeedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3"
+  },
+  "transactions": {
+    "yieldVault": "0x397d2f13ec7672efe97c86b83f722b4e238eab53474b5facdcee7f9faf9f73f5",
+    "stakingVault": "0x6c8c34fa0a9ea19cd48203683b5268057971f11189dd71cd4ea459e63519d7b6",
+    "setNavOracle": "0xddc44a63d95f870e4223a5273e82e2ea6dc6c027f3b476200dbd12eb7c0df842"
+  },
+  "roles": {
+    "admin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "redeemVault": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "freezeAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "rewardsAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "whitelistAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "withdrawalAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "navOracleUpdater": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671"
+  }
+}

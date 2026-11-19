@@ -3,6 +3,7 @@ import { ethers, network } from "hardhat";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
+import { patchProviderForPendingBlockBug } from "../deploy/lib/patchProvider";
 
 /**
  * Fetch and optionally publish a Chainlink Data Streams report.
@@ -164,11 +165,16 @@ async function main() {
   console.log(`\n⛓️  Publishing to FeedVerifier: ${contractAddress}`);
 
   const [signer] = await ethers.getSigners();
+  patchProviderForPendingBlockBug(signer.provider);
   console.log(`   Signer: ${signer.address}`);
 
   const feedVerifier = await ethers.getContractAt("FeedVerifier", contractAddress!, signer);
-  const priceBefore = await feedVerifier.priceOf(FEED_ID);
-  console.log(`   priceOf(feedId) before: ${priceBefore.toString()}`);
+  try {
+    const priceBefore = await feedVerifier.priceOf(FEED_ID);
+    console.log(`   priceOf(feedId) before: ${priceBefore.toString()}`);
+  } catch (e: any) {
+    console.log(`   priceOf(feedId) before: <unavailable — ${e?.shortMessage || e?.message || "revert"}>`);
+  }
 
   const tx = await feedVerifier.verifyReport(report.fullReport);
   console.log(`   Tx hash: ${tx.hash}`);

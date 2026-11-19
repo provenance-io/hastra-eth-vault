@@ -42,9 +42,62 @@ const config: HardhatUserConfig = {
       gasPrice: 30000000000, // 30 Gwei (Fuji base fee is near-zero; padded for headroom)
       gas: 8000000, // 8M gas limit
     },
+    "base-sepolia": {
+      url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 84532,
+      gasPrice: 6000000,
+      gas: 8000000,
+    },
+    base: {
+      url: process.env.BASE_RPC_URL || "https://mainnet.base.org",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 8453,
+    },
+    "robinhood-testnet": {
+      url: process.env.ROBINHOOD_TESTNET_RPC_URL || "https://rpc.testnet.chain.robinhood.com",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 46630,
+      gasPrice: 10000000,
+      gas: 8000000,
+    },
+    "tempo-moderato": {
+      url: process.env.TEMPO_MODERATO_RPC_URL || "https://rpc.moderato.tempo.xyz",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 42431,
+      // No fixed gas limit: Tempo's TIP-1000 pricing makes deploys far costlier
+      // than other EVM chains, and eth_estimateGas accounts for it. Fees are
+      // paid in pathUSD.
+    },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY || "",
+    customChains: [
+      {
+        network: "base-sepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api-sepolia.basescan.org/api",
+          browserURL: "https://sepolia.basescan.org"
+        }
+      },
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=8453",
+          browserURL: "https://basescan.org"
+        }
+      },
+      {
+        network: "robinhood-testnet",
+        chainId: 46630,
+        urls: {
+          apiURL: "https://explorer.testnet.chain.robinhood.com/api",
+          browserURL: "https://explorer.testnet.chain.robinhood.com"
+        }
+      }
+    ]
   },
   paths: {
     sources: "./contracts",

@@ -54,6 +54,38 @@ const config: HardhatUserConfig = {
       gasPrice: 30000000000, // 30 Gwei (Fuji base fee is near-zero; padded for headroom)
       gas: 8000000, // 8M gas limit
     },
+    "base-sepolia": {
+      url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 84532,
+      // Base's fast block times can land consecutive script txs in the same
+      // block, so an in-script gas estimate for tx N+1 can race against tx N's
+      // block still propagating to "latest" (same root cause as the Fuji
+      // pending-block issue). Explicit gas/gasPrice skips estimation entirely.
+      gasPrice: 6000000, // ~0.006 Gwei (current Base Sepolia base fee)
+      gas: 8000000, // 8M gas limit
+    },
+    base: {
+      url: process.env.BASE_RPC_URL || "https://mainnet.base.org",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 8453,
+    },
+    "robinhood-testnet": {
+      url: process.env.ROBINHOOD_TESTNET_RPC_URL || "https://rpc.testnet.chain.robinhood.com",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 46630,
+      gasPrice: 10000000, // 0.01 Gwei (current Robinhood testnet gas price)
+      gas: 8000000, // 8M gas limit
+    },
+    "tempo-moderato": {
+      url: process.env.TEMPO_MODERATO_RPC_URL || "https://rpc.moderato.tempo.xyz",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 42431,
+      // No fixed gas limit: Tempo's TIP-1000 pricing (1,000 gas/byte of code,
+      // 250k per new storage slot) puts vault impl deploys near 19M gas, which
+      // the node's eth_estimateGas accounts for. Fees are paid in pathUSD, not
+      // a native token, so the deployer must hold pathUSD.
+    },
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS === "true",
@@ -82,6 +114,31 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://hoodi.etherscan.io/api",
           browserURL: "https://hoodi.etherscan.io"
+        }
+      },
+      {
+        network: "base-sepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api-sepolia.basescan.org/api",
+          browserURL: "https://sepolia.basescan.org"
+        }
+      },
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=8453",
+          browserURL: "https://basescan.org"
+        }
+      },
+      {
+        network: "robinhood-testnet",
+        chainId: 46630,
+        urls: {
+          // Blockscout instance (etherscan-compatible API)
+          apiURL: "https://explorer.testnet.chain.robinhood.com/api",
+          browserURL: "https://explorer.testnet.chain.robinhood.com"
         }
       }
     ]

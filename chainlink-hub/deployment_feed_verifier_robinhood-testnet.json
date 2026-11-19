@@ -1,0 +1,12 @@
+{
+  "network": "robinhood-testnet",
+  "chainId": "46630",
+  "feedVerifier": "0xFDD42DFCe6Ad8B3bf80b5d0f8e4e4D427c766307",
+  "feedVerifierImplementation": "0x84B0742d6739875B361596f30fBA5668cE105a3F",
+  "verifierProxy": "0x72790f9eB82db492a7DDb6d2af22A270Dcc3Db64",
+  "feedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3",
+  "deployer": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "admin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "updater": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "deployedAt": "2026-09-24T22:59:58.306Z"
+}

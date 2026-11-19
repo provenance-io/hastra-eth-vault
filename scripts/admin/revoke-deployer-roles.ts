@@ -30,10 +30,14 @@ function loadFeedVerifierAbi(): any[] {
   return JSON.parse(fs.readFileSync(p, "utf-8")).abi;
 }
 
+// DEFAULT_ADMIN_ROLE must be revoked LAST: every other role's admin role
+// defaults to DEFAULT_ADMIN_ROLE (OZ AccessControl default), so revoking it
+// first would strip the deployer's ability to revoke anything afterward.
 const ALL_ROLE_NAMES = [
-  "DEFAULT_ADMIN_ROLE", "UPGRADER_ROLE", "PAUSER_ROLE",
+  "UPGRADER_ROLE", "PAUSER_ROLE",
   "FREEZE_ADMIN_ROLE", "REWARDS_ADMIN_ROLE", "NAV_ORACLE_UPDATER_ROLE",
   "WHITELIST_ADMIN_ROLE", "WITHDRAWAL_ADMIN_ROLE", "UPDATER_ROLE",
+  "DEFAULT_ADMIN_ROLE",
 ];
 
 async function main() {

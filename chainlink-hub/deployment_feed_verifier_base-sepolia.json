@@ -1,0 +1,12 @@
+{
+  "network": "base-sepolia",
+  "chainId": "84532",
+  "feedVerifier": "0x45f3b1805D884AcAfca1806C9fEa2D98B7dC61E2",
+  "feedVerifierImplementation": "0xf4390005DFd5F7d638b891d94E9FB0150026b687",
+  "verifierProxy": "0x8Ac491b7c118a0cdcF048e0f707247fD8C9575f9",
+  "feedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3",
+  "deployer": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "admin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "updater": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "deployedAt": "2026-09-24T22:07:00.000Z"
+}

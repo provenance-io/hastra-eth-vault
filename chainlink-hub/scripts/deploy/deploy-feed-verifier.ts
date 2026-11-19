@@ -41,12 +41,23 @@ const VERIFIER_PROXY: Record<string, string> = {
   hoodi:    "",
   mainnet:  "0x5A1634A86e9b7BfEf33F0f3f3EA3b1aBBc4CC85F", // Chainlink Data Streams Verifier — Ethereum mainnet
   fuji:     "0x2bf612C65f5a4d388E687948bb2CF842FFb8aBB3", // Chainlink Data Streams Verifier — Avalanche Fuji testnet
+  base:     "0xDE1A28D87Afd0f546505B28AB50410A5c3a7387a", // Chainlink Data Streams Verifier — Base mainnet
+  "base-sepolia": "0x8Ac491b7c118a0cdcF048e0f707247fD8C9575f9", // Chainlink Data Streams Verifier — Base Sepolia testnet
+  "robinhood-testnet": "0x72790f9eB82db492a7DDb6d2af22A270Dcc3Db64", // Chainlink Data Streams Verifier — Robinhood Chain testnet
+  // Not yet listed in Chainlink's docs; confirmed on-chain (VerifierProxy 2.0.0) and by verifying a live report.
+  "tempo-moderato": "0x72790f9eB82db492a7DDb6d2af22A270Dcc3Db64", // Chainlink Data Streams Verifier — Tempo Moderato testnet
 };
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  patchProviderForPendingBlockBug(deployer.provider);
   const net = network.name;
+  // Only apply on networks confirmed to hard-error on the "pending" block tag
+  // (e.g. Fuji). On networks where "pending" works, rewriting it to "latest"
+  // can race against still-propagating blocks and produce bogus low gas
+  // estimates instead of an error (observed on Base Sepolia).
+  if (net === "fuji") {
+    patchProviderForPendingBlockBug(deployer.provider);
+  }
 
   const verifierProxy = VERIFIER_PROXY[net];
   if (!verifierProxy) throw new Error(`No VerifierProxy configured for network "${net}". Fill it in VERIFIER_PROXY map.`);
