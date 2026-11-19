@@ -41,10 +41,14 @@ import {execSync} from "child_process";
 
 const MAINNET_DEPLOYMENT = path.join(__dirname, "../../deployment_mainnet.json");
 const SEPOLIA_DEPLOYMENT = path.join(__dirname, "../../deployment_testnet_sepolia.json");
+const BASE_MAINNET_DEPLOYMENT = path.join(__dirname, "../../deployment_base_mainnet.json");
+const BASE_SEPOLIA_DEPLOYMENT = path.join(__dirname, "../../deployment_testnet_base-sepolia.json");
 
 function deploymentPath(networkName: string): string | null {
     if (networkName === "mainnet") return MAINNET_DEPLOYMENT;
     if (networkName === "sepolia") return SEPOLIA_DEPLOYMENT;
+    if (networkName === "base") return BASE_MAINNET_DEPLOYMENT;
+    if (networkName === "base-sepolia") return BASE_SEPOLIA_DEPLOYMENT;
     return null;
 }
 
@@ -55,7 +59,11 @@ function loadDeployment(networkName: string): any {
 }
 
 function timelockDeploymentPath(networkName: string): string {
-    const suffix = networkName === "mainnet" ? "mainnet" : networkName === "sepolia" ? "testnet_sepolia" : networkName;
+    const suffix = networkName === "mainnet" ? "mainnet"
+        : networkName === "sepolia" ? "testnet_sepolia"
+        : networkName === "base" ? "base_mainnet"
+        : networkName === "base-sepolia" ? "testnet_base-sepolia"
+        : networkName;
     return path.join(__dirname, `../../deployment_timelock_${suffix}.json`);
 }
 

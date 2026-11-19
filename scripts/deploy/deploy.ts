@@ -318,6 +318,8 @@ async function main() {
     filename = `deployment_testnet_${networkName}.json`;
   } else if (networkName === "mainnet") {
     filename = "deployment_mainnet.json";
+  } else if (networkName === "base") {
+    filename = "deployment_base_mainnet.json";
   } else {
     filename = "deployment.json";
   }
