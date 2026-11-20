@@ -1,0 +1,12 @@
+{
+  "network": "ink-sepolia",
+  "chainId": "763373",
+  "feedVerifier": "0xf4390005DFd5F7d638b891d94E9FB0150026b687",
+  "feedVerifierImplementation": "0xbf780ba6Bcf73F54a7F6E97B598533238Db31eF1",
+  "verifierProxy": "0x1f27392cC2394d54fFBA83B89C881200b5d5632C",
+  "feedId": "",
+  "deployer": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "admin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "updater": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+  "deployedAt": "2026-11-20T21:36:00.000Z"
+}

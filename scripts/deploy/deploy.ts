@@ -9,7 +9,17 @@
  *
  * Optional env vars: USDC_ADDRESS, REDEEM_VAULT_ADDRESS, FREEZE_ADMIN_ADDRESS,
  *   REWARDS_ADMIN_ADDRESS, WHITELIST_ADMIN_ADDRESS, WITHDRAWAL_ADMIN_ADDRESS,
- *   NAV_ORACLE_UPDATER_ADDRESS
+ *   NAV_ORACLE_UPDATER_ADDRESS, EPOCH_ADMIN_ADDRESS, REDEEM_OPERATOR_ADDRESS,
+ *   GLOBAL_CAP
+ *
+ * YieldVault is deployed directly as YieldVaultV2 (role-split + Audit 4.1 caps,
+ * see contracts/YieldVaultV2.sol) — initialize() then initializeV2(2, ...) are
+ * both called in this same script, before any role migration to a Safe/Timelock
+ * happens, so no separate post-deploy V1→V2 upgrade step is needed for new
+ * deployments. EPOCH_ADMIN_ADDRESS/REDEEM_OPERATOR_ADDRESS default to deployer
+ * like the other role addresses above — override for production. GLOBAL_CAP
+ * (6-decimal wYLDS units) defaults to 5,000,000 wYLDS (matches Ethereum
+ * Sepolia's current value) if unset.
  */
 // @ts-ignore
 import {ethers, upgrades, network, run} from "hardhat";
@@ -48,6 +58,9 @@ async function main() {
   const whitelistAdminAddress = process.env.WHITELIST_ADMIN_ADDRESS ?? otherSigners[3]?.address ?? deployer.address;
   const withdrawalAdminAddress = process.env.WITHDRAWAL_ADMIN_ADDRESS ?? otherSigners[4]?.address ?? deployer.address;
   const navOracleUpdaterAddress = process.env.NAV_ORACLE_UPDATER_ADDRESS ?? deployer.address;
+  const epochAdminAddress = process.env.EPOCH_ADMIN_ADDRESS ?? deployer.address;
+  const redeemOperatorAddress = process.env.REDEEM_OPERATOR_ADDRESS ?? deployer.address;
+  const globalCap = process.env.GLOBAL_CAP ? BigInt(process.env.GLOBAL_CAP) : 5_000_000n * 10n ** 6n;
 
   console.log("Deploying contracts with account:", deployer.address);
   console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
@@ -59,6 +72,9 @@ async function main() {
   console.log("  Whitelist Admin:", whitelistAdminAddress);
   console.log("  Withdrawal Admin:", withdrawalAdminAddress);
   console.log("  Nav Oracle Updater:", navOracleUpdaterAddress);
+  console.log("  Epoch Admin (V2):", epochAdminAddress);
+  console.log("  Redeem Operator (V2):", redeemOperatorAddress);
+  console.log("  Global Cap (V2):", ethers.formatUnits(globalCap, 6), "wYLDS");
 
   // ============ Deploy USDC (or use existing) ============
   
@@ -109,16 +125,22 @@ async function main() {
   let yieldVault: any;
 
   if (isDryRun) {
-      console.log("[Dry Run] Would deploy YieldVault (UUPS Proxy) with args:");
+      console.log("[Dry Run] Would deploy YieldVaultV2 (UUPS Proxy) with args:");
       console.log(`  - Asset: ${usdcAddress}`);
       console.log(`  - Name: "Hastra wYLDS"`);
       console.log(`  - Symbol: "wYLDS"`);
       console.log(`  - Admin: ${deployer.address}`);
       console.log(`  - RedeemVault: ${redeemVaultAddress}`);
       console.log(`  - InitialWhitelist: ${initialWhitelistAddress}`);
+      console.log(`[Dry Run] Would call initializeV2(2, ${epochAdminAddress}, ${redeemOperatorAddress}, ${globalCap})`);
       yieldVaultAddress = "0x0000000000000000000000000000000000000002"; // Dummy
   } else {
-      const YieldVault = await ethers.getContractFactory("YieldVault");
+      // Deploy as YieldVaultV2 directly (role-split + Audit 4.1 caps) so new
+      // deployments don't need a separate post-deploy V1→V2 Timelock upgrade.
+      // YieldVaultV2 doesn't override initialize(), so the V1 initializer args
+      // below are unchanged; initializeV2() is called as a follow-up tx while
+      // the deployer still holds DEFAULT_ADMIN_ROLE directly (pre role-migration).
+      const YieldVault = await ethers.getContractFactory("YieldVaultV2");
       yieldVault = await upgrades.deployProxy(YieldVault, [
         usdcAddress,
         "Hastra wYLDS",
@@ -129,7 +151,13 @@ async function main() {
       ], { kind: 'uups' });
       await yieldVault.waitForDeployment();
       yieldVaultAddress = await yieldVault.getAddress();
-      console.log("YieldVault (Proxy) deployed to:", yieldVaultAddress);
+      console.log("YieldVault (Proxy, V2 impl) deployed to:", yieldVaultAddress);
+
+      // Explicit gasLimit: some RPCs (e.g. Ink) estimate this first post-deploy call
+      // against a node that hasn't seen the new proxy yet (~24k gas, then reverts).
+      const initV2Tx = await yieldVault.initializeV2(2, epochAdminAddress, redeemOperatorAddress, globalCap, { gasLimit: 1_000_000 });
+      await initV2Tx.wait();
+      console.log("initializeV2 called — EPOCH_ADMIN_ROLE:", epochAdminAddress, "REDEEM_OPERATOR_ROLE:", redeemOperatorAddress);
   }
 
   // ============ Deploy StakingVault (PRIME) ============
@@ -302,6 +330,8 @@ async function main() {
   console.log("  Rewards Admin:", rewardsAdminAddress);
   console.log("  Whitelist Admin:", whitelistAdminAddress);
   console.log("  Withdrawal Admin:", withdrawalAdminAddress);
+  console.log("  Epoch Admin (V2):", epochAdminAddress);
+  console.log("  Redeem Operator (V2):", redeemOperatorAddress);
   console.log("========================================");
 
   if (isDryRun) {
@@ -314,7 +344,7 @@ async function main() {
   const networkName = network.name;
   let filename: string;
 
-  if (["sepolia", "hoodi", "goerli", "testnet", "base-sepolia", "robinhood-testnet", "tempo-moderato"].includes(networkName)) {
+  if (["sepolia", "hoodi", "goerli", "testnet", "base-sepolia", "ink-sepolia", "robinhood-testnet", "tempo-moderato"].includes(networkName)) {
     filename = `deployment_testnet_${networkName}.json`;
   } else if (networkName === "mainnet") {
     filename = "deployment_mainnet.json";
@@ -383,6 +413,12 @@ async function main() {
       whitelistAdmin: whitelistAdminAddress,
       withdrawalAdmin: withdrawalAdminAddress,
       navOracleUpdater: navOracleUpdaterAddress,
+      epochAdmin: epochAdminAddress,
+      redeemOperator: redeemOperatorAddress,
+    },
+    yieldVaultV2: {
+      version: 2,
+      maxEpochCap: globalCap.toString(),
     },
   };
 

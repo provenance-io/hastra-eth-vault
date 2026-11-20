@@ -1,0 +1,11 @@
+{
+  "network": "base-sepolia",
+  "address": "0xee6606a5FD5162Ad35F39C163Dd8B30E12744F6a",
+  "delaySeconds": 300,
+  "proposer": "0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4",
+  "executor": "0x0000000000000000000000000000000000000000",
+  "admin": "0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4",
+  "deployedAt": "2026-11-19T23:35:02.868Z",
+  "deployTx": "0xbe01d31fc6a48410876e821da8fe3857ff9932140d8c53f732e84209e96c52c4",
+  "gitCommit": "434c74d2e7d9ff8ba0ae9812197e39addb06dcee"
+}

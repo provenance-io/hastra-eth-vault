@@ -1,0 +1,34 @@
+{
+  "network": "ink-sepolia",
+  "chainId": "763373",
+  "deployedAt": "2026-11-20T21:23:52.399Z",
+  "contracts": {
+    "usdc": "0x1fa53E85Bf12e94D7467F16D146f395156116385",
+    "yieldVault": "0x4c2f7f39c43d9b50CEA14347ea3a5d3021F696Ad",
+    "yieldVaultImplementation": "0x249bf835053FB1782F6751f8e478bf3d26d7786A",
+    "stakingVault": "0x7713463f5Dd3AAf6a24F64E108fA572dE511d677",
+    "stakingVaultImplementation": "0x6b02E520FCd0858d0ca2479fA80Fd92DE727f176",
+    "navOracle": "0xf4390005DFd5F7d638b891d94E9FB0150026b687",
+    "navFeedId": "0x000700f43b35146a1cb16373ac6225ad597535e928e6dc4d179c3b4225f2b6d3"
+  },
+  "transactions": {
+    "usdc": "existing",
+    "yieldVault": "0xb32d7de26553a4e0e1a67a853e271f12b678356562d8789f92b14fd1e0f25af6",
+    "stakingVault": "0xe4fbaeadd707c8e54b0b5f9ce3a9e6d11b4fb70cbea01275c8df849464467b8c"
+  },
+  "roles": {
+    "admin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "redeemVault": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "freezeAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "rewardsAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "whitelistAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "withdrawalAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "navOracleUpdater": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "epochAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "redeemOperator": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671"
+  },
+  "yieldVaultV2": {
+    "version": 2,
+    "maxEpochCap": "5000000000000"
+  }
+}

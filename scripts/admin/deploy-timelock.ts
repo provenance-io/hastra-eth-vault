@@ -43,12 +43,14 @@ const MAINNET_DEPLOYMENT = path.join(__dirname, "../../deployment_mainnet.json")
 const SEPOLIA_DEPLOYMENT = path.join(__dirname, "../../deployment_testnet_sepolia.json");
 const BASE_MAINNET_DEPLOYMENT = path.join(__dirname, "../../deployment_base_mainnet.json");
 const BASE_SEPOLIA_DEPLOYMENT = path.join(__dirname, "../../deployment_testnet_base-sepolia.json");
+const INK_SEPOLIA_DEPLOYMENT = path.join(__dirname, "../../deployment_testnet_ink-sepolia.json");
 
 function deploymentPath(networkName: string): string | null {
     if (networkName === "mainnet") return MAINNET_DEPLOYMENT;
     if (networkName === "sepolia") return SEPOLIA_DEPLOYMENT;
     if (networkName === "base") return BASE_MAINNET_DEPLOYMENT;
     if (networkName === "base-sepolia") return BASE_SEPOLIA_DEPLOYMENT;
+    if (networkName === "ink-sepolia") return INK_SEPOLIA_DEPLOYMENT;
     return null;
 }
 
@@ -63,6 +65,7 @@ function timelockDeploymentPath(networkName: string): string {
         : networkName === "sepolia" ? "testnet_sepolia"
         : networkName === "base" ? "base_mainnet"
         : networkName === "base-sepolia" ? "testnet_base-sepolia"
+        : networkName === "ink-sepolia" ? "testnet_ink-sepolia"
         : networkName;
     return path.join(__dirname, `../../deployment_timelock_${suffix}.json`);
 }

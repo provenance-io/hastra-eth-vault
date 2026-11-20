@@ -1,0 +1,28 @@
+{
+  "network": "base-sepolia",
+  "chainId": "84532",
+  "status": "upgraded",
+  "proxy": "0xD9c74Ae1d9B95A9C90E676974412ab71fb2b5DF4",
+  "implementationV1": "0x4c2f7f39c43d9b50CEA14347ea3a5d3021F696Ad",
+  "implementation": "0xe9b231C75Fe2A22b2163144da40C27B6C87e0a41",
+  "contractName": "YieldVaultV2",
+  "note": "Direct upgradeToAndCall (no Timelock on base-sepolia yet), signed by admin EOA 0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671. EPOCH_ADMIN_ROLE on this EOA is temporary pending Base Sepolia Timelock deployment; REDEEM_OPERATOR_ROLE on this EOA mirrors Ethereum Sepolia's final state.",
+  "v2Config": {
+    "version": 2,
+    "epochAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "redeemOperator": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "globalCap": "5000000000000"
+  },
+  "verifiedOnChain": {
+    "implementationSlot": "0xe9b231C75Fe2A22b2163144da40C27B6C87e0a41",
+    "versionFn": 2,
+    "epochAdminRole": true,
+    "redeemOperatorRole": true,
+    "maxEpochCap": "5000000000000"
+  },
+  "verifiedBytecode": {
+    "commit": "15fc053432e8ce911362a885dc094e0f657df442",
+    "result": "MATCH"
+  },
+  "verifiedOnBasescan": "https://sepolia.basescan.org/address/0xe9b231C75Fe2A22b2163144da40C27B6C87e0a41#code"
+}

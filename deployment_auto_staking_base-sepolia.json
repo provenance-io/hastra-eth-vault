@@ -1,0 +1,15 @@
+{
+  "network": "base-sepolia",
+  "chainId": "84532",
+  "deployedAt": "2026-11-20T17:47:47.604Z",
+  "yieldVaultAddress": "0xD9c74Ae1d9B95A9C90E676974412ab71fb2b5DF4",
+  "autoStakingVaultProxy": "0x7d5E555266cE9f7DF8E456F705C699b9242f6422",
+  "tokenName": "AUTO",
+  "tokenSymbol": "AUTO",
+  "roles": {
+    "admin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "freezeAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "rewardsAdmin": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671",
+    "navOracleUpdater": "0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671"
+  }
+}

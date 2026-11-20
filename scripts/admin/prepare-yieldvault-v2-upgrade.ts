@@ -29,7 +29,7 @@ import { ethers, upgrades, network } from "hardhat";
  *
  * Usage:
  *   PROXY=<yield_vault_proxy> \
- *   TIMELOCK=<timelock_address> \
+ *   [TIMELOCK=<timelock_address>] \
  *   EPOCH_ADMIN=<safe_or_eoa> \
  *   REDEEM_OPERATOR=<ops_eoa> \
  *   [GLOBAL_CAP=<6dec_wYLDS_amount>] \
@@ -37,7 +37,15 @@ import { ethers, upgrades, network } from "hardhat";
  *   [DELAY=<seconds_override>] \
  *   [SAFE_ADDRESS=<safe_for_url>] \
  *   [DRY_RUN=true] \
+ *   [EXECUTE=true] \
  *     npx hardhat run scripts/admin/prepare-yieldvault-v2-upgrade.ts --network <network>
+ *
+ * TIMELOCK omitted: no Timelock exists on this network yet (e.g. Base Sepolia
+ * today). The script deploys the new impl, then prints (and, only if
+ * EXECUTE=true, directly sends) a plain `upgradeToAndCall` tx from the
+ * --network signer, who must hold UPGRADER_ROLE directly. EXECUTE=true is
+ * required to actually broadcast; otherwise this only prints calldata/cast
+ * commands for manual review.
  *
  * DRY_RUN=true: skip the impl deployment entirely. The script runs
  * `upgrades.validateUpgrade` (storage-layout + unsafe-ops check) and substitutes
@@ -69,6 +77,17 @@ import { ethers, upgrades, network } from "hardhat";
  *   VERSION=2 \
  *   SAFE_ADDRESS=0x8D358B8aE881F8ea92C3d07783aBCA21727C6309 \
  *     npx hardhat run scripts/admin/prepare-yieldvault-v2-upgrade.ts --network mainnet
+ *
+ * Base Sepolia example (no Timelock yet, proxy is still V1 → VERSION=2,
+ * direct upgrade signed by the EOA that holds UPGRADER_ROLE):
+ *   PROXY=<base_sepolia_yieldvault_proxy> \
+ *   EPOCH_ADMIN=0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671 \
+ *   REDEEM_OPERATOR=0xEB47390B1e2196ECC7FC2947e5aC59C9FF7AD671 \
+ *   GLOBAL_CAP=5000000000000 \
+ *   VERSION=2 \
+ *     npx hardhat run scripts/admin/prepare-yieldvault-v2-upgrade.ts --network base-sepolia
+ *   # add EXECUTE=true once the printed calldata has been reviewed and you
+ *   # want this script to send the tx itself.
  */
 
 const PREDECESSOR = ethers.ZeroHash;
@@ -80,7 +99,13 @@ const INITIALIZABLE_STORAGE_SLOT = "0xf0c57e16840df040f15088dc2f81fe391c3923bec7
 
 async function main() {
   const proxyAddress = requireEnv("PROXY");
-  const timelockAddress = requireEnv("TIMELOCK");
+  // TIMELOCK is OPTIONAL: networks without a Timelock yet (e.g. Base Sepolia,
+  // pre-Timelock-deploy) fall back to a direct upgradeToAndCall, signed by
+  // whichever account currently holds UPGRADER_ROLE (the hardhat --network
+  // signer). Pass EXECUTE=true to actually send that tx from this script;
+  // otherwise it only prints the calldata/cast command for manual review.
+  const timelockAddress = process.env.TIMELOCK;
+  const executeDirect = /^(1|true|yes)$/i.test(process.env.EXECUTE ?? "");
   // EPOCH_ADMIN / REDEEM_OPERATOR are REQUIRED — explicit > clever. The script
   // prints discovered on-chain holders below so the operator can verify they
   // match what they're about to pass in.
@@ -95,7 +120,7 @@ async function main() {
   if (globalCap === 0n) throw new Error(`GLOBAL_CAP must be > 0; initializeV2 will revert InvalidGlobalCap.`);
 
   if (!ethers.isAddress(proxyAddress)) throw new Error(`PROXY is not a valid address: ${proxyAddress}`);
-  if (!ethers.isAddress(timelockAddress)) throw new Error(`TIMELOCK is not a valid address: ${timelockAddress}`);
+  if (timelockAddress && !ethers.isAddress(timelockAddress)) throw new Error(`TIMELOCK is not a valid address: ${timelockAddress}`);
   if (!ethers.isAddress(epochAdmin)) throw new Error(`EPOCH_ADMIN is not a valid address: ${epochAdmin}`);
   if (!ethers.isAddress(redeemOperator)) throw new Error(`REDEEM_OPERATOR is not a valid address: ${redeemOperator}`);
 
@@ -103,7 +128,7 @@ async function main() {
   console.log(`Network:           ${network.name}`);
   console.log(`Deployer:          ${deployer.address}`);
   console.log(`Proxy:             ${proxyAddress}`);
-  console.log(`Timelock:          ${timelockAddress}`);
+  console.log(`Timelock:          ${timelockAddress ?? "(none — direct upgrade mode)"}`);
   console.log(`EPOCH_ADMIN  →     ${epochAdmin}`);
   console.log(`REDEEM_OPERATOR →  ${redeemOperator}`);
   console.log(`GLOBAL_CAP   →     ${globalCap}  (${Number(globalCap) / 1e6} wYLDS)`);
@@ -230,7 +255,57 @@ async function main() {
   ]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 3. Encode timelock.schedule(...) + timelock.execute(...).
+  // 3b. No Timelock on this network — direct upgradeToAndCall instead.
+  // ─────────────────────────────────────────────────────────────────────────
+  if (!timelockAddress) {
+    const sep = "=".repeat(72);
+    console.log(`\n${sep}`);
+    console.log("📋 DIRECT UPGRADE (no Timelock on this network)");
+    console.log(sep);
+    console.log(`To (proxy):        ${proxyAddress}`);
+    console.log(`Method:            upgradeToAndCall(address,bytes)`);
+    console.log(`  newImplementation: ${newImplAddress}`);
+    console.log(`  data:              ${initializeV2Calldata}`);
+    console.log(`\nRaw upgradeToAndCall() calldata:`);
+    console.log(upgradeCalldata);
+    console.log(`\nCast example (replace --rpc-url and --private-key; signer must hold UPGRADER_ROLE):`);
+    console.log(
+      `cast send ${proxyAddress} \\\n` +
+        `  "upgradeToAndCall(address,bytes)" \\\n` +
+        `  ${newImplAddress} ${initializeV2Calldata} \\\n` +
+        `  --rpc-url $RPC_URL --private-key $PRIVATE_KEY`
+    );
+
+    if (executeDirect) {
+      if (dryRun) throw new Error("EXECUTE=true cannot be combined with DRY_RUN=true.");
+      console.log(`\n🚀 EXECUTE=true — sending upgradeToAndCall from ${deployer.address}...`);
+      const proxyWriter = new ethers.Contract(
+        proxyAddress,
+        ["function upgradeToAndCall(address newImplementation, bytes data)"],
+        deployer
+      );
+      const tx = await proxyWriter.upgradeToAndCall(newImplAddress, initializeV2Calldata);
+      console.log(`   tx: ${tx.hash}`);
+      const receipt = await tx.wait();
+      console.log(`✅ Upgrade confirmed in block ${receipt.blockNumber}.`);
+    } else {
+      console.log(`\n(Not sent — pass EXECUTE=true to send this tx directly from the --network signer.)`);
+    }
+
+    console.log(`\n${sep}`);
+    console.log("🔍 POST-UPGRADE VERIFICATION");
+    console.log(sep);
+    console.log(`cast storage ${proxyAddress} 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url $RPC_URL | cast to-address`);
+    console.log(`# Expected: ${newImplAddress}`);
+    console.log(`cast call ${proxyAddress} "hasRole(bytes32,address)(bool)" $(cast keccak "EPOCH_ADMIN") ${epochAdmin} --rpc-url $RPC_URL`);
+    console.log(`cast call ${proxyAddress} "hasRole(bytes32,address)(bool)" $(cast keccak "REDEEM_OPERATOR") ${redeemOperator} --rpc-url $RPC_URL`);
+    console.log(`# Both should return true.`);
+    console.log(sep);
+    return;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 3c. Encode timelock.schedule(...) + timelock.execute(...).
   // ─────────────────────────────────────────────────────────────────────────
   const timelockIface = new ethers.Interface([
     "function getMinDelay() view returns (uint256)",

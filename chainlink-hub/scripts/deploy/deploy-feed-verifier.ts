@@ -43,6 +43,7 @@ const VERIFIER_PROXY: Record<string, string> = {
   fuji:     "0x2bf612C65f5a4d388E687948bb2CF842FFb8aBB3", // Chainlink Data Streams Verifier — Avalanche Fuji testnet
   base:     "0xDE1A28D87Afd0f546505B28AB50410A5c3a7387a", // Chainlink Data Streams Verifier — Base mainnet
   "base-sepolia": "0x8Ac491b7c118a0cdcF048e0f707247fD8C9575f9", // Chainlink Data Streams Verifier — Base Sepolia testnet
+  "ink-sepolia": "0x1f27392cC2394d54fFBA83B89C881200b5d5632C", // Chainlink Data Streams Verifier — Ink Sepolia testnet
   "robinhood-testnet": "0x72790f9eB82db492a7DDb6d2af22A270Dcc3Db64", // Chainlink Data Streams Verifier — Robinhood Chain testnet
   // Not yet listed in Chainlink's docs; confirmed on-chain (VerifierProxy 2.0.0) and by verifying a live report.
   "tempo-moderato": "0x72790f9eB82db492a7DDb6d2af22A270Dcc3Db64", // Chainlink Data Streams Verifier — Tempo Moderato testnet
