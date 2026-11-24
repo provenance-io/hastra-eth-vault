@@ -29,6 +29,7 @@ import { patchProviderForPendingBlockBug } from "./lib/patchProvider";
  *                      to accept any feed; update later via set-feed-id.ts admin script)
  *   ADMIN_ADDRESS    — defaults to deployer (hand off to Safe after deploy)
  *   UPDATER_ADDRESS  — defaults to deployer (set to bot wallet for production)
+ *   DRY_RUN          — set to "true" to print config and check the VerifierProxy has code, without deploying
  *   ETHERSCAN_API_KEY — required for on-chain verification
  *
  * Mainnet: fill in the mainnet VerifierProxy below before deploying.
@@ -83,6 +84,13 @@ async function main() {
   if (net === "hardhat") {
     console.log("🔍 DRY RUN — no real transactions. Re-run with --network sepolia or --network mainnet to deploy.");
     console.log("");
+  }
+
+  if (process.env.DRY_RUN === "true" && net !== "hardhat") {
+    const code = await ethers.provider.getCode(verifierProxy);
+    console.log(`VerifierProxy has code: ${code !== "0x"}`);
+    console.log("🔍 DRY RUN — no transaction sent.");
+    return;
   }
 
   console.log("🚀 Deploying FeedVerifier (UUPS proxy)...");

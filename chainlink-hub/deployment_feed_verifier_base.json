@@ -1,0 +1,12 @@
+{
+  "network": "base",
+  "chainId": "8453",
+  "feedVerifier": "0xbC6023cb49F8E8cA6cef563d5FD97ba4C6A5D937",
+  "feedVerifierImplementation": "0xfEd839B6BA09c1aBf4C768abA0ECA50746E4eca9",
+  "verifierProxy": "0xDE1A28D87Afd0f546505B28AB50410A5c3a7387a",
+  "feedId": "",
+  "deployer": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+  "admin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+  "updater": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+  "deployedAt": "2026-11-24T17:45:36.857Z"
+}
