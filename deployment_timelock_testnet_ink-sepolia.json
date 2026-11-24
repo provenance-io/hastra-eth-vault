@@ -1,0 +1,11 @@
+{
+  "network": "ink-sepolia",
+  "address": "0x3B6A48D06936964A9C1C2f83973ece6F8b880FE9",
+  "delaySeconds": 300,
+  "proposer": "0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4",
+  "executor": "0x0000000000000000000000000000000000000000",
+  "admin": "0x4E79e5BB88f0596446c615B86D3780A11DB1a2f4",
+  "deployedAt": "2026-11-21T00:18:22.813Z",
+  "deployTx": "0x7f2596ae7be10a6130d6be6b1edbbb76d4ab59eae3016a7835c5b29289e7c5d7",
+  "gitCommit": "0cb1620e8d2444ccc6f36f246485207a6e01fc5f"
+}

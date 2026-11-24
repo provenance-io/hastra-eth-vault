@@ -1,0 +1,34 @@
+{
+  "network": "base",
+  "chainId": "8453",
+  "deployedAt": "2026-11-24T20:53:30.211Z",
+  "contracts": {
+    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "yieldVault": "0x85ADB3Fdc2b052Cd178089DF87B79FBfdafe3cf4",
+    "yieldVaultImplementation": "0x244870bD1BD57853965917c9b3E1143E7dB8839c",
+    "stakingVault": "0x91cea5EE73eEd4fa2bEde28C1f86128D725e523c",
+    "stakingVaultImplementation": "0x8F602ab04c7d33E8c6a820692E5dBB3257cbd175",
+    "navOracle": "0xbC6023cb49F8E8cA6cef563d5FD97ba4C6A5D937",
+    "navFeedId": "0x0007c8ed155d952e003b1e15ce7666fea785cfbe216577d578fce3920e997271"
+  },
+  "transactions": {
+    "usdc": "existing",
+    "yieldVault": "0x9f12f8aa12c33c39d03555e60af8da2f8fcbd10b5468b8ce88c058706c77f483",
+    "stakingVault": "0xefa9b9f515ab4bcdbcfcc96dc88040dc573f77f14cef311daa9c8d6aa322ca02"
+  },
+  "roles": {
+    "admin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "redeemVault": "0xA8C3CF6183D49d5D372f8FC149BD2cb5CFC0faCd",
+    "freezeAdmin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "rewardsAdmin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "whitelistAdmin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "withdrawalAdmin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "navOracleUpdater": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "epochAdmin": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3",
+    "redeemOperator": "0x5f134E02dbDd7514E0E166f8D55BB2E6D06659b3"
+  },
+  "yieldVaultV2": {
+    "version": 2,
+    "maxEpochCap": "1000000000000"
+  }
+}
