@@ -1,0 +1,9 @@
+{
+  "network": "base",
+  "chainId": "8453",
+  "proxy": "0x3a5a9F459Fe22e7F966B0088E655baa50610c849",
+  "oldImpl": "0xE661366764d23B3dC52385E63c712Ba89AF5Bc10",
+  "newImpl": "0x997E2Efbce91D170B00EA402e35a66C887EE1da9",
+  "upgradedAt": "2026-11-24T23:52:11.455Z",
+  "tokenSymbol": "SMB"
+}
